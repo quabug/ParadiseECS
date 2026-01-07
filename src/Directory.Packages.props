@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup>
+    <!-- Testing (TUnit with Native AOT support) -->
+    <PackageVersion Include="TUnit" Version="1.9.2" />
+  </ItemGroup>
+</Project>
