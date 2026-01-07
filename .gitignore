@@ -1,0 +1,60 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Pp]ublish/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.sln.docstates
+
+# Rider
+*.sln.iml
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Native libraries (downloaded at build time)
+libs/*.dll
+libs/*.dylib
+libs/*.so
+
+# Slang compiler tools (downloaded separately)
+tools/
+
+# Compiled/generated shaders (generated from .slang)
+assets/shaders/*.spv
+assets/shaders/*.spirv
+assets/shaders/*.wgsl
+
+# Debug symbols
+*.pdb
+*.dSYM/
+
+# AOT specific
+*.ilk
+*.exp
+
+# Test results and coverage
+TestResults/
+coverage/
+
+*.binlog

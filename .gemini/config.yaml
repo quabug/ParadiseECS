@@ -1,0 +1,41 @@
+# Gemini Code Assist Configuration
+# https://developers.google.com/gemini-code-assist/docs/customize-gemini-behavior-github
+
+# Enable fun features like poems in PR summaries
+have_fun: true
+
+# Files and patterns to ignore during Gemini interactions
+ignore_patterns:
+  - "**/obj/**"
+  - "**/bin/**"
+  - "**/.vs/**"
+  - "**/.idea/**"
+  - "**/.git/**"
+  - "**/node_modules/**"
+  - "**/TestResults/**"
+  - "**/coverage/**"
+
+# Code review configuration
+code_review:
+  # Set to true to disable Gemini code reviews on PRs
+  disable: false
+
+  # Minimum severity for comments (LOW, MEDIUM, HIGH, CRITICAL)
+  comment_severity_threshold: MEDIUM
+
+  # Maximum number of review comments (-1 for unlimited)
+  max_review_comments: -1
+
+  # Configure when Gemini should act on pull requests
+  pull_request_opened:
+    # Show help message
+    help: false
+
+    # Generate PR summary
+    summary: false
+
+    # Perform code review
+    code_review: true
+
+    # Include draft PRs
+    include_drafts: false

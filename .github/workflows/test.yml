@@ -1,0 +1,128 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '*.sln'
+      - '.editorconfig'
+      - '.github/workflows/test.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '*.sln'
+      - '.editorconfig'
+      - '.github/workflows/test.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Run tests with coverage
+        run: |
+          for proj in src/*.Test/*.csproj; do
+            proj_name=$(basename "$proj" .csproj)
+            dotnet run --project "$proj" -p:PublishAot=false -- \
+              --coverage \
+              --coverage-output-format cobertura \
+              --coverage-output "coverage.cobertura.xml" \
+              --results-directory "TestResults/${proj_name}"
+          done
+
+      - name: List generated coverage files
+        run: |
+          echo "Searching for coverage files..."
+          find TestResults -name "*.cobertura.xml" -type f
+          echo ""
+          echo "File count:"
+          find TestResults -name "*.cobertura.xml" -type f | wc -l
+
+      - name: Install ReportGenerator
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool
+
+      - name: Generate coverage report
+        run: |
+          # Collect all coverage files into a semicolon-separated list
+          coverage_files=$(find TestResults -name "coverage.cobertura.xml" -type f | tr '\n' ';' | sed 's/;$//')
+
+          if [ -z "$coverage_files" ]; then
+            echo "ERROR: No coverage files found!"
+            exit 1
+          fi
+
+          echo "Coverage files: $coverage_files"
+
+          reportgenerator \
+            -reports:"$coverage_files" \
+            -targetdir:"./coverage/report" \
+            -reporttypes:"Html;Cobertura;MarkdownSummaryGithub" \
+            -verbosity:Info
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ./coverage/report
+
+      - name: Add coverage summary to PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: ./coverage/report/SummaryGithub.md
+
+  test-aot:
+    if: github.event_name == 'push'
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Publish and run AOT tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          for proj in src/*.Test/*.csproj; do
+            name=$(basename "$proj" .csproj)
+            dotnet publish "$proj" -c Release -r ${{ matrix.rid }}
+            ./src/$name/bin/Release/net10.0/${{ matrix.rid }}/publish/$name
+          done
+
+      - name: Publish and run AOT tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($proj in Get-ChildItem -Path src/*.Test/*.csproj) {
+            $name = $proj.BaseName
+            dotnet publish $proj.FullName -c Release -r ${{ matrix.rid }}
+            & "./src/$name/bin/Release/net10.0/${{ matrix.rid }}/publish/$name.exe"
+          }
