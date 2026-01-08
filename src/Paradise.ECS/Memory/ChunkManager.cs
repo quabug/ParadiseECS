@@ -7,12 +7,13 @@ namespace Paradise.ECS;
 /// <summary>
 /// Thread-safe manager for Chunk memory allocations.
 /// Owns native memory and issues safe handles with version-based stale detection.
-/// Uses lock-free CAS operations for thread safety.
+/// Uses fully lock-free CAS operations for thread safety.
 ///
 /// Memory layout:
-/// - MetaBlocks: Native memory blocks storing ChunkMeta entries (pointer, versionAndShareCount)
+/// - MetaBlocks: Fixed-size array of pointers to native memory blocks storing ChunkMeta entries
 /// - Each MetaBlock can hold 1024 entries (16KB / 16 bytes per entry)
-/// - Growing simply adds a new MetaBlock (no array resize needed)
+/// - Meta blocks are lazily allocated on-demand using CAS
+/// - Maximum capacity: MaxMetaBlocks * EntriesPerMetaBlock (~1M chunks)
 /// </summary>
 internal sealed unsafe class ChunkManager : IDisposable
 {
@@ -41,12 +42,13 @@ internal sealed unsafe class ChunkManager : IDisposable
     private const int EntriesPerMetaBlock = Chunk.ChunkSize / MetaSize; // 1024
     private const int EntriesPerMetaBlockShift = 10; // log2(1024)
     private const int EntriesPerMetaBlockMask = EntriesPerMetaBlock - 1; // 0x3FF
+    private const int MaxMetaBlocks = 1024; // ~1M chunks max capacity (16GB)
+    private const nint AllocatingMarker = -1; // Sentinel to indicate allocation in progress
 
     private readonly IAllocator _allocator;
-    private readonly Lock _lock = new(); // Only used for Grow()
-    private readonly List<nint> _metaBlocks = new();
+    private readonly nint[] _metaBlocks = new nint[MaxMetaBlocks];
     private readonly ConcurrentStack<int> _freeSlots = new();
-    private int _capacity;
+    private int _nextSlotId = 0; // Next fresh slot ID to allocate (atomic)
     private int _disposed; // 0 = not disposed, 1 = disposed
 
     /// <summary>
@@ -62,25 +64,21 @@ internal sealed unsafe class ChunkManager : IDisposable
     /// Creates a new ChunkManager with a custom allocator.
     /// </summary>
     /// <param name="allocator">The allocator to use for memory operations.</param>
-    /// <param name="initialCapacity">Initial number of chunk slots to allocate.</param>
+    /// <param name="initialCapacity">Initial number of chunk slots to pre-allocate meta blocks for.</param>
     public ChunkManager(IAllocator allocator, int initialCapacity = 256)
     {
         _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
 
-        // Round up to nearest meta block boundary
+        // Pre-allocate meta blocks for initial capacity (optional optimization)
         int metaBlocksNeeded = (initialCapacity + EntriesPerMetaBlock - 1) / EntriesPerMetaBlock;
         if (metaBlocksNeeded < 1) metaBlocksNeeded = 1;
 
         for (int i = 0; i < metaBlocksNeeded; i++)
         {
-            _metaBlocks.Add((nint)_allocator.AllocateZeroed(Chunk.ChunkSize));
+            _metaBlocks[i] = (nint)_allocator.AllocateZeroed(Chunk.ChunkSize);
         }
 
-        _capacity = metaBlocksNeeded * EntriesPerMetaBlock;
-
-        // Push all slots to free stack (in reverse for LIFO behavior)
-        for (int i = _capacity - 1; i >= 0; i--)
-            _freeSlots.Push(i);
+        // _nextSlotId starts at 0 - slots are allocated on-demand
     }
 
     /// <summary>
@@ -108,20 +106,24 @@ internal sealed unsafe class ChunkManager : IDisposable
 
     /// <summary>
     /// Allocates a new Chunk and returns a handle to it.
+    /// Uses fully lock-free operations.
     /// </summary>
     public ChunkHandle Allocate()
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
-        if (!_freeSlots.TryPop(out int id))
+        int id;
+        if (!_freeSlots.TryPop(out id))
         {
-            using var _ = _lock.EnterScope();
-            // Double-check after acquiring lock
-            if (!_freeSlots.TryPop(out id))
-            {
-                Grow();
-                _freeSlots.TryPop(out id);
-            }
+            // No free slot available, allocate a new one
+            id = Interlocked.Increment(ref _nextSlotId) - 1;
+
+            int blockIndex = id >> EntriesPerMetaBlockShift;
+            if (blockIndex >= MaxMetaBlocks)
+                ThrowCapacityExceeded();
+
+            // Ensure the meta block is allocated (lock-free)
+            EnsureBlockAllocated(blockIndex);
         }
 
         ref var meta = ref GetMeta(id);
@@ -130,8 +132,30 @@ internal sealed unsafe class ChunkManager : IDisposable
         if (meta.Pointer == 0)
             meta.Pointer = (ulong)_allocator.AllocateZeroed(Chunk.ChunkSize);
 
-        // Direct field access is safe here - slot is exclusively ours after TryPop
+        // Direct field access is safe here - slot is exclusively ours
         return new ChunkHandle(id, meta.Version);
+    }
+
+    /// <summary>
+    /// Ensures the meta block at the given index is allocated.
+    /// Uses CAS with a sentinel marker to claim the slot before allocating.
+    /// </summary>
+    private void EnsureBlockAllocated(int blockIndex)
+    {
+        ref var slot = ref _metaBlocks[blockIndex];
+
+        while (Volatile.Read(ref slot) <= 0)
+        {
+            var prev = Interlocked.CompareExchange(ref slot, AllocatingMarker, 0);
+            if (prev == 0)
+            {
+                Volatile.Write(ref slot, (nint)_allocator.AllocateZeroed(Chunk.ChunkSize));
+                return;
+            }
+            if (prev > 0)
+                return; // Another thread finished allocation
+            Thread.SpinWait(1); // prev == AllocatingMarker, wait
+        }
     }
 
     /// <summary>
@@ -143,7 +167,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     {
         if (!handle.IsValid || _disposed != 0) return;
 
-        if (handle.Id >= _capacity)
+        if (handle.Id >= Volatile.Read(ref _nextSlotId))
             return;
 
         ref var meta = ref GetMeta(handle.Id);
@@ -187,7 +211,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Chunk Get(ChunkHandle handle)
     {
-        if (!handle.IsValid || (uint)handle.Id >= (uint)_capacity)
+        if (!handle.IsValid || (uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
             return default;
 
         ref var meta = ref GetMeta(handle.Id);
@@ -217,7 +241,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Release(int id)
     {
-        if ((uint)id >= (uint)_capacity)
+        if ((uint)id >= (uint)Volatile.Read(ref _nextSlotId))
             return;
 
         ref var meta = ref GetMeta(id);
@@ -237,35 +261,27 @@ internal sealed unsafe class ChunkManager : IDisposable
         }
     }
 
-    private void Grow()
-    {
-        // Simply add a new meta block - no array resize needed!
-        _metaBlocks.Add((nint)_allocator.AllocateZeroed(Chunk.ChunkSize));
-
-        int oldCapacity = _capacity;
-        _capacity += EntriesPerMetaBlock;
-
-        // Push new slots to free stack
-        for (int i = _capacity - 1; i >= oldCapacity; i--)
-        {
-            _freeSlots.Push(i);
-        }
-    }
-
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowChunkInUse(ChunkHandle handle)
         => throw new InvalidOperationException($"Cannot free chunk while borrowed: {handle}");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowCapacityExceeded()
+        => throw new InvalidOperationException($"ChunkManager capacity exceeded (max {MaxMetaBlocks * EntriesPerMetaBlock} chunks)");
 
     public void Dispose()
     {
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
 
-        // Free all data chunks
-        // Note: _capacity is always a multiple of EntriesPerMetaBlock
-        for (int blockIndex = 0; blockIndex < _metaBlocks.Count; blockIndex++)
+        // Free all data chunks and meta blocks
+        for (int blockIndex = 0; blockIndex < MaxMetaBlocks; blockIndex++)
         {
-            var metaBlock = (ChunkMeta*)_metaBlocks[blockIndex];
+            var metaBlockPtr = _metaBlocks[blockIndex];
+            if (metaBlockPtr == 0)
+                continue;
+
+            var metaBlock = (ChunkMeta*)metaBlockPtr;
             for (int i = 0; i < EntriesPerMetaBlock; i++)
             {
                 if (metaBlock[i].Pointer != 0)
@@ -273,15 +289,11 @@ internal sealed unsafe class ChunkManager : IDisposable
                     _allocator.Free((void*)metaBlock[i].Pointer);
                 }
             }
+
+            _allocator.Free((void*)metaBlockPtr);
+            _metaBlocks[blockIndex] = 0;
         }
 
-        // Free all meta blocks
-        foreach (var metaBlock in _metaBlocks)
-        {
-            _allocator.Free((void*)metaBlock);
-        }
-
-        _metaBlocks.Clear();
-        _capacity = 0;
+        _nextSlotId = 0;
     }
 }
