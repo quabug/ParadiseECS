@@ -5,8 +5,8 @@ namespace Paradise.ECS;
 /// Prevents direct unsafe usage of Chunk pointers/structs.
 /// </summary>
 /// <param name="Id">The index of the chunk in the ChunkManager.</param>
-/// <param name="Version">Incrementing version for stale handle detection.</param>
-internal readonly record struct ChunkHandle(int Id, int Version)
+/// <param name="Version">Incrementing version for stale handle detection (wraps on overflow).</param>
+internal readonly record struct ChunkHandle(int Id, uint Version)
 {
     /// <summary>
     /// The Invalid handle.

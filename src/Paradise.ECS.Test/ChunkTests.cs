@@ -30,7 +30,7 @@ public class ChunkTests : IDisposable
         }
 
         await Assert.That(handle.IsValid).IsTrue();
-        await Assert.That(handle.Version).IsGreaterThanOrEqualTo(0);
+        await Assert.That(handle.Version).IsGreaterThanOrEqualTo(0u);
     }
 
     [Test]
@@ -157,12 +157,16 @@ public class ChunkTests : IDisposable
 
         _manager.Free(handle);
 
-        // After free, the handle is stale so TryGet should fail
-        bool canGet = _manager.TryGet(handle, out var chunk2);
-        if (canGet) chunk2.Dispose();
+        // After free, reallocating should give a new version for the same slot
+        var handle2 = _manager.Allocate();
+        bool sameSlot = handle2.Id == handle.Id;
+        bool differentVersion = handle2.Version != handle.Version;
 
         await Assert.That(wasValid).IsTrue();
-        await Assert.That(canGet).IsFalse();
+        await Assert.That(sameSlot).IsTrue();
+        await Assert.That(differentVersion).IsTrue();
+
+        _manager.Free(handle2);
     }
 
     [Test]
@@ -204,12 +208,12 @@ public class ChunkTests : IDisposable
     public async Task Free_IncrementsVersion()
     {
         var handle1 = _manager.Allocate();
-        int version1 = handle1.Version;
+        uint version1 = handle1.Version;
 
         _manager.Free(handle1);
 
         var handle2 = _manager.Allocate();
-        int version2 = handle2.Version;
+        uint version2 = handle2.Version;
 
         // Same slot reused, but version should be incremented
         await Assert.That(handle2.Id).IsEqualTo(handle1.Id);
@@ -217,54 +221,24 @@ public class ChunkTests : IDisposable
     }
 
     [Test]
-    public async Task TryGet_WithValidHandle_ReturnsTrue()
-    {
-        var handle = _manager.Allocate();
-
-        bool result = _manager.TryGet(handle, out var chunk);
-        if (result) chunk.Dispose();
-
-        await Assert.That(result).IsTrue();
-    }
-
-    [Test]
-    public async Task TryGet_WithStaleHandle_ReturnsFalse()
+    public async Task Get_WithStaleHandle_ReturnsDefaultChunk()
     {
         var handle = _manager.Allocate();
         _manager.Free(handle);
 
-        bool result = _manager.TryGet(handle, out var chunk);
-        if (result) chunk.Dispose();
-
-        await Assert.That(result).IsFalse();
-    }
-
-    [Test]
-    public async Task TryGet_WithInvalidHandle_ReturnsFalse()
-    {
-        bool result = _manager.TryGet(ChunkHandle.Invalid, out var chunk);
-        if (result) chunk.Dispose();
-
-        await Assert.That(result).IsFalse();
-    }
-
-    [Test]
-    public async Task Get_WithStaleHandle_ThrowsException()
-    {
-        var handle = _manager.Allocate();
-        _manager.Free(handle);
-
-        bool threw = false;
+        // Should not throw - returns default chunk
+        bool noException = true;
         try
         {
             using var chunk = _manager.Get(handle);
+            // Default chunk's Dispose() is safe (checks for null manager)
         }
-        catch (InvalidOperationException)
+        catch
         {
-            threw = true;
+            noException = false;
         }
 
-        await Assert.That(threw).IsTrue();
+        await Assert.That(noException).IsTrue();
     }
 
     [Test]

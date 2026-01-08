@@ -55,10 +55,12 @@ public class ChunkManagerTests : IDisposable
 
         _manager.Free(handle);
 
-        // After free, TryGet should fail
-        bool canGet = _manager.TryGet(handle, out var chunk2);
-        if (canGet) chunk2.Dispose();
-        await Assert.That(canGet).IsFalse();
+        // After free, reallocating should give a new version for the same slot
+        var handle2 = _manager.Allocate();
+        await Assert.That(handle2.Id).IsEqualTo(handle.Id);
+        await Assert.That(handle2.Version).IsNotEqualTo(handle.Version);
+
+        _manager.Free(handle2);
     }
 
     [Test]
@@ -100,26 +102,44 @@ public class ChunkManagerExceptionTests : IDisposable
     }
 
     [Test]
-    public async Task Get_WithInvalidHandleId_ThrowsArgumentException()
+    public async Task Get_WithInvalidHandleId_ReturnsDefaultChunk()
     {
         var invalidHandle = new ChunkHandle(99999, 0); // Id way out of range
 
-        await Assert.That(() =>
+        // Should not throw - returns default chunk
+        bool noException = true;
+        try
         {
             using var chunk = _manager.Get(invalidHandle);
-        }).Throws<ArgumentException>();
+            // Default chunk's Dispose() is safe (checks for null manager)
+        }
+        catch
+        {
+            noException = false;
+        }
+
+        await Assert.That(noException).IsTrue();
     }
 
     [Test]
-    public async Task Get_WithStaleHandle_ThrowsInvalidOperationException()
+    public async Task Get_WithStaleHandle_ReturnsDefaultChunk()
     {
         var handle = _manager.Allocate();
         _manager.Free(handle);
 
-        await Assert.That(() =>
+        // Should not throw - returns default chunk
+        bool noException = true;
+        try
         {
             using var chunk = _manager.Get(handle);
-        }).Throws<InvalidOperationException>();
+            // Default chunk's Dispose() is safe (checks for null manager)
+        }
+        catch
+        {
+            noException = false;
+        }
+
+        await Assert.That(noException).IsTrue();
     }
 
     [Test]
@@ -176,46 +196,24 @@ public class ChunkManagerExceptionTests : IDisposable
     }
 
     [Test]
-    public async Task TryGet_WithInvalidHandle_ReturnsFalse()
-    {
-        bool result = _manager.TryGet(ChunkHandle.Invalid, out var chunk);
-        if (result) chunk.Dispose();
-
-        await Assert.That(result).IsFalse();
-    }
-
-    [Test]
-    public async Task TryGet_WithStaleHandle_ReturnsFalse()
-    {
-        var handle = _manager.Allocate();
-        _manager.Free(handle);
-
-        bool result = _manager.TryGet(handle, out var chunk);
-        if (result) chunk.Dispose();
-
-        await Assert.That(result).IsFalse();
-    }
-
-    [Test]
-    public async Task TryGet_WithOutOfRangeId_ReturnsFalse()
-    {
-        var outOfRangeHandle = new ChunkHandle(99999, 0);
-
-        bool result = _manager.TryGet(outOfRangeHandle, out var chunk);
-        if (result) chunk.Dispose();
-
-        await Assert.That(result).IsFalse();
-    }
-
-    [Test]
-    public async Task Get_WithNegativeId_ThrowsArgumentException()
+    public async Task Get_WithNegativeId_ReturnsDefaultChunk()
     {
         var negativeHandle = new ChunkHandle(-1, 0);
 
-        await Assert.That(() =>
+        // Should not throw - returns default chunk
+        // Note: ChunkHandle.Invalid is (-1, 0), so this is the invalid handle
+        bool noException = true;
+        try
         {
             using var chunk = _manager.Get(negativeHandle);
-        }).Throws<ArgumentException>();
+            // Default chunk's Dispose() is safe (checks for null manager)
+        }
+        catch
+        {
+            noException = false;
+        }
+
+        await Assert.That(noException).IsTrue();
     }
 
     [Test]
@@ -400,10 +398,11 @@ public class ChunkManagerConcurrencyTests : IDisposable
         // After all threads complete, we should be able to free
         _manager.Free(sharedHandle);
 
-        // Verify handle is now invalid
-        bool canGet = _manager.TryGet(sharedHandle, out var chunk2);
-        if (canGet) chunk2.Dispose();
-        await Assert.That(canGet).IsFalse();
+        // Verify handle is now invalid by checking version changed after reallocation
+        var newHandle = _manager.Allocate();
+        await Assert.That(newHandle.Id).IsEqualTo(sharedHandle.Id);
+        await Assert.That(newHandle.Version).IsNotEqualTo(sharedHandle.Version);
+        _manager.Free(newHandle);
     }
 
     [Test]

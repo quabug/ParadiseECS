@@ -62,7 +62,9 @@ internal static class ThrowHelper
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(count);
-        ThrowIfGreaterThan(byteOffset + count * elementSize, Chunk.ChunkSize);
+        // Validate count against max possible elements to prevent overflow in multiplication
+        int maxCount = (Chunk.ChunkSize - byteOffset) / elementSize;
+        ThrowIfGreaterThan(count, maxCount);
     }
 
     /// <summary>

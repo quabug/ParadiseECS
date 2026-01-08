@@ -7,9 +7,10 @@ namespace Paradise.ECS;
 /// <summary>
 /// Thread-safe manager for Chunk memory allocations.
 /// Owns native memory and issues safe handles with version-based stale detection.
+/// Uses lock-free CAS operations for thread safety.
 ///
 /// Memory layout:
-/// - MetaBlocks: Native memory blocks storing ChunkMeta entries (pointer, version, shareCount)
+/// - MetaBlocks: Native memory blocks storing ChunkMeta entries (pointer, versionAndShareCount)
 /// - Each MetaBlock can hold 1024 entries (16KB / 16 bytes per entry)
 /// - Growing simply adds a new MetaBlock (no array resize needed)
 /// </summary>
@@ -17,22 +18,32 @@ internal sealed unsafe class ChunkManager : IDisposable
 {
     /// <summary>
     /// Metadata for a single chunk slot.
+    /// Uses explicit layout to create a union: Version and ShareCount can be accessed
+    /// individually or as a combined 64-bit value (VersionAndShareCount) for atomic CAS operations.
     /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    private ref struct ChunkMeta
+    [StructLayout(LayoutKind.Explicit)]
+    private struct ChunkMeta
     {
-        public ulong Pointer;   // 8 bytes - pointer to data chunk memory
-        public int Version;     // 4 bytes - version for stale handle detection
-        public int ShareCount;  // 4 bytes - borrow count
+        [FieldOffset(0)]
+        public ulong Pointer;              // 8 bytes - pointer to data chunk memory
+
+        [FieldOffset(8)]
+        public ulong VersionAndShareCount; // 8 bytes - for atomic CAS operations
+
+        [FieldOffset(8)]
+        public uint ShareCount;            // 4 bytes - overlaps low 32 bits of VersionAndShareCount
+
+        [FieldOffset(12)]
+        public uint Version;               // 4 bytes - overlaps high 32 bits of VersionAndShareCount
     }
 
-    private const int MetaSize = 16; // sizeof(ChunkMeta): 8 + 4 + 4
+    private const int MetaSize = 16; // sizeof(ChunkMeta): 8 + 8
     private const int EntriesPerMetaBlock = Chunk.ChunkSize / MetaSize; // 1024
     private const int EntriesPerMetaBlockShift = 10; // log2(1024)
     private const int EntriesPerMetaBlockMask = EntriesPerMetaBlock - 1; // 0x3FF
 
     private readonly IAllocator _allocator;
-    private readonly Lock _lock = new();
+    private readonly Lock _lock = new(); // Only used for Grow()
     private readonly List<nint> _metaBlocks = new();
     private readonly ConcurrentStack<int> _freeSlots = new();
     private int _capacity;
@@ -78,6 +89,13 @@ internal sealed unsafe class ChunkManager : IDisposable
     public IAllocator Allocator => _allocator;
 
     /// <summary>
+    /// Packs version and shareCount into a single 64-bit value for CAS operations.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ulong Pack(uint version, uint shareCount)
+        => ((ulong)version << 32) | shareCount;
+
+    /// <summary>
     /// Gets a reference to the metadata for a given slot id.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -112,12 +130,14 @@ internal sealed unsafe class ChunkManager : IDisposable
         if (meta.Pointer == 0)
             meta.Pointer = (ulong)_allocator.AllocateZeroed(Chunk.ChunkSize);
 
+        // Direct field access is safe here - slot is exclusively ours after TryPop
         return new ChunkHandle(id, meta.Version);
     }
 
     /// <summary>
     /// Frees the chunk associated with the handle.
     /// Throws if the chunk is currently borrowed.
+    /// Uses lock-free CAS to atomically check ShareCount and increment Version.
     /// </summary>
     public void Free(ChunkHandle handle)
     {
@@ -128,18 +148,30 @@ internal sealed unsafe class ChunkManager : IDisposable
 
         ref var meta = ref GetMeta(handle.Id);
 
-        // Check if chunk is borrowed
-        if (Volatile.Read(ref meta.ShareCount) > 0)
-            ThrowChunkInUse(handle);
+        // Lock-free CAS loop to atomically check and update version+shareCount
+        while (true)
+        {
+            ulong current = Volatile.Read(ref meta.VersionAndShareCount);
+            uint version = (uint)(current >> 32);
+            uint shareCount = (uint)current;
 
-        // Increment version for next allocation
-        int newVersion = handle.Version + 1;
+            // Check version - if stale, nothing to do
+            if (version != handle.Version)
+                return; // Already freed or stale handle
 
-        // Atomically check and update version
-        if (Interlocked.CompareExchange(ref meta.Version, newVersion, handle.Version) != handle.Version)
-            return; // Already freed or stale handle
+            // Check if chunk is borrowed
+            if (shareCount != 0)
+                ThrowChunkInUse(handle);
 
-        // Clear memory for security/correctness
+            // Atomically increment version (wraps on overflow) and set shareCount to 0
+            ulong next = Pack(version + 1, 0);
+            if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
+                break; // Success
+
+            // CAS failed - another thread modified it, retry
+        }
+
+        // Safe to clear memory - version already bumped, no one can Get() with old handle
         if (meta.Pointer != 0)
             _allocator.Clear((void*)meta.Pointer, Chunk.ChunkSize);
 
@@ -149,54 +181,59 @@ internal sealed unsafe class ChunkManager : IDisposable
     /// <summary>
     /// Gets a Chunk view for the given handle. The chunk borrows the memory
     /// and must be disposed when done to allow freeing.
+    /// Returns an invalid (default) chunk if the handle is invalid or stale.
+    /// Uses lock-free CAS to atomically check version and increment ShareCount.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Chunk Get(ChunkHandle handle)
     {
-        if ((uint)handle.Id >= (uint)_capacity)
-            ThrowInvalidHandle(handle);
+        if (!handle.IsValid || (uint)handle.Id >= (uint)_capacity)
+            return default;
 
         ref var meta = ref GetMeta(handle.Id);
 
-        if (Volatile.Read(ref meta.Version) != handle.Version)
-            ThrowStaleHandle(handle);
-
-        Interlocked.Increment(ref meta.ShareCount);
-        return new Chunk(this, handle.Id, (void*)meta.Pointer);
-    }
-
-    /// <summary>
-    /// Tries to get a Chunk view for the given handle. The chunk borrows the memory
-    /// and must be disposed when done to allow freeing.
-    /// </summary>
-    public bool TryGet(ChunkHandle handle, out Chunk chunk)
-    {
-        if (handle.IsValid && (uint)handle.Id < (uint)_capacity)
+        // Lock-free CAS loop to atomically check version and increment shareCount
+        while (true)
         {
-            ref var meta = ref GetMeta(handle.Id);
+            ulong current = Volatile.Read(ref meta.VersionAndShareCount);
+            uint version = (uint)(current >> 32);
+            uint shareCount = (uint)current;
 
-            if (Volatile.Read(ref meta.Version) == handle.Version)
-            {
-                Interlocked.Increment(ref meta.ShareCount);
-                chunk = new Chunk(this, handle.Id, (void*)meta.Pointer);
-                return true;
-            }
+            if (version != handle.Version)
+                return default; // Stale handle
+
+            ulong next = Pack(version, shareCount + 1);
+            if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
+                return new Chunk(this, handle.Id, (void*)meta.Pointer);
+
+            // CAS failed - retry
         }
-
-        chunk = default;
-        return false;
     }
 
     /// <summary>
     /// Releases the borrow on a chunk. Called by Chunk.Dispose().
+    /// Uses lock-free CAS to atomically decrement ShareCount.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Release(int id)
     {
-        if ((uint)id < (uint)_capacity)
+        if ((uint)id >= (uint)_capacity)
+            return;
+
+        ref var meta = ref GetMeta(id);
+
+        // Lock-free CAS loop to atomically decrement shareCount
+        while (true)
         {
-            ref var meta = ref GetMeta(id);
-            Interlocked.Decrement(ref meta.ShareCount);
+            ulong current = Volatile.Read(ref meta.VersionAndShareCount);
+            uint version = (uint)(current >> 32);
+            uint shareCount = (uint)current;
+
+            ulong next = Pack(version, shareCount - 1);
+            if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
+                return;
+
+            // CAS failed - retry
         }
     }
 
@@ -214,14 +251,6 @@ internal sealed unsafe class ChunkManager : IDisposable
             _freeSlots.Push(i);
         }
     }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowInvalidHandle(ChunkHandle handle)
-        => throw new ArgumentException($"Invalid ChunkHandle: {handle}");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowStaleHandle(ChunkHandle handle)
-        => throw new InvalidOperationException($"Stale ChunkHandle usage: {handle}");
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowChunkInUse(ChunkHandle handle)

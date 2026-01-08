@@ -80,7 +80,7 @@ namespace System.Runtime.InteropServices
         public static void* AllocZeroed(nuint byteCount)
         {
             var ptr = Alloc(byteCount);
-            new Span<byte>(ptr, (int)byteCount).Clear();
+            Clear(ptr, byteCount);
             return ptr;
         }
 
@@ -88,9 +88,23 @@ namespace System.Runtime.InteropServices
         public static void Free(void* ptr)
             => Marshal.FreeHGlobal((nint)ptr);
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>
+        /// Clears memory at the specified pointer.
+        /// Handles large allocations (>2GB) by clearing in chunks.
+        /// </summary>
         public static void Clear(void* ptr, nuint byteCount)
-            => new Span<byte>(ptr, (int)byteCount).Clear();
+        {
+            const int maxChunkSize = int.MaxValue;
+            var bytePtr = (byte*)ptr;
+
+            while (byteCount > 0)
+            {
+                int chunkSize = byteCount > (nuint)maxChunkSize ? maxChunkSize : (int)byteCount;
+                new Span<byte>(bytePtr, chunkSize).Clear();
+                bytePtr += chunkSize;
+                byteCount -= (nuint)chunkSize;
+            }
+        }
     }
 }
 

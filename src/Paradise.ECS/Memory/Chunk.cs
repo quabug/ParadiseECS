@@ -30,6 +30,8 @@ internal readonly unsafe ref struct Chunk : IDisposable
         _memory = memory;
     }
 
+    public bool IsValid => _memory != null && _manager != null;
+
     /// <summary>
     /// Releases the borrow on the chunk memory.
     /// </summary>
@@ -81,69 +83,4 @@ internal readonly unsafe ref struct Chunk : IDisposable
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<byte> GetRawBytes() => new(_memory, ChunkSize);
-
-    /// <summary>
-    /// Converts to a read-only view.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlyChunk AsReadOnly() => new(_memory);
-
-    public static implicit operator ReadOnlyChunk(Chunk chunk) => chunk.AsReadOnly();
-}
-
-/// <summary>
-/// A read-only view over a 16KB memory block.
-/// Use this for systems that only need to read data.
-/// </summary>
-internal readonly unsafe ref struct ReadOnlyChunk
-{
-    private readonly void* _memory;
-
-    internal ReadOnlyChunk(void* memory)
-    {
-        ThrowHelper.ThrowIfNull(memory);
-        _memory = memory;
-    }
-
-    /// <summary>
-    /// Gets a read-only span over data at the specified byte offset.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlySpan<T> GetSpan<T>(int byteOffset, int count) where T : unmanaged
-    {
-        ThrowHelper.ValidateChunkRange(byteOffset, count, sizeof(T));
-        return new((byte*)_memory + byteOffset, count);
-    }
-
-    /// <summary>
-    /// Gets the raw bytes of the entire data area.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlySpan<byte> GetDataBytes() => new(_memory, Chunk.ChunkSize);
-
-    /// <summary>
-    /// Gets the raw bytes of the data area up to a specified size.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlySpan<byte> GetDataBytes(int size)
-    {
-        ThrowHelper.ValidateChunkSize(size);
-        return new(_memory, size);
-    }
-
-    /// <summary>
-    /// Gets raw bytes at a specific offset.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlySpan<byte> GetBytesAt(int byteOffset, int size)
-    {
-        ThrowHelper.ValidateChunkRange(byteOffset, size);
-        return new((byte*)_memory + byteOffset, size);
-    }
-
-    /// <summary>
-    /// Gets the entire chunk memory as raw bytes.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ReadOnlySpan<byte> GetRawBytes() => new(_memory, Chunk.ChunkSize);
 }
