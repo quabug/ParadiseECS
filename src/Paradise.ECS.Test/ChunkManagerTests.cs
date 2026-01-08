@@ -104,17 +104,10 @@ public class ChunkManagerExceptionTests : IDisposable
     {
         var invalidHandle = new ChunkHandle(99999, 0); // Id way out of range
 
-        bool threw = false;
-        try
+        await Assert.That(() =>
         {
             using var chunk = _manager.Get(invalidHandle);
-        }
-        catch (ArgumentException)
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsTrue();
+        }).Throws<ArgumentException>();
     }
 
     [Test]
@@ -123,10 +116,32 @@ public class ChunkManagerExceptionTests : IDisposable
         var handle = _manager.Allocate();
         _manager.Free(handle);
 
+        await Assert.That(() =>
+        {
+            using var chunk = _manager.Get(handle);
+        }).Throws<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task Allocate_AfterDispose_ThrowsObjectDisposedException()
+    {
+        var manager = new ChunkManager(initialCapacity: 4);
+        manager.Dispose();
+
+        await Assert.That(manager.Allocate).Throws<ObjectDisposedException>();
+    }
+
+    [Test]
+    public async Task Free_WhileBorrowed_ThrowsInvalidOperationException()
+    {
+        var handle = _manager.Allocate();
+        // Note: Cannot use fluent assertion here because Chunk is a ref struct
+        // that cannot be preserved across await boundaries
         bool threw = false;
         try
         {
             using var chunk = _manager.Get(handle);
+            _manager.Free(handle);
         }
         catch (InvalidOperationException)
         {
@@ -137,79 +152,17 @@ public class ChunkManagerExceptionTests : IDisposable
     }
 
     [Test]
-    public async Task Allocate_AfterDispose_ThrowsObjectDisposedException()
-    {
-        var manager = new ChunkManager(initialCapacity: 4);
-        manager.Dispose();
-
-        bool threw = false;
-        try
-        {
-            manager.Allocate();
-        }
-        catch (ObjectDisposedException)
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsTrue();
-    }
-
-    [Test]
-    public async Task Free_WhileBorrowed_ThrowsInvalidOperationException()
-    {
-        var handle = _manager.Allocate();
-        bool threw;
-        {
-            using var chunk = _manager.Get(handle);
-
-            threw = false;
-            try
-            {
-                _manager.Free(handle);
-            }
-            catch (InvalidOperationException)
-            {
-                threw = true;
-            }
-        }
-
-        await Assert.That(threw).IsTrue();
-    }
-
-    [Test]
     public async Task Free_WithInvalidHandle_DoesNotThrow()
     {
         // Free with invalid handle should be a no-op
-        bool threw = false;
-        try
-        {
-            _manager.Free(ChunkHandle.Invalid);
-        }
-        catch
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsFalse();
+        await Assert.That(() => _manager.Free(ChunkHandle.Invalid)).ThrowsNothing();
     }
 
     [Test]
     public async Task Free_WithOutOfRangeId_DoesNotThrow()
     {
         var outOfRangeHandle = new ChunkHandle(99999, 0);
-
-        bool threw = false;
-        try
-        {
-            _manager.Free(outOfRangeHandle);
-        }
-        catch
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsFalse();
+        await Assert.That(() => _manager.Free(outOfRangeHandle)).ThrowsNothing();
     }
 
     [Test]
@@ -219,17 +172,7 @@ public class ChunkManagerExceptionTests : IDisposable
         _manager.Free(handle);
 
         // Second free should be no-op (version mismatch)
-        bool threw = false;
-        try
-        {
-            _manager.Free(handle);
-        }
-        catch
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsFalse();
+        await Assert.That(() => _manager.Free(handle)).ThrowsNothing();
     }
 
     [Test]
@@ -269,17 +212,10 @@ public class ChunkManagerExceptionTests : IDisposable
     {
         var negativeHandle = new ChunkHandle(-1, 0);
 
-        bool threw = false;
-        try
+        await Assert.That(() =>
         {
             using var chunk = _manager.Get(negativeHandle);
-        }
-        catch (ArgumentException)
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsTrue();
+        }).Throws<ArgumentException>();
     }
 
     [Test]
@@ -288,19 +224,12 @@ public class ChunkManagerExceptionTests : IDisposable
         var manager = new ChunkManager(initialCapacity: 4);
         manager.Allocate(); // Allocate something
 
-        bool threw = false;
-        try
+        await Assert.That(() =>
         {
             manager.Dispose();
             manager.Dispose(); // Second dispose should be no-op
             manager.Dispose(); // Third dispose should also be no-op
-        }
-        catch
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsFalse();
+        }).ThrowsNothing();
     }
 
     [Test]
@@ -311,17 +240,7 @@ public class ChunkManagerExceptionTests : IDisposable
         manager.Dispose();
 
         // Free after dispose should be a no-op (not throw)
-        bool threw = false;
-        try
-        {
-            manager.Free(handle);
-        }
-        catch
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsFalse();
+        await Assert.That(() => manager.Free(handle)).ThrowsNothing();
     }
 }
 

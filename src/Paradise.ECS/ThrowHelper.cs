@@ -1,5 +1,11 @@
 using System.Runtime.CompilerServices;
 
+#if NETSTANDARD2_1
+using ArgumentOutOfRangeException = System.ArgumentOutOfRangeExceptionPolyfill;
+using ArgumentNullException = System.ArgumentNullExceptionPolyfill;
+using ObjectDisposedException = System.ObjectDisposedExceptionPolyfill;
+#endif
+
 namespace Paradise.ECS;
 
 /// <summary>
@@ -75,44 +81,20 @@ public static class ThrowHelper
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfDisposed(bool condition, object instance)
-    {
-#if NETSTANDARD2_1
-        ObjectDisposedExceptionPolyfill.ThrowIf(condition, instance);
-#else
-        ObjectDisposedException.ThrowIf(condition, instance);
-#endif
-    }
+        => ObjectDisposedException.ThrowIf(condition, instance);
 
     /// <summary>
     /// Throws if the pointer is null.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static unsafe void ThrowIfNull(void* ptr)
-    {
-#if NETSTANDARD2_1
-        ArgumentNullExceptionPolyfill.ThrowIfNull(ptr);
-#else
-        ArgumentNullException.ThrowIfNull(ptr);
-#endif
-    }
+        => ArgumentNullException.ThrowIfNull(ptr);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ThrowIfNegative(int value, [CallerArgumentExpression(nameof(value))] string? paramName = null)
-    {
-#if NETSTANDARD2_1
-        ArgumentOutOfRangeExceptionPolyfill.ThrowIfNegative(value, paramName);
-#else
-        ArgumentOutOfRangeException.ThrowIfNegative(value, paramName);
-#endif
-    }
+        => ArgumentOutOfRangeException.ThrowIfNegative(value, paramName);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ThrowIfGreaterThan(int value, int other, [CallerArgumentExpression(nameof(value))] string? paramName = null)
-    {
-#if NETSTANDARD2_1
-        ArgumentOutOfRangeExceptionPolyfill.ThrowIfGreaterThan(value, other, paramName);
-#else
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(value, other, paramName);
-#endif
-    }
+        => ArgumentOutOfRangeException.ThrowIfGreaterThan(value, other, paramName);
 }
