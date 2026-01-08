@@ -24,7 +24,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     /// </summary>
     internal Chunk(ChunkManager manager, int id, void* memory)
     {
-        ArgumentNullException.ThrowIfNull(memory);
+        ThrowHelper.ThrowIfNull(memory);
         _manager = manager;
         _id = id;
         _memory = memory;
@@ -46,9 +46,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> GetSpan<T>(int byteOffset, int count) where T : unmanaged
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(byteOffset);
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(byteOffset + count * sizeof(T), ChunkSize);
+        ThrowHelper.ValidateChunkRange(byteOffset, count, sizeof(T));
         return new((byte*)_memory + byteOffset, count);
     }
 
@@ -64,8 +62,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<byte> GetDataBytes(int size)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(size);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(size, ChunkSize);
+        ThrowHelper.ValidateChunkSize(size);
         return new(_memory, size);
     }
 
@@ -75,9 +72,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<byte> GetBytesAt(int byteOffset, int size)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(byteOffset);
-        ArgumentOutOfRangeException.ThrowIfNegative(size);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(byteOffset + size, ChunkSize);
+        ThrowHelper.ValidateChunkRange(byteOffset, size);
         return new((byte*)_memory + byteOffset, size);
     }
 
@@ -106,7 +101,7 @@ public readonly unsafe ref struct ReadOnlyChunk
 
     internal ReadOnlyChunk(void* memory)
     {
-        ArgumentNullException.ThrowIfNull(memory);
+        ThrowHelper.ThrowIfNull(memory);
         _memory = memory;
     }
 
@@ -116,9 +111,7 @@ public readonly unsafe ref struct ReadOnlyChunk
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadOnlySpan<T> GetSpan<T>(int byteOffset, int count) where T : unmanaged
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(byteOffset);
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(byteOffset + count * sizeof(T), Chunk.ChunkSize);
+        ThrowHelper.ValidateChunkRange(byteOffset, count, sizeof(T));
         return new((byte*)_memory + byteOffset, count);
     }
 
@@ -134,8 +127,7 @@ public readonly unsafe ref struct ReadOnlyChunk
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadOnlySpan<byte> GetDataBytes(int size)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(size);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(size, Chunk.ChunkSize);
+        ThrowHelper.ValidateChunkSize(size);
         return new(_memory, size);
     }
 
@@ -145,9 +137,7 @@ public readonly unsafe ref struct ReadOnlyChunk
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ReadOnlySpan<byte> GetBytesAt(int byteOffset, int size)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(byteOffset);
-        ArgumentOutOfRangeException.ThrowIfNegative(size);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(byteOffset + size, Chunk.ChunkSize);
+        ThrowHelper.ValidateChunkRange(byteOffset, size);
         return new((byte*)_memory + byteOffset, size);
     }
 

@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>Paradise.ECS</RootNamespace>
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
   </PropertyGroup>
 
 </Project>

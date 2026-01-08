@@ -31,21 +31,38 @@ public sealed unsafe class ChunkManager : IDisposable
     private const int EntriesPerMetaBlockShift = 10; // log2(1024)
     private const int EntriesPerMetaBlockMask = EntriesPerMetaBlock - 1; // 0x3FF
 
+    private readonly IAllocator _allocator;
     private readonly Lock _lock = new();
-    private readonly List<nint> _metaBlocks = [];
+    private readonly List<nint> _metaBlocks = new();
     private readonly ConcurrentStack<int> _freeSlots = new();
     private int _capacity;
     private int _disposed; // 0 = not disposed, 1 = disposed
 
+    /// <summary>
+    /// Creates a new ChunkManager with the default <see cref="NativeMemoryAllocator"/>.
+    /// </summary>
+    /// <param name="initialCapacity">Initial number of chunk slots to allocate.</param>
     public ChunkManager(int initialCapacity = 256)
+        : this(NativeMemoryAllocator.Shared, initialCapacity)
     {
+    }
+
+    /// <summary>
+    /// Creates a new ChunkManager with a custom allocator.
+    /// </summary>
+    /// <param name="allocator">The allocator to use for memory operations.</param>
+    /// <param name="initialCapacity">Initial number of chunk slots to allocate.</param>
+    public ChunkManager(IAllocator allocator, int initialCapacity = 256)
+    {
+        _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
+
         // Round up to nearest meta block boundary
         int metaBlocksNeeded = (initialCapacity + EntriesPerMetaBlock - 1) / EntriesPerMetaBlock;
         if (metaBlocksNeeded < 1) metaBlocksNeeded = 1;
 
         for (int i = 0; i < metaBlocksNeeded; i++)
         {
-            _metaBlocks.Add((nint)NativeMemory.AllocZeroed(Chunk.ChunkSize));
+            _metaBlocks.Add((nint)_allocator.AllocateZeroed(Chunk.ChunkSize));
         }
 
         _capacity = metaBlocksNeeded * EntriesPerMetaBlock;
@@ -54,6 +71,11 @@ public sealed unsafe class ChunkManager : IDisposable
         for (int i = _capacity - 1; i >= 0; i--)
             _freeSlots.Push(i);
     }
+
+    /// <summary>
+    /// Gets the allocator used by this ChunkManager.
+    /// </summary>
+    public IAllocator Allocator => _allocator;
 
     /// <summary>
     /// Gets a reference to the metadata for a given slot id.
@@ -71,7 +93,7 @@ public sealed unsafe class ChunkManager : IDisposable
     /// </summary>
     public ChunkHandle Allocate()
     {
-        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if (!_freeSlots.TryPop(out int id))
         {
@@ -88,7 +110,7 @@ public sealed unsafe class ChunkManager : IDisposable
 
         // Allocate data chunk memory if needed (reuse existing if available)
         if (meta.Pointer == 0)
-            meta.Pointer = (ulong)NativeMemory.AllocZeroed(Chunk.ChunkSize);
+            meta.Pointer = (ulong)_allocator.AllocateZeroed(Chunk.ChunkSize);
 
         return new ChunkHandle(id, meta.Version);
     }
@@ -119,7 +141,7 @@ public sealed unsafe class ChunkManager : IDisposable
 
         // Clear memory for security/correctness
         if (meta.Pointer != 0)
-            NativeMemory.Clear((void*)meta.Pointer, Chunk.ChunkSize);
+            _allocator.Clear((void*)meta.Pointer, Chunk.ChunkSize);
 
         _freeSlots.Push(handle.Id);
     }
@@ -181,7 +203,7 @@ public sealed unsafe class ChunkManager : IDisposable
     private void Grow()
     {
         // Simply add a new meta block - no array resize needed!
-        _metaBlocks.Add((nint)NativeMemory.AllocZeroed(Chunk.ChunkSize));
+        _metaBlocks.Add((nint)_allocator.AllocateZeroed(Chunk.ChunkSize));
 
         int oldCapacity = _capacity;
         _capacity += EntriesPerMetaBlock;
@@ -222,7 +244,7 @@ public sealed unsafe class ChunkManager : IDisposable
             {
                 if (metaBlock[i].Pointer != 0)
                 {
-                    NativeMemory.Free((void*)metaBlock[i].Pointer);
+                    _allocator.Free((void*)metaBlock[i].Pointer);
                 }
             }
         }
@@ -230,7 +252,7 @@ public sealed unsafe class ChunkManager : IDisposable
         // Free all meta blocks
         foreach (var metaBlock in _metaBlocks)
         {
-            NativeMemory.Free((void*)metaBlock);
+            _allocator.Free((void*)metaBlock);
         }
 
         _metaBlocks.Clear();
