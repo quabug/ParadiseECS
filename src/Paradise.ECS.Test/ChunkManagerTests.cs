@@ -143,12 +143,13 @@ public class ChunkManagerExceptionTests : IDisposable
     }
 
     [Test]
-    public async Task Allocate_AfterDispose_ThrowsObjectDisposedException()
+    public async Task Allocate_AfterDispose_ReturnsInvalidHandle()
     {
         var manager = new ChunkManager(initialCapacity: 4);
         manager.Dispose();
 
-        await Assert.That(manager.Allocate).Throws<ObjectDisposedException>();
+        var handle = manager.Allocate();
+        await Assert.That(handle.IsValid).IsFalse();
     }
 
     [Test]

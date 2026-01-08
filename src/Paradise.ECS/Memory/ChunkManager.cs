@@ -124,7 +124,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     public ChunkHandle Allocate()
     {
         using var _ = BeginOperation();
-        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        if (_disposed != 0) return ChunkHandle.Invalid;
 
         if (!_freeSlots.TryPop(out int id))
         {
