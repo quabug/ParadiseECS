@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -153,7 +154,7 @@ internal sealed unsafe class ChunkManager : IDisposable
             }
             if ((long)prev > 0)
                 return; // Another thread finished allocation
-            Thread.SpinWait(1); // prev == AllocatingMarker, wait
+            new SpinWait().SpinOnce(); // prev == AllocatingMarker, wait
         }
     }
 
@@ -240,7 +241,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Release(int id)
     {
-        if ((uint)id >= (uint)Volatile.Read(ref _nextSlotId))
+        if (id >= Volatile.Read(ref _nextSlotId))
             return;
 
         ref var meta = ref GetMeta(id);
@@ -251,6 +252,7 @@ internal sealed unsafe class ChunkManager : IDisposable
             long current = Volatile.Read(ref meta.VersionAndShareCount);
             uint version = (uint)((ulong)current >> 32);
             uint shareCount = (uint)current;
+            Debug.Assert(shareCount > 0, "ShareCount underflow - Release called without matching Get");
 
             long next = Pack(version, shareCount - 1);
             if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
