@@ -112,8 +112,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
-        int id;
-        if (!_freeSlots.TryPop(out id))
+        if (!_freeSlots.TryPop(out int id))
         {
             // No free slot available, allocate a new one
             id = Interlocked.Increment(ref _nextSlotId) - 1;
