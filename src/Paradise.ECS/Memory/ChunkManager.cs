@@ -160,7 +160,7 @@ internal sealed unsafe class ChunkManager : IDisposable
         var sw = new SpinWait();
         while ((long)Volatile.Read(ref slot) <= 0)
         {
-            var prev = Interlocked.CompareExchange(ref slot, -1, IntPtr.Zero);
+            var prev = Interlocked.CompareExchange(ref slot, new IntPtr(-1), IntPtr.Zero);
             if (prev == IntPtr.Zero)
             {
                 Volatile.Write(ref slot, (IntPtr)_allocator.AllocateZeroed(Chunk.ChunkSize));
