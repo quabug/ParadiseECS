@@ -233,14 +233,11 @@ internal sealed unsafe class ChunkManager : IDisposable
             return;
 
         // Free all data chunks
+        // Note: _capacity is always a multiple of EntriesPerMetaBlock
         for (int blockIndex = 0; blockIndex < _metaBlocks.Count; blockIndex++)
         {
             var metaBlock = (ChunkMeta*)_metaBlocks[blockIndex];
-            int entriesInBlock = blockIndex < _metaBlocks.Count - 1
-                ? EntriesPerMetaBlock
-                : _capacity - blockIndex * EntriesPerMetaBlock;
-
-            for (int i = 0; i < entriesInBlock; i++)
+            for (int i = 0; i < EntriesPerMetaBlock; i++)
             {
                 if (metaBlock[i].Pointer != 0)
                 {
