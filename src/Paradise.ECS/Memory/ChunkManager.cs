@@ -44,7 +44,13 @@ internal sealed unsafe class ChunkManager : IDisposable
     /// Begins an operation scope that prevents disposal until complete.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private OperationGuard BeginOperation() => new(ref _activeOperations);
+    private OperationGuard BeginOperation() => new(this);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void IncrementActiveOperations() => Interlocked.Increment(ref _activeOperations);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void DecrementActiveOperations() => Interlocked.Decrement(ref _activeOperations);
 
     /// <summary>
     /// Creates a new ChunkManager with the default <see cref="NativeMemoryAllocator"/>.
@@ -115,7 +121,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     public ChunkHandle Allocate()
     {
         using var _ = BeginOperation();
-        if (_disposed != 0) return ChunkHandle.Invalid;
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if (!_freeSlots.TryPop(out int id))
         {
