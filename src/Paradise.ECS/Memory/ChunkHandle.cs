@@ -6,7 +6,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <param name="Id">The index of the chunk in the ChunkManager.</param>
 /// <param name="Version">Incrementing version for stale handle detection.</param>
-public readonly record struct ChunkHandle(int Id, int Version)
+internal readonly record struct ChunkHandle(int Id, int Version)
 {
     /// <summary>
     /// The Invalid handle.

@@ -11,7 +11,7 @@ namespace Paradise.ECS;
 /// <summary>
 /// Static helper methods for common argument validation and exception throwing.
 /// </summary>
-public static class ThrowHelper
+internal static class ThrowHelper
 {
     /// <summary>
     /// Throws if <paramref name="byteOffset"/> is negative.

@@ -13,7 +13,7 @@ namespace Paradise.ECS;
 /// - Each MetaBlock can hold 1024 entries (16KB / 16 bytes per entry)
 /// - Growing simply adds a new MetaBlock (no array resize needed)
 /// </summary>
-public sealed unsafe class ChunkManager : IDisposable
+internal sealed unsafe class ChunkManager : IDisposable
 {
     /// <summary>
     /// Metadata for a single chunk slot.

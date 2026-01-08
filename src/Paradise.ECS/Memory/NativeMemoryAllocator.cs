@@ -7,7 +7,7 @@ namespace Paradise.ECS;
 /// Default allocator using <see cref="NativeMemory"/> for unmanaged heap allocations.
 /// Thread-safe and suitable for most ECS use cases.
 /// </summary>
-public sealed unsafe class NativeMemoryAllocator : IAllocator
+internal sealed unsafe class NativeMemoryAllocator : IAllocator
 {
     /// <summary>
     /// Shared singleton instance for convenience.
