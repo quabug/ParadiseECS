@@ -50,7 +50,7 @@ internal static class ThrowHelper
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(size);
-        ThrowIfGreaterThan(byteOffset + size, Chunk.ChunkSize);
+        ThrowIfGreaterThan(size, Chunk.ChunkSize - byteOffset);
     }
 
     /// <summary>

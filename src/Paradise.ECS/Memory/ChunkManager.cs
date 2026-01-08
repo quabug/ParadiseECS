@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Paradise.ECS;
 
@@ -22,6 +23,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     /// Metadata for a single chunk slot.
     /// Version and ShareCount are packed into VersionAndShareCount for atomic CAS operations.
     /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
     private struct ChunkMeta
     {
         public ulong Pointer;             // 8 bytes - pointer to data chunk memory
@@ -180,12 +182,10 @@ internal sealed unsafe class ChunkManager : IDisposable
     public void Free(ChunkHandle handle)
     {
         if (!handle.IsValid) return;
+        if (handle.Id >= Volatile.Read(ref _nextSlotId)) return;
 
         using var _ = BeginOperation();
         if (_disposed != 0) return;
-
-        if (handle.Id >= Volatile.Read(ref _nextSlotId))
-            return;
 
         ref var meta = ref GetMeta(handle.Id);
 
