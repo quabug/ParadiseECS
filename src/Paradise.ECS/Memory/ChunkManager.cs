@@ -148,6 +148,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     {
         ref var slot = ref _metaBlocks[blockIndex];
 
+        var sw = new SpinWait();
         while ((long)Volatile.Read(ref slot) <= 0)
         {
             var prev = Interlocked.CompareExchange(ref slot, -1, IntPtr.Zero);
@@ -158,7 +159,7 @@ internal sealed unsafe class ChunkManager : IDisposable
             }
             if ((long)prev > 0)
                 return; // Another thread finished allocation
-            new SpinWait().SpinOnce(); // prev == AllocatingMarker, wait
+            sw.SpinOnce(); // prev == AllocatingMarker, wait
         }
     }
 
