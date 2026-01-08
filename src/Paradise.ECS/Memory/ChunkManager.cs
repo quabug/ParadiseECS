@@ -32,13 +32,19 @@ internal sealed unsafe class ChunkManager : IDisposable
     private const int EntriesPerMetaBlockShift = 10; // log2(1024)
     private const int EntriesPerMetaBlockMask = EntriesPerMetaBlock - 1; // 0x3FF
     private const int MaxMetaBlocks = 1024; // ~1M chunks max capacity (16GB)
-    private static readonly IntPtr s_allocatingMarker = new IntPtr(-1); // Sentinel to indicate allocation in progress
 
     private readonly IAllocator _allocator;
     private readonly IntPtr[] _metaBlocks = new IntPtr[MaxMetaBlocks];
     private readonly ConcurrentStack<int> _freeSlots = new();
-    private int _nextSlotId = 0; // Next fresh slot ID to allocate (atomic)
+    private int _nextSlotId; // Next fresh slot ID to allocate (atomic)
+    private int _activeOperations; // Count of in-flight operations (for safe disposal)
     private int _disposed; // 0 = not disposed, 1 = disposed
+
+    /// <summary>
+    /// Begins an operation scope that prevents disposal until complete.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private OperationGuard BeginOperation() => new(ref _activeOperations);
 
     /// <summary>
     /// Creates a new ChunkManager with the default <see cref="NativeMemoryAllocator"/>.
@@ -108,7 +114,8 @@ internal sealed unsafe class ChunkManager : IDisposable
     /// </summary>
     public ChunkHandle Allocate()
     {
-        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        using var _ = BeginOperation();
+        if (_disposed != 0) return ChunkHandle.Invalid;
 
         if (!_freeSlots.TryPop(out int id))
         {
@@ -143,7 +150,7 @@ internal sealed unsafe class ChunkManager : IDisposable
 
         while ((long)Volatile.Read(ref slot) <= 0)
         {
-            var prev = Interlocked.CompareExchange(ref slot, s_allocatingMarker, IntPtr.Zero);
+            var prev = Interlocked.CompareExchange(ref slot, -1, IntPtr.Zero);
             if (prev == IntPtr.Zero)
             {
                 Volatile.Write(ref slot, (IntPtr)_allocator.AllocateZeroed(Chunk.ChunkSize));
@@ -162,7 +169,10 @@ internal sealed unsafe class ChunkManager : IDisposable
     /// </summary>
     public void Free(ChunkHandle handle)
     {
-        if (!handle.IsValid || _disposed != 0) return;
+        if (!handle.IsValid) return;
+
+        using var _ = BeginOperation();
+        if (_disposed != 0) return;
 
         if (handle.Id >= Volatile.Read(ref _nextSlotId))
             return;
@@ -211,6 +221,9 @@ internal sealed unsafe class ChunkManager : IDisposable
         if (!handle.IsValid || (uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
             return default;
 
+        using var _ = BeginOperation();
+        if (_disposed != 0) return default;
+
         ref var meta = ref GetMeta(handle.Id);
 
         // Lock-free CAS loop to atomically check version and increment shareCount
@@ -240,6 +253,9 @@ internal sealed unsafe class ChunkManager : IDisposable
     {
         if (id >= Volatile.Read(ref _nextSlotId))
             return;
+
+        using var _ = BeginOperation();
+        if (_disposed != 0) return; // Memory already freed
 
         ref var meta = ref GetMeta(id);
 
@@ -272,10 +288,15 @@ internal sealed unsafe class ChunkManager : IDisposable
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
 
+        // Wait for all in-flight operations to complete
+        var sw = new SpinWait();
+        while (Volatile.Read(ref _activeOperations) > 0)
+            sw.SpinOnce();
+
         // Free all data chunks and meta blocks
         for (int blockIndex = 0; blockIndex < MaxMetaBlocks; blockIndex++)
         {
-            var metaBlockPtr = _metaBlocks[blockIndex];
+            IntPtr metaBlockPtr = _metaBlocks[blockIndex];
             if (metaBlockPtr == IntPtr.Zero)
                 continue;
 
