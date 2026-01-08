@@ -208,12 +208,12 @@ public class ChunkTests : IDisposable
     public async Task Free_IncrementsVersion()
     {
         var handle1 = _manager.Allocate();
-        uint version1 = handle1.Version;
+        var version1 = handle1.Version;
 
         _manager.Free(handle1);
 
         var handle2 = _manager.Allocate();
-        uint version2 = handle2.Version;
+        var version2 = handle2.Version;
 
         // Same slot reused, but version should be incremented
         await Assert.That(handle2.Id).IsEqualTo(handle1.Id);
