@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Paradise.ECS;
 
@@ -20,23 +19,12 @@ internal sealed unsafe class ChunkManager : IDisposable
 {
     /// <summary>
     /// Metadata for a single chunk slot.
-    /// Uses explicit layout to create a union: Version and ShareCount can be accessed
-    /// individually or as a combined 64-bit value (VersionAndShareCount) for atomic CAS operations.
+    /// Version and ShareCount are packed into VersionAndShareCount for atomic CAS operations.
     /// </summary>
-    [StructLayout(LayoutKind.Explicit)]
     private struct ChunkMeta
     {
-        [FieldOffset(0)]
         public ulong Pointer;             // 8 bytes - pointer to data chunk memory
-
-        [FieldOffset(8)]
-        public long VersionAndShareCount; // 8 bytes - for atomic CAS operations (long for Interlocked compatibility)
-
-        [FieldOffset(8)]
-        public uint ShareCount;           // 4 bytes - overlaps low 32 bits of VersionAndShareCount
-
-        [FieldOffset(12)]
-        public uint Version;              // 4 bytes - overlaps high 32 bits of VersionAndShareCount
+        public long VersionAndShareCount; // 8 bytes - packed [Version:32][ShareCount:32] for atomic CAS
     }
 
     private const int MetaSize = 16; // sizeof(ChunkMeta): 8 + 8
@@ -90,6 +78,20 @@ internal sealed unsafe class ChunkManager : IDisposable
         => (long)(((ulong)version << 32) | shareCount);
 
     /// <summary>
+    /// Extracts version from packed VersionAndShareCount.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint GetVersion(long packed)
+        => (uint)((ulong)packed >> 32);
+
+    /// <summary>
+    /// Extracts shareCount from packed VersionAndShareCount.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint GetShareCount(long packed)
+        => (uint)packed;
+
+    /// <summary>
     /// Gets a reference to the metadata for a given slot id.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -128,7 +130,7 @@ internal sealed unsafe class ChunkManager : IDisposable
             meta.Pointer = (ulong)_allocator.AllocateZeroed(Chunk.ChunkSize);
 
         // Direct field access is safe here - slot is exclusively ours
-        return new ChunkHandle(id, meta.Version);
+        return new ChunkHandle(id, GetVersion(meta.VersionAndShareCount));
     }
 
     /// <summary>
@@ -171,8 +173,8 @@ internal sealed unsafe class ChunkManager : IDisposable
         while (true)
         {
             long current = Volatile.Read(ref meta.VersionAndShareCount);
-            uint version = (uint)((ulong)current >> 32);
-            uint shareCount = (uint)current;
+            uint version = GetVersion(current);
+            uint shareCount = GetShareCount(current);
 
             // Check version - if stale, nothing to do
             if (version != handle.Version)
@@ -215,8 +217,8 @@ internal sealed unsafe class ChunkManager : IDisposable
         while (true)
         {
             long current = Volatile.Read(ref meta.VersionAndShareCount);
-            uint version = (uint)((ulong)current >> 32);
-            uint shareCount = (uint)current;
+            uint version = GetVersion(current);
+            uint shareCount = GetShareCount(current);
 
             if (version != handle.Version)
                 return default; // Stale handle
@@ -245,8 +247,8 @@ internal sealed unsafe class ChunkManager : IDisposable
         while (true)
         {
             long current = Volatile.Read(ref meta.VersionAndShareCount);
-            uint version = (uint)((ulong)current >> 32);
-            uint shareCount = (uint)current;
+            uint version = GetVersion(current);
+            uint shareCount = GetShareCount(current);
             Debug.Assert(shareCount > 0, "ShareCount underflow - Release called without matching Get");
 
             long next = Pack(version, shareCount - 1);
