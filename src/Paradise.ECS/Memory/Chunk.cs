@@ -95,7 +95,7 @@ internal readonly unsafe ref struct Chunk : IDisposable
 /// A read-only view over a 16KB memory block.
 /// Use this for systems that only need to read data.
 /// </summary>
-public readonly unsafe ref struct ReadOnlyChunk
+internal readonly unsafe ref struct ReadOnlyChunk
 {
     private readonly void* _memory;
 
