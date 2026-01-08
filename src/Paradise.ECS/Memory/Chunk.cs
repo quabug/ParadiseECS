@@ -1,0 +1,86 @@
+using System.Runtime.CompilerServices;
+
+namespace Paradise.ECS;
+
+/// <summary>
+/// A 16KB memory block for storing data.
+/// The size is chosen to fit within L1 cache for optimal iteration performance.
+/// This is a ref struct that borrows memory from ChunkManager and must be disposed.
+/// </summary>
+internal readonly unsafe ref struct Chunk : IDisposable
+{
+    /// <summary>
+    /// The size of each chunk in bytes (16KB).
+    /// Chosen to fit within typical L1 cache sizes (32KB+).
+    /// </summary>
+    public const int ChunkSize = 16 * 1024;
+
+    private readonly ChunkManager _manager;
+    private readonly int _id;
+    private readonly void* _memory;
+
+    /// <summary>
+    /// Creates a Chunk view that borrows memory from the manager.
+    /// </summary>
+    internal Chunk(ChunkManager manager, int id, void* memory)
+    {
+        ThrowHelper.ThrowIfNull(memory);
+        _manager = manager;
+        _id = id;
+        _memory = memory;
+    }
+
+    public bool IsValid => _memory != null && _manager != null;
+
+    /// <summary>
+    /// Releases the borrow on the chunk memory.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Dispose() => _manager?.Release(_id);
+
+    /// <summary>
+    /// Gets a span over data at the specified byte offset from chunk start.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged type.</typeparam>
+    /// <param name="byteOffset">The offset from the start of the chunk data.</param>
+    /// <param name="count">The number of elements.</param>
+    /// <returns>A span over the data.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<T> GetSpan<T>(int byteOffset, int count) where T : unmanaged
+    {
+        ThrowHelper.ValidateChunkRange(byteOffset, count, sizeof(T));
+        return new((byte*)_memory + byteOffset, count);
+    }
+
+    /// <summary>
+    /// Gets the raw bytes of the entire data area.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<byte> GetDataBytes() => new(_memory, ChunkSize);
+
+    /// <summary>
+    /// Gets the raw bytes of the data area up to a specified size.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<byte> GetDataBytes(int size)
+    {
+        ThrowHelper.ValidateChunkSize(size);
+        return new(_memory, size);
+    }
+
+    /// <summary>
+    /// Gets raw bytes at a specific offset.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<byte> GetBytesAt(int byteOffset, int size)
+    {
+        ThrowHelper.ValidateChunkRange(byteOffset, size);
+        return new((byte*)_memory + byteOffset, size);
+    }
+
+    /// <summary>
+    /// Gets the entire chunk memory as raw bytes.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<byte> GetRawBytes() => new(_memory, ChunkSize);
+}
