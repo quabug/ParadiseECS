@@ -83,11 +83,6 @@ internal sealed unsafe class ChunkManager : IDisposable
     }
 
     /// <summary>
-    /// Gets the allocator used by this ChunkManager.
-    /// </summary>
-    public IAllocator Allocator => _allocator;
-
-    /// <summary>
     /// Packs version and shareCount into a single 64-bit value for CAS operations.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
