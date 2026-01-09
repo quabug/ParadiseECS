@@ -166,6 +166,20 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ImmutableBitSet<TBits> Xor(in ImmutableBitSet<TBits> other)
+    {
+        var result = default(TBits);
+        var a = GetReadOnlySpan();
+        var b = other.GetReadOnlySpan();
+        var r = GetSpan(ref result);
+
+        for (int i = 0; i < ULongCount; i++)
+            r[i] = a[i] ^ b[i];
+
+        return new ImmutableBitSet<TBits>(result);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool ContainsAll(in ImmutableBitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
@@ -192,17 +206,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsNone(in ImmutableBitSet<TBits> other)
-    {
-        var a = GetReadOnlySpan();
-        var b = other.GetReadOnlySpan();
-
-        for (int i = 0; i < ULongCount; i++)
-        {
-            if ((a[i] & b[i]) != 0) return false;
-        }
-        return true;
-    }
+    public bool ContainsNone(in ImmutableBitSet<TBits> other) => !ContainsAny(other);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int PopCount()
@@ -213,6 +217,18 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
             count += BitOperations.PopCount(span[i]);
         return count;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ImmutableBitSet<TBits> operator &(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
+        => left.And(right);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ImmutableBitSet<TBits> operator |(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
+        => left.Or(right);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ImmutableBitSet<TBits> operator ^(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
+        => left.Xor(right);
 
     public override string ToString() => $"ImmutableBitSet<{typeof(TBits).Name}>({PopCount()} bits set)";
 }

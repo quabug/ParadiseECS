@@ -99,6 +99,41 @@ public abstract class BitSetTests<TBits> where TBits : unmanaged, IStorage
     }
 
     [Test]
+    public async Task Xor_ReturnsSymmetricDifference()
+    {
+        var a = ImmutableBitSet<TBits>.Empty.Set(1).Set(2);
+        var b = ImmutableBitSet<TBits>.Empty.Set(2).Set(3);
+        var result = a.Xor(b);
+        await Assert.That(result.Get(1)).IsTrue();
+        await Assert.That(result.Get(2)).IsFalse();
+        await Assert.That(result.Get(3)).IsTrue();
+    }
+
+    [Test]
+    public async Task BitwiseAndOperator_EqualsAndMethod()
+    {
+        var a = ImmutableBitSet<TBits>.Empty.Set(1).Set(2).Set(3);
+        var b = ImmutableBitSet<TBits>.Empty.Set(2).Set(3).Set(4);
+        await Assert.That(a & b).IsEqualTo(a.And(b));
+    }
+
+    [Test]
+    public async Task BitwiseOrOperator_EqualsOrMethod()
+    {
+        var a = ImmutableBitSet<TBits>.Empty.Set(1).Set(2);
+        var b = ImmutableBitSet<TBits>.Empty.Set(2).Set(3);
+        await Assert.That(a | b).IsEqualTo(a.Or(b));
+    }
+
+    [Test]
+    public async Task BitwiseXorOperator_EqualsXorMethod()
+    {
+        var a = ImmutableBitSet<TBits>.Empty.Set(1).Set(2);
+        var b = ImmutableBitSet<TBits>.Empty.Set(2).Set(3);
+        await Assert.That(a ^ b).IsEqualTo(a.Xor(b));
+    }
+
+    [Test]
     public async Task ContainsAll_ReturnsTrueWhenSupersetOrEqual()
     {
         var a = ImmutableBitSet<TBits>.Empty.Set(1).Set(2).Set(3);
