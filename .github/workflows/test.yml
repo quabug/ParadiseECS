@@ -33,12 +33,6 @@ jobs:
           dotnet-version: '10.0.x'
           dotnet-quality: 'preview'
 
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build (net10.0)
-        run: dotnet build -c Debug --no-restore
-
       - name: Test
         run: |
           dotnet test -p:PublishAot=false \
