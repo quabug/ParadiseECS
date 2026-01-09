@@ -27,7 +27,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     private struct ChunkMeta
     {
         public ulong Pointer;             // 8 bytes - pointer to data chunk memory
-        public long VersionAndShareCount; // 8 bytes - packed [Version:48][ShareCount:16] for atomic CAS
+        public ulong VersionAndShareCount; // 8 bytes - packed [Version:48][ShareCount:16] for atomic CAS
     }
 
     private const int MetaSize = 16; // sizeof(ChunkMeta): 8 + 8
@@ -37,7 +37,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     private const int MaxMetaBlocks = 1024; // ~1M chunks max capacity (16GB)
 
     private readonly IAllocator _allocator;
-    private readonly IntPtr[] _metaBlocks = new IntPtr[MaxMetaBlocks];
+    private readonly nint[] _metaBlocks = new nint[MaxMetaBlocks];
     private readonly ConcurrentStack<int> _freeSlots = new();
     private int _nextSlotId; // Next fresh slot ID to allocate (atomic)
     private int _disposed; // 0 = not disposed, 1 = disposed
@@ -51,8 +51,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private OperationGuard BeginOperation()
     {
-        fixed (int* ptr = &_activeOperations)
-            return new OperationGuard(ptr);
+        return new OperationGuard(ref _activeOperations);
     }
 
     /// <summary>
@@ -91,21 +90,21 @@ internal sealed unsafe class ChunkManager : IDisposable
     /// Layout: [Version:48][ShareCount:16]
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static long Pack(ulong version, ushort shareCount)
-        => (long)((version << 16) | shareCount);
+    private static ulong Pack(ulong version, ushort shareCount)
+        => (version << 16) | shareCount;
 
     /// <summary>
     /// Extracts version (upper 48 bits) from packed VersionAndShareCount.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong GetVersion(long packed)
-        => (ulong)packed >> 16;
+    private static ulong GetVersion(ulong packed)
+        => packed >> 16;
 
     /// <summary>
     /// Extracts shareCount (lower 16 bits) from packed VersionAndShareCount.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ushort GetShareCount(long packed)
+    private static ushort GetShareCount(ulong packed)
         => (ushort)packed;
 
     /// <summary>
@@ -162,10 +161,10 @@ internal sealed unsafe class ChunkManager : IDisposable
         var sw = new SpinWait();
         while ((long)Volatile.Read(ref slot) <= 0)
         {
-            var prev = Interlocked.CompareExchange(ref slot, new IntPtr(-1), IntPtr.Zero);
-            if (prev == IntPtr.Zero)
+            var prev = Interlocked.CompareExchange(ref slot, -1, 0);
+            if (prev == 0)
             {
-                Volatile.Write(ref slot, (IntPtr)_allocator.AllocateZeroed(Chunk.ChunkSize));
+                Volatile.Write(ref slot, (nint)_allocator.AllocateZeroed(Chunk.ChunkSize));
                 return;
             }
             if ((long)prev > 0)
@@ -192,7 +191,7 @@ internal sealed unsafe class ChunkManager : IDisposable
         // Lock-free CAS loop to atomically check and update version+shareCount
         while (true)
         {
-            long current = Volatile.Read(ref meta.VersionAndShareCount);
+            ulong current = Volatile.Read(ref meta.VersionAndShareCount);
             var version = GetVersion(current);
             var shareCount = GetShareCount(current);
 
@@ -205,7 +204,7 @@ internal sealed unsafe class ChunkManager : IDisposable
                 ThrowChunkInUse(handle);
 
             // Atomically increment version (wraps on overflow) and set shareCount to 0
-            long next = Pack(version + 1, 0);
+            ulong next = Pack(version + 1, 0);
             if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
                 break; // Success
 
@@ -239,14 +238,14 @@ internal sealed unsafe class ChunkManager : IDisposable
         // Lock-free CAS loop to atomically check version and increment shareCount
         while (true)
         {
-            long current = Volatile.Read(ref meta.VersionAndShareCount);
+            ulong current = Volatile.Read(ref meta.VersionAndShareCount);
             var version = GetVersion(current);
             var shareCount = GetShareCount(current);
 
             if (version != handle.Version)
                 return default; // Stale handle
 
-            long next = Pack(version, (ushort)(shareCount + 1));
+            ulong next = Pack(version, (ushort)(shareCount + 1));
             if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
                 return new Chunk(this, handle.Id, (void*)meta.Pointer);
 
@@ -272,12 +271,12 @@ internal sealed unsafe class ChunkManager : IDisposable
         // Lock-free CAS loop to atomically decrement shareCount
         while (true)
         {
-            long current = Volatile.Read(ref meta.VersionAndShareCount);
+            ulong current = Volatile.Read(ref meta.VersionAndShareCount);
             var version = GetVersion(current);
             var shareCount = GetShareCount(current);
             Debug.Assert(shareCount > 0, "ShareCount underflow - Release called without matching Get");
 
-            long next = Pack(version, (ushort)(shareCount - 1));
+            ulong next = Pack(version, (ushort)(shareCount - 1));
             if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
                 return;
 
@@ -306,8 +305,8 @@ internal sealed unsafe class ChunkManager : IDisposable
         // Free all data chunks and meta blocks
         for (int blockIndex = 0; blockIndex < MaxMetaBlocks; blockIndex++)
         {
-            IntPtr metaBlockPtr = _metaBlocks[blockIndex];
-            if (metaBlockPtr == IntPtr.Zero)
+            nint metaBlockPtr = _metaBlocks[blockIndex];
+            if (metaBlockPtr == 0)
                 continue;
 
             var metaBlock = (ChunkMeta*)metaBlockPtr;
@@ -320,7 +319,7 @@ internal sealed unsafe class ChunkManager : IDisposable
             }
 
             _allocator.Free((void*)metaBlockPtr);
-            _metaBlocks[blockIndex] = IntPtr.Zero;
+            _metaBlocks[blockIndex] = 0;
         }
 
         _nextSlotId = 0;

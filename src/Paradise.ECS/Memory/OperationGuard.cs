@@ -6,18 +6,17 @@ namespace Paradise.ECS;
 /// RAII guard for tracking active operations. Prevents Dispose from freeing memory
 /// while operations are in-flight.
 /// </summary>
-internal readonly unsafe ref struct OperationGuard : IDisposable
+internal readonly ref struct OperationGuard : IDisposable
 {
-    private readonly int* _ptr;
+    private readonly ref int _counter;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public OperationGuard(int* ptr)
+    public OperationGuard(ref int counter)
     {
-        _ptr = ptr;
-        Interlocked.Increment(ref *_ptr);
+        _counter = ref counter;
+        Interlocked.Increment(ref _counter);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose() => Interlocked.Decrement(ref *_ptr);
-
+    public void Dispose() => Interlocked.Decrement(ref _counter);
 }

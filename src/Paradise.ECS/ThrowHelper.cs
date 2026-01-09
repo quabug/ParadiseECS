@@ -1,11 +1,5 @@
 using System.Runtime.CompilerServices;
 
-#if NETSTANDARD2_1
-using ArgumentOutOfRangeException = System.ArgumentOutOfRangeExceptionPolyfill;
-using ArgumentNullException = System.ArgumentNullExceptionPolyfill;
-using ObjectDisposedException = System.ObjectDisposedExceptionPolyfill;
-#endif
-
 namespace Paradise.ECS;
 
 /// <summary>
