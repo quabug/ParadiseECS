@@ -35,6 +35,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     private const int EntriesPerMetaBlockShift = 10; // log2(1024)
     private const int EntriesPerMetaBlockMask = EntriesPerMetaBlock - 1; // 0x3FF
     private const int MaxMetaBlocks = 1024; // ~1M chunks max capacity (16GB)
+    private const int ShareCountBits = 16; // bits used for ShareCount in packed VersionAndShareCount
 
     private readonly IAllocator _allocator;
     private readonly nint[] _metaBlocks = new nint[MaxMetaBlocks];
@@ -91,14 +92,14 @@ internal sealed unsafe class ChunkManager : IDisposable
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ulong Pack(ulong version, ushort shareCount)
-        => (version << 16) | shareCount;
+        => (version << ShareCountBits) | shareCount;
 
     /// <summary>
     /// Extracts version (upper 48 bits) from packed VersionAndShareCount.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ulong GetVersion(ulong packed)
-        => packed >> 16;
+        => packed >> ShareCountBits;
 
     /// <summary>
     /// Extracts shareCount (lower 16 bits) from packed VersionAndShareCount.
