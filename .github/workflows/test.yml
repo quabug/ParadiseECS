@@ -5,14 +5,14 @@ on:
     branches: [main]
     paths:
       - 'src/**'
-      - '*.sln'
+      - '*.slnx'
       - '.editorconfig'
       - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
     paths:
       - 'src/**'
-      - '*.sln'
+      - '*.slnx'
       - '.editorconfig'
       - '.github/workflows/test.yml'
 
@@ -33,21 +33,13 @@ jobs:
           dotnet-version: '10.0.x'
           dotnet-quality: 'preview'
 
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build (net10.0)
-        run: dotnet build -c Debug --no-restore
-
       - name: Test
         run: |
-          for proj in src/*.Test; do
-            dotnet run --project "$proj" -p:PublishAot=false --no-build -- \
-              --coverage \
-              --coverage-output-format cobertura \
-              --coverage-output coverage.cobertura.xml \
-              --results-directory "TestResults/$(basename "$proj")"
-          done
+          dotnet test -p:PublishAot=false \
+            --coverage \
+            --coverage-output-format cobertura \
+            --coverage-output coverage.cobertura.xml \
+            --results-directory TestResults
 
       - name: List generated coverage files
         run: |
