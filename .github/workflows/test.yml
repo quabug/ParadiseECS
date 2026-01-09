@@ -36,9 +36,6 @@ jobs:
       - name: Restore
         run: dotnet restore
 
-      - name: Build (netstandard2.1)
-        run: dotnet build src/Paradise.ECS -f netstandard2.1 -c Debug --no-restore
-
       - name: Build (net10.0)
         run: dotnet build -c Debug --no-restore
 
