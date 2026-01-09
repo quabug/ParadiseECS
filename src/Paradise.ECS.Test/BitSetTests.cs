@@ -31,19 +31,27 @@ public abstract class BitSetTests<TBits> where TBits : unmanaged, IStorage
     }
 
     [Test]
-    public async Task Set_OutOfRange_ReturnsUnchanged()
+    public async Task Set_OutOfRange_ThrowsArgumentOutOfRangeException()
     {
         var bitset = ImmutableBitSet<TBits>.Empty;
-        var result = bitset.Set(ExpectedCapacity);
-        await Assert.That(result.IsEmpty).IsTrue();
+        await Assert.That(() => bitset.Set(ExpectedCapacity)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => bitset.Set(-1)).Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
-    public async Task Get_OutOfRange_ReturnsFalse()
+    public async Task Get_OutOfRange_ThrowsArgumentOutOfRangeException()
     {
         var bitset = ImmutableBitSet<TBits>.Empty.Set(0);
-        await Assert.That(bitset.Get(ExpectedCapacity)).IsFalse();
-        await Assert.That(bitset.Get(-1)).IsFalse();
+        await Assert.That(() => bitset.Get(ExpectedCapacity)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => bitset.Get(-1)).Throws<ArgumentOutOfRangeException>();
+    }
+
+    [Test]
+    public async Task Clear_OutOfRange_ThrowsArgumentOutOfRangeException()
+    {
+        var bitset = ImmutableBitSet<TBits>.Empty.Set(0);
+        await Assert.That(() => bitset.Clear(ExpectedCapacity)).Throws<ArgumentOutOfRangeException>();
+        await Assert.That(() => bitset.Clear(-1)).Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
