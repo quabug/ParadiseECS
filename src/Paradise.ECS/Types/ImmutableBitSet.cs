@@ -9,7 +9,11 @@ namespace Paradise.ECS;
 /// Uses InlineArray for efficient, stack-allocated storage.
 /// </summary>
 /// <typeparam name="TBits">An InlineArray of ulongs (e.g., Bits128, Bits256).</typeparam>
-public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<TBits>>
+/// <remarks>
+/// This is a regular struct (not record struct) because record struct's generated equality
+/// code calls ValueType.Equals on fields, which throws NotSupportedException for InlineArray types.
+/// </remarks>
+public readonly struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<TBits>>, IEquatable<ImmutableBitSet<TBits>>
     where TBits : unmanaged, IStorage
 {
     private static int ValidateAndGetULongCount()
@@ -75,6 +79,11 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
             hash.Add(span[i]);
         return hash.ToHashCode();
     }
+
+    public override bool Equals(object? obj) => obj is ImmutableBitSet<TBits> other && Equals(other);
+
+    public static bool operator ==(ImmutableBitSet<TBits> left, ImmutableBitSet<TBits> right) => left.Equals(right);
+    public static bool operator !=(ImmutableBitSet<TBits> left, ImmutableBitSet<TBits> right) => !left.Equals(right);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ReadOnlySpan<ulong> GetReadOnlySpan()
