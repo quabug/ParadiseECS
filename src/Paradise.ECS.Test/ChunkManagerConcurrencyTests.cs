@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Paradise.ECS.Test;
 
-public class ChunkManagerConcurrencyTests : IDisposable
+public sealed class ChunkManagerConcurrencyTests : IDisposable
 {
     private readonly ChunkManager _manager;
 
@@ -57,7 +57,6 @@ public class ChunkManagerConcurrencyTests : IDisposable
         const int threadCount = 8;
         const int operationsPerThread = 200;
         var exceptions = new ConcurrentBag<Exception>();
-        var activeHandles = new ConcurrentDictionary<int, ChunkHandle>();
 
         var tasks = Enumerable.Range(0, threadCount).Select(threadId => Task.Run(() =>
         {
