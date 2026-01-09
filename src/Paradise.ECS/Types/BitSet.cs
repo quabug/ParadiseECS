@@ -9,7 +9,7 @@ namespace Paradise.ECS;
 /// Uses InlineArray for efficient, stack-allocated storage.
 /// </summary>
 /// <typeparam name="TBits">An InlineArray of ulongs (e.g., Bits128, Bits256).</typeparam>
-public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
+public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<TBits>>
     where TBits : unmanaged, IStorage
 {
     private static int ValidateAndGetULongCount()
@@ -37,7 +37,7 @@ public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
         get => ULongCount * 64;
     }
 
-    public static BitSet<TBits> Empty => default;
+    public static ImmutableBitSet<TBits> Empty => default;
 
     public bool IsEmpty
     {
@@ -53,10 +53,10 @@ public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
         }
     }
 
-    private BitSet(TBits bits) => _bits = bits;
+    private ImmutableBitSet(TBits bits) => _bits = bits;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Equals(BitSet<TBits> other)
+    public bool Equals(ImmutableBitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
@@ -101,27 +101,27 @@ public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public BitSet<TBits> Set(int index)
+    public ImmutableBitSet<TBits> Set(int index)
     {
         if ((uint)index >= (uint)Capacity) return this;
         var newBits = _bits;
         var span = GetSpan(ref newBits);
         span[index >> 6] |= 1UL << (index & 63);
-        return new BitSet<TBits>(newBits);
+        return new ImmutableBitSet<TBits>(newBits);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public BitSet<TBits> Clear(int index)
+    public ImmutableBitSet<TBits> Clear(int index)
     {
         if ((uint)index >= (uint)Capacity) return this;
         var newBits = _bits;
         var span = GetSpan(ref newBits);
         span[index >> 6] &= ~(1UL << (index & 63));
-        return new BitSet<TBits>(newBits);
+        return new ImmutableBitSet<TBits>(newBits);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public BitSet<TBits> And(BitSet<TBits> other)
+    public ImmutableBitSet<TBits> And(ImmutableBitSet<TBits> other)
     {
         var result = default(TBits);
         var a = GetReadOnlySpan();
@@ -131,11 +131,11 @@ public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
         for (int i = 0; i < ULongCount; i++)
             r[i] = a[i] & b[i];
 
-        return new BitSet<TBits>(result);
+        return new ImmutableBitSet<TBits>(result);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public BitSet<TBits> Or(BitSet<TBits> other)
+    public ImmutableBitSet<TBits> Or(ImmutableBitSet<TBits> other)
     {
         var result = default(TBits);
         var a = GetReadOnlySpan();
@@ -145,11 +145,11 @@ public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
         for (int i = 0; i < ULongCount; i++)
             r[i] = a[i] | b[i];
 
-        return new BitSet<TBits>(result);
+        return new ImmutableBitSet<TBits>(result);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public BitSet<TBits> AndNot(BitSet<TBits> other)
+    public ImmutableBitSet<TBits> AndNot(ImmutableBitSet<TBits> other)
     {
         var result = default(TBits);
         var a = GetReadOnlySpan();
@@ -159,11 +159,11 @@ public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
         for (int i = 0; i < ULongCount; i++)
             r[i] = a[i] & ~b[i];
 
-        return new BitSet<TBits>(result);
+        return new ImmutableBitSet<TBits>(result);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsAll(BitSet<TBits> other)
+    public bool ContainsAll(ImmutableBitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
@@ -176,7 +176,7 @@ public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsAny(BitSet<TBits> other)
+    public bool ContainsAny(ImmutableBitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
@@ -189,7 +189,7 @@ public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsNone(BitSet<TBits> other)
+    public bool ContainsNone(ImmutableBitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
@@ -211,5 +211,5 @@ public readonly record struct BitSet<TBits> : IBitSet<BitSet<TBits>>
         return count;
     }
 
-    public override string ToString() => $"BitSet<{typeof(TBits).Name}>({PopCount()} bits set)";
+    public override string ToString() => $"ImmutableBitSet<{typeof(TBits).Name}>({PopCount()} bits set)";
 }
