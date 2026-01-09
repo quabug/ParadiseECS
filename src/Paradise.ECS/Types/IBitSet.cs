@@ -38,32 +38,32 @@ public interface IBitSet<TSelf> where TSelf : unmanaged, IBitSet<TSelf>
     /// <summary>
     /// Bitwise AND.
     /// </summary>
-    TSelf And(TSelf other);
+    TSelf And(in TSelf other);
 
     /// <summary>
     /// Bitwise OR.
     /// </summary>
-    TSelf Or(TSelf other);
+    TSelf Or(in TSelf other);
 
     /// <summary>
     /// Bitwise AND NOT (this &amp; ~other).
     /// </summary>
-    TSelf AndNot(TSelf other);
+    TSelf AndNot(in TSelf other);
 
     /// <summary>
     /// Returns true if this contains all bits set in other: (this &amp; other) == other
     /// </summary>
-    bool ContainsAll(TSelf other);
+    bool ContainsAll(in TSelf other);
 
     /// <summary>
     /// Returns true if this contains any bit set in other: (this &amp; other) != 0
     /// </summary>
-    bool ContainsAny(TSelf other);
+    bool ContainsAny(in TSelf other);
 
     /// <summary>
     /// Returns true if this contains no bits set in other: (this &amp; other) == 0
     /// </summary>
-    bool ContainsNone(TSelf other);
+    bool ContainsNone(in TSelf other);
 
     /// <summary>
     /// Counts the number of set bits.

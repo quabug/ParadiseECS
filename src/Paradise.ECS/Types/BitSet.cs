@@ -121,7 +121,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableBitSet<TBits> And(ImmutableBitSet<TBits> other)
+    public ImmutableBitSet<TBits> And(in ImmutableBitSet<TBits> other)
     {
         var result = default(TBits);
         var a = GetReadOnlySpan();
@@ -135,7 +135,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableBitSet<TBits> Or(ImmutableBitSet<TBits> other)
+    public ImmutableBitSet<TBits> Or(in ImmutableBitSet<TBits> other)
     {
         var result = default(TBits);
         var a = GetReadOnlySpan();
@@ -149,7 +149,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableBitSet<TBits> AndNot(ImmutableBitSet<TBits> other)
+    public ImmutableBitSet<TBits> AndNot(in ImmutableBitSet<TBits> other)
     {
         var result = default(TBits);
         var a = GetReadOnlySpan();
@@ -163,7 +163,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsAll(ImmutableBitSet<TBits> other)
+    public bool ContainsAll(in ImmutableBitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
@@ -176,7 +176,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsAny(ImmutableBitSet<TBits> other)
+    public bool ContainsAny(in ImmutableBitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
@@ -189,7 +189,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsNone(ImmutableBitSet<TBits> other)
+    public bool ContainsNone(in ImmutableBitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
