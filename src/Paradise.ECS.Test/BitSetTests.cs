@@ -253,13 +253,6 @@ public class BitSet1024Tests : BitSetTests<Bit1024>
     protected override int[] GetBoundaryIndices() => [0, 63, 64, 255, 256, 511, 512, 767, 768, 1023];
 }
 
-[InheritsTests]
-public class BitSet2048Tests : BitSetTests<Bit2048>
-{
-    protected override int ExpectedCapacity => 2048;
-    protected override int[] GetBoundaryIndices() => [0, 63, 64, 511, 512, 1023, 1024, 1535, 1536, 2047];
-}
-
 public class BitSetAdditionalTests
 {
     [Test]

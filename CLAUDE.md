@@ -39,7 +39,7 @@ The ECS uses a custom memory management system optimized for cache-friendly iter
 ### Type System (src/Paradise.ECS/Types/)
 
 - **ImmutableBitSet\<TBits\>**: Generic fixed-size bitset using InlineArray for stack-allocated storage. Used for component masks and archetype matching.
-- **IStorage**: Marker interface with predefined sizes (Bit64, Bit128, Bit256, Bit512, Bit1024, Bit2048) for bitset backing storage.
+- **IStorage**: Marker interface with predefined sizes (Bit64, Bit128, Bit256, Bit512, Bit1024) for bitset backing storage. Custom types are generated if component count exceeds 1024.
 - **IBitSet\<TSelf\>**: Interface defining bitset operations (And, Or, ContainsAll, etc.)
 
 ## Code Style

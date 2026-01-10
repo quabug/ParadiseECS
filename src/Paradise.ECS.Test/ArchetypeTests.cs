@@ -212,7 +212,6 @@ public class ArchetypeTests
         await Assert.That(Archetype<Bit256>.Capacity).IsEqualTo(256);
         await Assert.That(Archetype<Bit512>.Capacity).IsEqualTo(512);
         await Assert.That(Archetype<Bit1024>.Capacity).IsEqualTo(1024);
-        await Assert.That(Archetype<Bit2048>.Capacity).IsEqualTo(2048);
     }
 
     [Test]

@@ -20,16 +20,16 @@ internal static class DiagnosticDescriptors
         description: "Component types must be unmanaged structs to be stored efficiently in ECS chunks.");
 
     /// <summary>
-    /// PECS002: Component count exceeds capacity.
+    /// PECS002: Component count exceeds built-in capacity.
     /// </summary>
-    public static readonly DiagnosticDescriptor ComponentCountExceedsCapacity = new(
+    public static readonly DiagnosticDescriptor ComponentCountExceedsBuiltIn = new(
         id: "PECS002",
-        title: "Component count exceeds capacity",
-        messageFormat: "Project has {0} components but uses {1} which supports only {2} components",
+        title: "Component count exceeds built-in capacity",
+        messageFormat: "Project has {0} components which exceeds built-in Bit1024 capacity. Generating custom {1} storage type.",
         category: "Paradise.ECS",
-        defaultSeverity: DiagnosticSeverity.Error,
+        defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "The number of component types exceeds the capacity of the specified bit storage type.");
+        description: "The number of component types exceeds the largest built-in bit storage type (Bit1024). A custom storage type will be generated.");
 
     /// <summary>
     /// PECS003: Component must be a struct.
