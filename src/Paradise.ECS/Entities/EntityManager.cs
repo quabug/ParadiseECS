@@ -75,10 +75,22 @@ public sealed class EntityManager : IDisposable
         // Ensure capacity (thread-safe array growth)
         EnsureCapacity(id);
 
-        var metasAfterGrow = Volatile.Read(ref _metas);
-        ref var newMeta = ref metasAfterGrow[id];
-        // Initialize version to 1 for new entities (0 is reserved for invalid state)
-        Volatile.Write(ref newMeta.Version, 1);
+        // Initialize version with retry in case array grows while we're writing.
+        // If another thread grows the array after we read _metas but before we write,
+        // our write goes to a stale array. Retry ensures we write to the current array.
+        while (true)
+        {
+            var metas = Volatile.Read(ref _metas);
+            ref var meta = ref metas[id];
+            Volatile.Write(ref meta.Version, 1);
+
+            // Check if array was replaced while we were writing
+            if (Volatile.Read(ref _metas) == metas)
+                break;
+
+            // Array was replaced, retry write to new array
+        }
+
         Interlocked.Increment(ref _aliveCount);
         return new Entity(id, 1);
     }
