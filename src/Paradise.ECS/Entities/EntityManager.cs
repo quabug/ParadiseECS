@@ -151,18 +151,16 @@ public sealed class EntityManager : IDisposable
         if (id < metas.Length)
             return;
 
-        lock (_growLock)
-        {
-            metas = _metas;
-            if (id < metas.Length)
-                return;
+        using var _ = _growLock.EnterScope();
+        metas = _metas;
+        if (id < metas.Length)
+            return;
 
-            // Grow by doubling, ensuring we have room for the new id
-            int newCapacity = Math.Max(metas.Length * 2, id + 1);
-            var newMetas = new EntityMeta[newCapacity];
-            Array.Copy(metas, newMetas, metas.Length);
-            Volatile.Write(ref _metas, newMetas);
-        }
+        // Grow by doubling, ensuring we have room for the new id
+        int newCapacity = Math.Max(metas.Length * 2, id + 1);
+        var newMetas = new EntityMeta[newCapacity];
+        Array.Copy(metas, newMetas, metas.Length);
+        Volatile.Write(ref _metas, newMetas);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
