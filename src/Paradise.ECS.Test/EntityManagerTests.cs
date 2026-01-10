@@ -81,8 +81,8 @@ public class EntityManagerTests : IDisposable
     public async Task Destroy_IncreasesVersion()
     {
         var entity1 = _manager.Create();
-        uint firstId = entity1.Id;
-        uint firstVersion = entity1.Version;
+        int firstId = entity1.Id;
+        int firstVersion = entity1.Version;
 
         _manager.Destroy(entity1);
         var entity2 = _manager.Create(); // Should reuse the slot
@@ -98,7 +98,7 @@ public class EntityManagerTests : IDisposable
     public async Task Create_AfterDestroy_ReusesSlot()
     {
         var entity1 = _manager.Create();
-        uint id1 = entity1.Id;
+        int id1 = entity1.Id;
 
         _manager.Destroy(entity1);
         var entity2 = _manager.Create();

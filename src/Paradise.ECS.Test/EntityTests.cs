@@ -14,7 +14,7 @@ public class EntityTests
     {
         var entity = Entity.Invalid;
         await Assert.That(entity.IsValid).IsFalse();
-        await Assert.That(entity.Id).IsEqualTo(uint.MaxValue);
+        await Assert.That(entity.Id).IsEqualTo(-1);
     }
 
     [Test]

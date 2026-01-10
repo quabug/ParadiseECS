@@ -15,15 +15,15 @@ public sealed class EntityManager : IDisposable
     /// </summary>
     private struct EntityMeta
     {
-        public uint Version; // Version counter for stale handle detection
+        public int Version; // Version counter for stale handle detection
     }
 
     private const int InitialCapacity = 1024;
     private const int MaxEntities = int.MaxValue;
 
     private EntityMeta[] _entities;
-    private readonly ConcurrentStack<uint> _freeSlots = new();
-    private uint _nextEntityId; // Next fresh entity ID to allocate (atomic)
+    private readonly ConcurrentStack<int> _freeSlots = new();
+    private int _nextEntityId; // Next fresh entity ID to allocate (atomic)
     private int _disposed; // 0 = not disposed, 1 = disposed
     private int _aliveCount; // Number of currently alive entities (atomic)
 
@@ -66,18 +66,18 @@ public sealed class EntityManager : IDisposable
     {
         ThrowIfDisposed();
 
-        uint id;
+        int id;
         if (_freeSlots.TryPop(out id))
         {
             // Reuse a freed entity slot
             ref var meta = ref GetMeta(id);
-            uint version = Volatile.Read(ref meta.Version);
+            int version = Volatile.Read(ref meta.Version);
             Interlocked.Increment(ref _aliveCount);
             return new Entity(id, version);
         }
 
         // Allocate a new entity ID
-        id = (uint)Interlocked.Increment(ref Unsafe.As<uint, int>(ref _nextEntityId)) - 1;
+        id = Interlocked.Increment(ref _nextEntityId) - 1;
 
         if (id >= MaxEntities)
             ThrowCapacityExceeded();
@@ -86,7 +86,7 @@ public sealed class EntityManager : IDisposable
         EnsureCapacity(id);
 
         ref var newMeta = ref GetMeta(id);
-        uint newVersion = Volatile.Read(ref newMeta.Version);
+        int newVersion = Volatile.Read(ref newMeta.Version);
         Interlocked.Increment(ref _aliveCount);
         return new Entity(id, newVersion);
     }
@@ -112,14 +112,14 @@ public sealed class EntityManager : IDisposable
         // Atomically check version and increment it
         while (true)
         {
-            uint currentVersion = Volatile.Read(ref meta.Version);
+            int currentVersion = Volatile.Read(ref meta.Version);
 
             // Check if already destroyed (stale handle)
             if (currentVersion != entity.Version)
                 return;
 
             // Increment version to invalidate all existing handles
-            uint nextVersion = currentVersion + 1;
+            int nextVersion = currentVersion + 1;
             if (Interlocked.CompareExchange(ref meta.Version, nextVersion, currentVersion) == currentVersion)
             {
                 // Successfully destroyed - add to free list
@@ -154,7 +154,7 @@ public sealed class EntityManager : IDisposable
     /// Gets a reference to the metadata for a given entity id.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref EntityMeta GetMeta(uint id)
+    private ref EntityMeta GetMeta(int id)
     {
         return ref _entities[id];
     }
@@ -163,15 +163,15 @@ public sealed class EntityManager : IDisposable
     /// Ensures the entity array has capacity for the given id.
     /// Uses lock-free resizing with CAS.
     /// </summary>
-    private void EnsureCapacity(uint id)
+    private void EnsureCapacity(int id)
     {
         var currentArray = Volatile.Read(ref _entities);
-        if (id < (uint)currentArray.Length)
+        if (id < currentArray.Length)
             return;
 
         // Calculate new capacity (double until sufficient)
         int newCapacity = currentArray.Length;
-        while (id >= (uint)newCapacity)
+        while (id >= newCapacity)
         {
             newCapacity *= 2;
             if (newCapacity < 0) // Overflow
@@ -182,7 +182,7 @@ public sealed class EntityManager : IDisposable
         lock (_freeSlots)
         {
             // Double-check after acquiring lock
-            if (id < (uint)_entities.Length)
+            if (id < _entities.Length)
                 return;
 
             var newArray = new EntityMeta[newCapacity];
