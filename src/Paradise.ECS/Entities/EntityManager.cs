@@ -6,7 +6,8 @@ namespace Paradise.ECS;
 /// <summary>
 /// Thread-safe manager for entity lifecycle.
 /// Handles entity creation, destruction, and validation using version-based handles.
-/// Uses a contiguous array for entity metadata and lock-free CAS operations for thread safety.
+/// Uses a contiguous array for entity metadata with lock-free CAS for common operations.
+/// Array growth uses a lock to prevent wasted allocations.
 /// </summary>
 public sealed class EntityManager : IDisposable
 {
@@ -23,7 +24,7 @@ public sealed class EntityManager : IDisposable
     private EntityMeta[] _metas;
     private readonly ConcurrentStack<int> _freeSlots = new();
     private readonly Lock _growLock = new();
-    private int _nextEntityId = 1; // Next fresh entity ID to allocate (atomic), starts at 1 (0 is reserved)
+    private int _nextEntityId; // Next fresh entity ID to allocate (atomic)
     private int _disposed; // 0 = not disposed, 1 = disposed
     private int _aliveCount; // Number of currently alive entities (atomic)
     private int _operationCount; // Number of in-flight operations (atomic)
@@ -151,12 +152,13 @@ public sealed class EntityManager : IDisposable
     /// </summary>
     private void EnsureCapacity(int id)
     {
-        var metas = Volatile.Read(ref _metas);
-        if (id < metas.Length)
+        if (id < Volatile.Read(ref _metas).Length)
             return;
 
         using var _ = _growLock.EnterScope();
-        metas = _metas;
+
+        // Double-check after acquiring lock
+        var metas = _metas;
         if (id < metas.Length)
             return;
 

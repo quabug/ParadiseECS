@@ -15,9 +15,10 @@ public readonly record struct Entity(int Id, uint Version)
 
     /// <summary>
     /// Gets whether this entity handle is valid (not the Invalid entity or default).
+    /// Valid entities have Version >= 1; Version 0 indicates an invalid entity.
     /// Note: Does not check if the entity is still alive in the manager.
     /// </summary>
-    public bool IsValid => Id > 0;
+    public bool IsValid => Version > 0;
 
     public override string ToString() =>
         IsValid ? $"Entity(Id: {Id}, Ver: {Version})" : "Entity(Invalid)";

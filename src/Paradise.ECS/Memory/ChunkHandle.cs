@@ -30,7 +30,7 @@ public readonly record struct ChunkHandle
     }
 
     /// <summary>
-    /// Incrementing version for stale handle detection (44 bits, wraps on overflow).
+    /// Incrementing version for stale handle detection (40 bits, wraps on overflow).
     /// Valid handles have Version >= 1; Version 0 indicates an invalid handle.
     /// </summary>
     public ulong Version
