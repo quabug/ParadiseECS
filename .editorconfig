@@ -269,6 +269,9 @@ dotnet_diagnostic.CA1040.severity = none
 # CA1047: Do not declare protected member in sealed type
 dotnet_diagnostic.CA1047.severity = warning
 
+# CA1051: Do not declare visible instance fields - ECS components use public fields for performance
+dotnet_diagnostic.CA1051.severity = suggestion
+
 # CA1305: Specify IFormatProvider
 dotnet_diagnostic.CA1305.severity = warning
 

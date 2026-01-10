@@ -2,5 +2,8 @@
   <ItemGroup>
     <!-- Testing (TUnit with Native AOT support) -->
     <PackageVersion Include="TUnit" Version="1.9.2" />
+    <!-- Source Generators -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
   </ItemGroup>
 </Project>
