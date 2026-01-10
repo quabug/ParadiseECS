@@ -238,4 +238,132 @@ public class ChunkManagerExceptionTests : IDisposable
         // Free after dispose should be a no-op (not throw)
         await Assert.That(() => manager.Free(handle)).ThrowsNothing();
     }
+
+    [Test]
+    public async Task Get_AfterDispose_ReturnsDefaultChunk()
+    {
+        var manager = new ChunkManager(initialCapacity: 4);
+        var handle = manager.Allocate();
+        manager.Dispose();
+
+        // Get after dispose should return default chunk
+        bool isValid;
+        {
+            using var chunk = manager.Get(handle);
+            isValid = chunk.IsValid;
+        }
+        await Assert.That(isValid).IsFalse();
+    }
+
+    [Test]
+    public async Task Release_WithOutOfRangeId_DoesNotThrow()
+    {
+        // This tests the Release path when id >= _nextSlotId
+        // Internally called by Chunk.Dispose() with default chunk
+        var manager = new ChunkManager(initialCapacity: 4);
+
+        // Get a default chunk by using a stale handle
+        var handle = manager.Allocate();
+        manager.Free(handle);
+
+        // Get with stale handle returns default chunk
+        // When disposed, the default chunk calls Release which should be a no-op
+        await Assert.That(() =>
+        {
+            using var chunk = manager.Get(handle);
+            // chunk is default, its Dispose() calls Release with invalid data
+        }).ThrowsNothing();
+
+        manager.Dispose();
+    }
+
+    [Test]
+    public async Task Release_DirectCallWithOutOfRangeId_DoesNotThrow()
+    {
+        // Directly test the Release path when id >= _nextSlotId
+        var manager = new ChunkManager(initialCapacity: 4);
+
+        // Only allocate 1 chunk, so _nextSlotId is 1
+        _ = manager.Allocate();
+
+        // Call Release with an id that's out of range (>= _nextSlotId)
+        await Assert.That(() => manager.Release(9999)).ThrowsNothing();
+
+        manager.Dispose();
+    }
+
+    [Test]
+    public async Task Release_AfterDispose_DoesNotThrow()
+    {
+        var manager = new ChunkManager(initialCapacity: 4);
+        var handle = manager.Allocate();
+        {
+            using var chunk = manager.Get(handle); // Borrow to increment share count
+        }
+
+        manager.Dispose();
+
+        // Release after dispose should be a no-op
+        await Assert.That(() => manager.Release(handle.Id)).ThrowsNothing();
+    }
+}
+
+public class ChunkManagerConstructorTests
+{
+    [Test]
+    public async Task Constructor_WithNullAllocator_ThrowsArgumentNullException()
+    {
+        await Assert.That(() => new ChunkManager(null!, 16)).Throws<ArgumentNullException>();
+    }
+
+    [Test]
+    public async Task Constructor_WithZeroInitialCapacity_UsesMinimumCapacity()
+    {
+        using var manager = new ChunkManager(initialCapacity: 0);
+        var handle = manager.Allocate();
+        await Assert.That(handle.IsValid).IsTrue();
+    }
+
+    [Test]
+    public async Task Constructor_WithLargeInitialCapacity_CapsToMaxBlocks()
+    {
+        // This tests the path where metaBlocksNeeded > MaxMetaBlocks
+        // MaxMetaBlocks * EntriesPerMetaBlock = 1024 * 1024 = 1M
+        // We can't actually allocate that much, but we can request a large capacity
+        using var manager = new ChunkManager(initialCapacity: 2_000_000);
+        var handle = manager.Allocate();
+        await Assert.That(handle.IsValid).IsTrue();
+    }
+}
+
+public class ChunkHandleTests
+{
+    [Test]
+    public async Task ToString_ValidHandle_ReturnsFormattedString()
+    {
+        var handle = new ChunkHandle(42, 123);
+        var result = handle.ToString();
+        await Assert.That(result).Contains("42");
+        await Assert.That(result).Contains("123");
+    }
+
+    [Test]
+    public async Task ToString_InvalidHandle_ReturnsInvalidString()
+    {
+        var result = ChunkHandle.Invalid.ToString();
+        await Assert.That(result).Contains("Invalid");
+    }
+
+    [Test]
+    public async Task IsValid_ValidHandle_ReturnsTrue()
+    {
+        var handle = new ChunkHandle(0, 0);
+        await Assert.That(handle.IsValid).IsTrue();
+    }
+
+    [Test]
+    public async Task IsValid_InvalidHandle_ReturnsFalse()
+    {
+        await Assert.That(ChunkHandle.Invalid.IsValid).IsFalse();
+    }
 }

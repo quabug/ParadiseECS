@@ -264,4 +264,150 @@ public class ChunkTests : IDisposable
 
         await Assert.That(threw).IsFalse();
     }
+
+    [Test]
+    public async Task Chunk_IsValid_ReturnsTrueForValidChunk()
+    {
+        var handle = _manager.Allocate();
+        bool isValid;
+        {
+            using var chunk = _manager.Get(handle);
+            isValid = chunk.IsValid;
+        }
+
+        await Assert.That(isValid).IsTrue();
+    }
+
+    [Test]
+    public async Task Chunk_IsValid_ReturnsFalseForDefaultChunk()
+    {
+        var handle = _manager.Allocate();
+        _manager.Free(handle);
+
+        // Get with stale handle returns default chunk
+        bool isValid;
+        {
+            using var chunk = _manager.Get(handle);
+            isValid = chunk.IsValid;
+        }
+        await Assert.That(isValid).IsFalse();
+    }
+
+    [Test]
+    public async Task GetBytesAt_ReturnsCorrectSlice()
+    {
+        var handle = _manager.Allocate();
+        int length;
+        byte firstByte;
+        {
+            using var chunk = _manager.Get(handle);
+
+            // Write some data first
+            var rawBytes = chunk.GetRawBytes();
+            rawBytes[100] = 42;
+
+            // Get bytes at offset
+            var bytes = chunk.GetBytesAt(100, 50);
+            length = bytes.Length;
+            firstByte = bytes[0];
+        }
+
+        await Assert.That(length).IsEqualTo(50);
+        await Assert.That(firstByte).IsEqualTo((byte)42);
+    }
+
+    [Test]
+    public async Task GetBytesAt_WithNegativeOffset_Throws()
+    {
+        var handle = _manager.Allocate();
+
+        bool threw = false;
+        try
+        {
+            using var chunk = _manager.Get(handle);
+            _ = chunk.GetBytesAt(-1, 10);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            threw = true;
+        }
+
+        await Assert.That(threw).IsTrue();
+    }
+
+    [Test]
+    public async Task GetBytesAt_WithOversizedRange_Throws()
+    {
+        var handle = _manager.Allocate();
+
+        bool threw = false;
+        try
+        {
+            using var chunk = _manager.Get(handle);
+            _ = chunk.GetBytesAt(Chunk.ChunkSize - 10, 20); // Would exceed chunk size
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            threw = true;
+        }
+
+        await Assert.That(threw).IsTrue();
+    }
+
+    [Test]
+    public async Task GetSpan_WithNegativeOffset_Throws()
+    {
+        var handle = _manager.Allocate();
+
+        bool threw = false;
+        try
+        {
+            using var chunk = _manager.Get(handle);
+            _ = chunk.GetSpan<int>(-1, 10);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            threw = true;
+        }
+
+        await Assert.That(threw).IsTrue();
+    }
+
+    [Test]
+    public async Task GetSpan_WithNegativeCount_Throws()
+    {
+        var handle = _manager.Allocate();
+
+        bool threw = false;
+        try
+        {
+            using var chunk = _manager.Get(handle);
+            _ = chunk.GetSpan<int>(0, -1);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            threw = true;
+        }
+
+        await Assert.That(threw).IsTrue();
+    }
+
+    [Test]
+    public async Task GetDataBytes_WithNegativeSize_Throws()
+    {
+        var handle = _manager.Allocate();
+
+        bool threw = false;
+        try
+        {
+            using var chunk = _manager.Get(handle);
+            _ = chunk.GetDataBytes(-1);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            threw = true;
+        }
+
+        await Assert.That(threw).IsTrue();
+    }
 }

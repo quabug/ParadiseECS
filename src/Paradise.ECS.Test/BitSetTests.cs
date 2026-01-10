@@ -1,4 +1,13 @@
+using System.Runtime.CompilerServices;
+
 namespace Paradise.ECS.Test;
+
+// Invalid storage type for testing validation (size not multiple of sizeof(ulong))
+[InlineArray(1)]
+public struct InvalidBit : IStorage
+{
+    private int _element0; // 4 bytes, not a multiple of 8
+}
 
 public abstract class BitSetTests<TBits> where TBits : unmanaged, IStorage
 {
@@ -249,4 +258,52 @@ public class BitSet2048Tests : BitSetTests<Bit2048>
 {
     protected override int ExpectedCapacity => 2048;
     protected override int[] GetBoundaryIndices() => [0, 63, 64, 511, 512, 1023, 1024, 1535, 1536, 2047];
+}
+
+public class BitSetAdditionalTests
+{
+    [Test]
+    public async Task GetHashCode_SameBitsets_ReturnSameHash()
+    {
+        var a = ImmutableBitSet<Bit64>.Empty.Set(1).Set(10).Set(63);
+        var b = ImmutableBitSet<Bit64>.Empty.Set(1).Set(10).Set(63);
+        await Assert.That(a.GetHashCode()).IsEqualTo(b.GetHashCode());
+    }
+
+    [Test]
+    public async Task GetHashCode_DifferentBitsets_ReturnDifferentHash()
+    {
+        var a = ImmutableBitSet<Bit64>.Empty.Set(1);
+        var b = ImmutableBitSet<Bit64>.Empty.Set(2);
+        // Different bitsets should have different hash codes (in most cases)
+        await Assert.That(a.GetHashCode()).IsNotEqualTo(b.GetHashCode());
+    }
+
+    [Test]
+    public async Task ToString_ReturnsExpectedFormat()
+    {
+        var bitset = ImmutableBitSet<Bit64>.Empty.Set(1).Set(10).Set(20);
+        var result = bitset.ToString();
+        await Assert.That(result).Contains("Bit64");
+        await Assert.That(result).Contains("3 bits set");
+    }
+
+    [Test]
+    public async Task ToString_EmptyBitset_ShowsZeroBits()
+    {
+        var bitset = ImmutableBitSet<Bit128>.Empty;
+        var result = bitset.ToString();
+        await Assert.That(result).Contains("0 bits set");
+    }
+
+    [Test]
+    public async Task InvalidStorage_ThrowsInvalidOperationException()
+    {
+        // Using an invalid storage type should throw during static initialization
+        await Assert.That(() =>
+        {
+            // Access Capacity to trigger static initialization
+            _ = ImmutableBitSet<InvalidBit>.Capacity;
+        }).Throws<TypeInitializationException>();
+    }
 }
