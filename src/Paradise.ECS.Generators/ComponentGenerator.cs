@@ -58,13 +58,14 @@ public class ComponentGenerator : IIncrementalGenerator
 
         // Get type name and containing types for nested structs
         var typeName = typeSymbol.Name;
-        var containingTypes = new List<string>();
+        var containingTypesList = new List<string>();
         var parent = typeSymbol.ContainingType;
         while (parent != null)
         {
-            containingTypes.Insert(0, parent.Name);
+            containingTypesList.Insert(0, parent.Name);
             parent = parent.ContainingType;
         }
+        var containingTypes = containingTypesList.ToImmutableArray();
 
         // Get optional GUID from attribute (constructor arg or named arg)
         string? guid = null;
@@ -358,7 +359,7 @@ public class ComponentGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}}}");
 
         // Close containing types
-        for (int i = component.ContainingTypes.Count - 1; i >= 0; i--)
+        for (int i = component.ContainingTypes.Length - 1; i >= 0; i--)
         {
             indent = new string(' ', i * 4);
             sb.AppendLine($"{indent}}}");
@@ -376,7 +377,7 @@ public class ComponentGenerator : IIncrementalGenerator
         public bool IsUnmanaged { get; }
         public string? Namespace { get; }
         public string TypeName { get; }
-        public List<string> ContainingTypes { get; }
+        public ImmutableArray<string> ContainingTypes { get; }
         public string? Guid { get; }
 
         public ComponentInfo(
@@ -385,7 +386,7 @@ public class ComponentGenerator : IIncrementalGenerator
             bool isUnmanaged,
             string? ns,
             string typeName,
-            List<string> containingTypes,
+            ImmutableArray<string> containingTypes,
             string? guid)
         {
             FullyQualifiedName = fullyQualifiedName;
