@@ -128,9 +128,11 @@ public class ArchetypeRegistryTests : IDisposable
         var none = ImmutableBitSet<Bit64>.Empty;
         var any = ImmutableBitSet<Bit64>.Empty;
 
-        var matches = _registry.GetMatching(all, none, any).ToList();
+        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
+        int count = _registry.GetMatching(all, none, any, matches);
 
-        await Assert.That(matches.Count).IsEqualTo(2); // posOnly and posVel
+        await Assert.That(count).IsEqualTo(2); // posOnly and posVel
+        await Assert.That(matches.Count).IsEqualTo(2);
     }
 
     [Test]
@@ -148,9 +150,10 @@ public class ArchetypeRegistryTests : IDisposable
         var none = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
         var any = ImmutableBitSet<Bit64>.Empty;
 
-        var matches = _registry.GetMatching(all, none, any).ToList();
+        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
+        int count = _registry.GetMatching(all, none, any, matches);
 
-        await Assert.That(matches.Count).IsEqualTo(1); // Only posOnly
+        await Assert.That(count).IsEqualTo(1); // Only posOnly
     }
 
     [Test]
@@ -170,9 +173,10 @@ public class ArchetypeRegistryTests : IDisposable
         var none = ImmutableBitSet<Bit64>.Empty;
         var any = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
 
-        var matches = _registry.GetMatching(all, none, any).ToList();
+        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
+        int count = _registry.GetMatching(all, none, any, matches);
 
-        await Assert.That(matches.Count).IsEqualTo(2); // posOnly and velOnly
+        await Assert.That(count).IsEqualTo(2); // posOnly and velOnly
     }
 
     [Test]
@@ -188,9 +192,10 @@ public class ArchetypeRegistryTests : IDisposable
         var none = ImmutableBitSet<Bit64>.Empty;
         var any = ImmutableBitSet<Bit64>.Empty;
 
-        var matches = _registry.GetMatching(all, none, any).ToList();
+        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
+        int count = _registry.GetMatching(all, none, any, matches);
 
-        await Assert.That(matches.Count).IsEqualTo(2);
+        await Assert.That(count).IsEqualTo(2);
     }
 
     [Test]

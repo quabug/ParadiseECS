@@ -107,17 +107,22 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <summary>
     /// Iterates all archetypes matching the given filter.
     /// </summary>
+    /// <typeparam name="T">The collection type to store matching archetypes.</typeparam>
     /// <param name="all">Components that must all be present.</param>
     /// <param name="none">Components that must not be present.</param>
     /// <param name="any">At least one of these components must be present. Pass empty for no constraint.</param>
-    /// <returns>Enumerable of matching archetype stores.</returns>
-    public IEnumerable<ArchetypeStore<TBits, TRegistry>> GetMatching(
+    /// <param name="output">The collection to receive matching archetype stores.</param>
+    /// <returns>The number of matching archetypes added to the output collection.</returns>
+    public int GetMatching<T>(
         ImmutableBitSet<TBits> all,
         ImmutableBitSet<TBits> none,
-        ImmutableBitSet<TBits> any)
+        ImmutableBitSet<TBits> any,
+        T output
+    ) where T : IList<ArchetypeStore<TBits, TRegistry>>
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
+        int count = 0;
         bool hasAnyConstraint = !any.IsEmpty;
         foreach (var store in _archetypes)
         {
@@ -130,9 +135,11 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
                 mask.ContainsNone(none) &&
                 (!hasAnyConstraint || mask.ContainsAny(any)))
             {
-                yield return store;
+                output.Add(store);
+                count++;
             }
         }
+        return count;
     }
 
     public void Dispose()
