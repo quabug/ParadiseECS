@@ -345,6 +345,7 @@ public class ComponentGenerator : IIncrementalGenerator
         sb.AppendLine("        var typeToId = new global::System.Collections.Generic.Dictionary<global::System.Type, global::Paradise.ECS.ComponentId>(components.Length);");
         sb.AppendLine("        var guidToId = new global::System.Collections.Generic.Dictionary<global::System.Guid, global::Paradise.ECS.ComponentId>();");
         sb.AppendLine("        var usedIds = new global::System.Collections.Generic.HashSet<int>();");
+        sb.AppendLine("        int maxId = -1;");
         sb.AppendLine();
         sb.AppendLine("        // First pass: assign manual IDs");
         sb.AppendLine("        foreach (var comp in components)");
@@ -357,6 +358,7 @@ public class ComponentGenerator : IIncrementalGenerator
         sb.AppendLine("                if (comp.Guid != global::System.Guid.Empty)");
         sb.AppendLine("                    guidToId[comp.Guid] = id;");
         sb.AppendLine("                usedIds.Add(comp.ManualId);");
+        sb.AppendLine("                if (comp.ManualId > maxId) maxId = comp.ManualId;");
         sb.AppendLine("            }");
         sb.AppendLine("        }");
         sb.AppendLine();
@@ -380,11 +382,11 @@ public class ComponentGenerator : IIncrementalGenerator
         sb.AppendLine("            if (comp.Guid != global::System.Guid.Empty)");
         sb.AppendLine("                guidToId[comp.Guid] = id;");
         sb.AppendLine("            usedIds.Add(nextId);");
+        sb.AppendLine("            if (nextId > maxId) maxId = nextId;");
         sb.AppendLine("            nextId++;");
         sb.AppendLine("        }");
         sb.AppendLine();
         sb.AppendLine("        // Build TypeInfos array sorted by ID");
-        sb.AppendLine("        int maxId = global::System.Linq.Enumerable.Max(usedIds);");
         sb.AppendLine("        var typeInfosBuilder = global::System.Collections.Immutable.ImmutableArray.CreateBuilder<global::Paradise.ECS.ComponentTypeInfo>(maxId + 1);");
         sb.AppendLine("        for (int i = 0; i <= maxId; i++)");
         sb.AppendLine("            typeInfosBuilder.Add(default);");
