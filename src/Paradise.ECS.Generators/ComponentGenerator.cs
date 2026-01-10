@@ -155,6 +155,19 @@ public class ComponentGenerator : IIncrementalGenerator
         if (validComponents.Count == 0)
             return;
 
+        // Check if component count exceeds maximum capacity
+        const int MaxComponents = 2048; // Corresponds to Bit2048, the largest supported storage
+        if (validComponents.Count > MaxComponents)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.ComponentCountExceedsCapacity,
+                null, // No specific location for a project-wide issue
+                validComponents.Count,
+                "Bit2048",
+                MaxComponents));
+            return; // Stop generation if over capacity
+        }
+
         // Generate partial struct implementations for IComponent
         for (int i = 0; i < validComponents.Count; i++)
         {
