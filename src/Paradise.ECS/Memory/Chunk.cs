@@ -7,7 +7,7 @@ namespace Paradise.ECS;
 /// The size is chosen to fit within L1 cache for optimal iteration performance.
 /// This is a ref struct that borrows memory from ChunkManager and must be disposed.
 /// </summary>
-internal readonly unsafe ref struct Chunk : IDisposable
+public readonly unsafe ref struct Chunk : IDisposable
 {
     /// <summary>
     /// The size of each chunk in bytes (16KB).
