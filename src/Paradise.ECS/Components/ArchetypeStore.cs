@@ -5,8 +5,8 @@ namespace Paradise.ECS;
 /// <summary>
 /// Stores data for a single archetype: its layout, allocated chunks, and entity count.
 /// Uses SoA (Struct of Arrays) memory layout within chunks.
-/// Thread-safety: Individual operations are thread-safe, but compound operations
-/// (e.g., check-then-act) require external synchronization.
+/// Thread-safety: All operations are thread-safe. Write operations (AllocateEntity, RemoveEntity)
+/// are serialized via lock. Read operations use volatile semantics for consistency.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
@@ -14,9 +14,13 @@ public sealed class ArchetypeStore<TBits, TRegistry>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
+    private const int InitialChunkCapacity = 4;
+
     private readonly ImmutableArchetypeLayout<TBits, TRegistry> _layout;
     private readonly ChunkManager _chunkManager;
-    private readonly List<ChunkHandle> _chunks = [];
+    private readonly Lock _lock = new();
+    private ChunkHandle[] _chunks = new ChunkHandle[InitialChunkCapacity];
+    private int _chunkCount;
     private int _entityCount;
 
     /// <summary>
@@ -37,13 +41,7 @@ public sealed class ArchetypeStore<TBits, TRegistry>
     /// <summary>
     /// Gets the number of chunks allocated to this archetype.
     /// </summary>
-    public int ChunkCount
-    {
-        get
-        {
-            return _chunks.Count;
-        }
-    }
+    public int ChunkCount => Volatile.Read(ref _chunkCount);
 
     /// <summary>
     /// Creates a new archetype store.
@@ -64,33 +62,50 @@ public sealed class ArchetypeStore<TBits, TRegistry>
     /// <summary>
     /// Allocates space for a new entity in this archetype.
     /// Returns the chunk handle and index where the entity should be stored.
+    /// Thread-safe: Uses lock for synchronization.
     /// </summary>
     /// <param name="chunkHandle">The chunk handle where the entity is allocated.</param>
     /// <param name="indexInChunk">The index within the chunk.</param>
     public void AllocateEntity(out ChunkHandle chunkHandle, out int indexInChunk)
     {
+        using var _ = _lock.EnterScope();
+
         // Find a chunk with space or allocate a new one
         int entitiesPerChunk = _layout.EntitiesPerChunk;
-        int totalSlots = _chunks.Count * entitiesPerChunk;
+        int chunkCount = _chunkCount;
+        int totalSlots = chunkCount * entitiesPerChunk;
         int currentCount = _entityCount;
 
         if (currentCount >= totalSlots)
         {
             // Need a new chunk
             var newChunk = _chunkManager.Allocate();
-            _chunks.Add(newChunk);
+
+            // Grow array if needed
+            var chunks = _chunks;
+            if (chunkCount >= chunks.Length)
+            {
+                var newChunks = new ChunkHandle[chunks.Length * 2];
+                Array.Copy(chunks, newChunks, chunkCount);
+                chunks = newChunks;
+                Volatile.Write(ref _chunks, newChunks);
+            }
+
+            chunks[chunkCount] = newChunk;
+            Volatile.Write(ref _chunkCount, chunkCount + 1);
         }
 
         // Find the chunk and index for the new entity
         int chunkIndex = currentCount / entitiesPerChunk;
         indexInChunk = currentCount % entitiesPerChunk;
-        chunkHandle = _chunks[chunkIndex];
-        _entityCount = currentCount + 1;
+        chunkHandle = Volatile.Read(ref _chunks)[chunkIndex];
+        Volatile.Write(ref _entityCount, currentCount + 1);
     }
 
     /// <summary>
     /// Removes an entity from this archetype by swapping with the last entity.
     /// With SoA layout, each component is copied separately.
+    /// Thread-safe: Uses lock for synchronization.
     /// </summary>
     /// <param name="indexToRemove">The global entity index to remove.</param>
     /// <param name="movedEntity">Output: the entity that was moved to fill the gap (Invalid if none).</param>
@@ -98,6 +113,8 @@ public sealed class ArchetypeStore<TBits, TRegistry>
     /// <returns>True if an entity was moved to fill the gap.</returns>
     public bool RemoveEntity(int indexToRemove, out Entity movedEntity, out int movedEntityNewIndex)
     {
+        using var _ = _lock.EnterScope();
+
         movedEntity = Entity.Invalid;
         movedEntityNewIndex = -1;
 
@@ -106,12 +123,12 @@ public sealed class ArchetypeStore<TBits, TRegistry>
             return false;
 
         int lastIndex = currentCount - 1;
-        _entityCount = lastIndex;
+        Volatile.Write(ref _entityCount, lastIndex);
 
         // If removing the last entity, no swap needed
         if (indexToRemove == lastIndex)
         {
-            TrimEmptyChunks();
+            TrimEmptyChunksLocked();
             return false;
         }
 
@@ -124,8 +141,9 @@ public sealed class ArchetypeStore<TBits, TRegistry>
         int dstChunkIdx = indexToRemove / entitiesPerChunk;
         int dstIndexInChunk = indexToRemove % entitiesPerChunk;
 
-        var srcChunkHandle = _chunks[srcChunkIdx];
-        var dstChunkHandle = _chunks[dstChunkIdx];
+        var chunks = _chunks;
+        var srcChunkHandle = chunks[srcChunkIdx];
+        var dstChunkHandle = chunks[dstChunkIdx];
 
         // With SoA, copy each component separately
         using var srcChunk = _chunkManager.Get(srcChunkHandle);
@@ -154,7 +172,7 @@ public sealed class ArchetypeStore<TBits, TRegistry>
         }
 
         movedEntityNewIndex = indexToRemove;
-        TrimEmptyChunks();
+        TrimEmptyChunksLocked();
 
         // Note: The caller needs to look up which entity was at lastIndex
         // and update its EntityLocation. We return true to signal this.
@@ -163,28 +181,27 @@ public sealed class ArchetypeStore<TBits, TRegistry>
 
     /// <summary>
     /// Gets a chunk by its index in this archetype.
+    /// Thread-safe: Uses volatile read for array access.
     /// </summary>
     /// <param name="chunkIndex">The chunk index.</param>
     /// <returns>The chunk handle.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ChunkHandle GetChunk(int chunkIndex)
     {
-        return _chunks[chunkIndex];
+        return Volatile.Read(ref _chunks)[chunkIndex];
     }
 
     /// <summary>
     /// Gets all chunk handles for this archetype.
+    /// Thread-safe: Uses volatile reads for array and count access.
+    /// Note: The returned span is a snapshot; contents may change if modified concurrently.
     /// </summary>
-    /// <param name="destination">Span to receive chunk handles.</param>
-    /// <returns>Number of chunks copied.</returns>
-    public int GetChunks(Span<ChunkHandle> destination)
+    /// <returns>A read-only span of chunk handles.</returns>
+    public ReadOnlySpan<ChunkHandle> GetChunks()
     {
-        int count = Math.Min(destination.Length, _chunks.Count);
-        for (int i = 0; i < count; i++)
-        {
-            destination[i] = _chunks[i];
-        }
-        return count;
+        var chunks = Volatile.Read(ref _chunks);
+        int count = Volatile.Read(ref _chunkCount);
+        return chunks.AsSpan(0, count);
     }
 
     /// <summary>
@@ -207,19 +224,26 @@ public sealed class ArchetypeStore<TBits, TRegistry>
         indexInChunk = globalIndex % entitiesPerChunk;
     }
 
-    private void TrimEmptyChunks()
+    /// <summary>
+    /// Frees trailing empty chunks. Must be called while holding the lock.
+    /// </summary>
+    private void TrimEmptyChunksLocked()
     {
         // Free trailing empty chunks
         int entitiesPerChunk = _layout.EntitiesPerChunk;
-        int neededChunks = (_entityCount + entitiesPerChunk - 1) / entitiesPerChunk;
-        if (neededChunks == 0 && _entityCount == 0)
+        int entityCount = _entityCount;
+        int neededChunks = (entityCount + entitiesPerChunk - 1) / entitiesPerChunk;
+        if (neededChunks == 0 && entityCount == 0)
             neededChunks = 0;
 
-        while (_chunks.Count > neededChunks)
+        var chunks = _chunks;
+        int chunkCount = _chunkCount;
+        while (chunkCount > neededChunks)
         {
-            int lastIdx = _chunks.Count - 1;
-            _chunkManager.Free(_chunks[lastIdx]);
-            _chunks.RemoveAt(lastIdx);
+            chunkCount--;
+            _chunkManager.Free(chunks[chunkCount]);
+            chunks[chunkCount] = default;
         }
+        Volatile.Write(ref _chunkCount, chunkCount);
     }
 }
