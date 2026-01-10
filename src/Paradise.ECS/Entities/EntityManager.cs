@@ -26,6 +26,7 @@ public sealed class EntityManager : IDisposable
     private int _nextEntityId = 1; // Next fresh entity ID to allocate (atomic), starts at 1 (0 is reserved)
     private int _disposed; // 0 = not disposed, 1 = disposed
     private int _aliveCount; // Number of currently alive entities (atomic)
+    private int _operationCount; // Number of in-flight operations (atomic)
 
     /// <summary>
     /// Creates a new EntityManager.
@@ -55,6 +56,7 @@ public sealed class EntityManager : IDisposable
     public Entity Create()
     {
         ThrowIfDisposed();
+        using var _ = new OperationGuard(ref _operationCount);
 
         if (_freeSlots.TryPop(out int id))
         {
@@ -95,6 +97,8 @@ public sealed class EntityManager : IDisposable
 
         if (entity.Id >= Volatile.Read(ref _nextEntityId))
             return;
+
+        using var _ = new OperationGuard(ref _operationCount);
 
         var metas = Volatile.Read(ref _metas);
         ref var meta = ref metas[entity.Id];
@@ -173,6 +177,11 @@ public sealed class EntityManager : IDisposable
     {
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
+
+        // Wait for all in-flight operations to complete
+        var spinWait = new SpinWait();
+        while (Volatile.Read(ref _operationCount) > 0)
+            spinWait.SpinOnce();
 
         _freeSlots.Clear();
         _metas = [];
