@@ -62,9 +62,10 @@ public class ComponentGenerator : IIncrementalGenerator
         var parent = typeSymbol.ContainingType;
         while (parent != null)
         {
-            containingTypesList.Insert(0, parent.Name);
+            containingTypesList.Add(parent.Name);
             parent = parent.ContainingType;
         }
+        containingTypesList.Reverse();
         var containingTypes = containingTypesList.ToImmutableArray();
 
         // Get optional GUID from attribute (constructor arg or named arg)
