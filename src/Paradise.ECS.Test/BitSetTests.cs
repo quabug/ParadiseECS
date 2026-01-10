@@ -216,6 +216,139 @@ public abstract class BitSetTests<TBits> where TBits : unmanaged, IStorage
         await Assert.That(a.ContainsAny(b)).IsFalse();
         await Assert.That(a.ContainsAny(c)).IsTrue();
     }
+
+    [Test]
+    public async Task FirstSetBit_EmptyBitset_ReturnsNegativeOne()
+    {
+        var empty = ImmutableBitSet<TBits>.Empty;
+        await Assert.That(empty.FirstSetBit()).IsEqualTo(-1);
+    }
+
+    [Test]
+    public async Task FirstSetBit_SingleBit_ReturnsCorrectIndex()
+    {
+        foreach (var index in GetBoundaryIndices())
+        {
+            var bitset = ImmutableBitSet<TBits>.Empty.Set(index);
+            await Assert.That(bitset.FirstSetBit()).IsEqualTo(index);
+        }
+    }
+
+    [Test]
+    public async Task FirstSetBit_MultipleBits_ReturnsLowest()
+    {
+        var indices = GetBoundaryIndices();
+        if (indices.Length < 2) return;
+
+        var bitset = ImmutableBitSet<TBits>.Empty;
+        foreach (var index in indices)
+        {
+            bitset = bitset.Set(index);
+        }
+        await Assert.That(bitset.FirstSetBit()).IsEqualTo(indices.Min());
+    }
+
+    [Test]
+    public async Task LastSetBit_EmptyBitset_ReturnsNegativeOne()
+    {
+        var empty = ImmutableBitSet<TBits>.Empty;
+        await Assert.That(empty.LastSetBit()).IsEqualTo(-1);
+    }
+
+    [Test]
+    public async Task LastSetBit_SingleBit_ReturnsCorrectIndex()
+    {
+        foreach (var index in GetBoundaryIndices())
+        {
+            var bitset = ImmutableBitSet<TBits>.Empty.Set(index);
+            await Assert.That(bitset.LastSetBit()).IsEqualTo(index);
+        }
+    }
+
+    [Test]
+    public async Task LastSetBit_MultipleBits_ReturnsHighest()
+    {
+        var indices = GetBoundaryIndices();
+        if (indices.Length < 2) return;
+
+        var bitset = ImmutableBitSet<TBits>.Empty;
+        foreach (var index in indices)
+        {
+            bitset = bitset.Set(index);
+        }
+        await Assert.That(bitset.LastSetBit()).IsEqualTo(indices.Max());
+    }
+
+    [Test]
+    public async Task GetEnumerator_EmptyBitset_YieldsNothing()
+    {
+        var empty = ImmutableBitSet<TBits>.Empty;
+        var indices = new List<int>();
+        foreach (int index in empty)
+        {
+            indices.Add(index);
+        }
+        await Assert.That(indices.Count).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task GetEnumerator_SingleBit_YieldsSingleIndex()
+    {
+        foreach (var expectedIndex in GetBoundaryIndices())
+        {
+            var bitset = ImmutableBitSet<TBits>.Empty.Set(expectedIndex);
+            var indices = new List<int>();
+            foreach (int index in bitset)
+            {
+                indices.Add(index);
+            }
+            await Assert.That(indices.Count).IsEqualTo(1);
+            await Assert.That(indices[0]).IsEqualTo(expectedIndex);
+        }
+    }
+
+    [Test]
+    public async Task GetEnumerator_MultipleBits_YieldsAllIndicesInOrder()
+    {
+        var expectedIndices = GetBoundaryIndices();
+        var bitset = ImmutableBitSet<TBits>.Empty;
+        foreach (var index in expectedIndices)
+        {
+            bitset = bitset.Set(index);
+        }
+
+        var actualIndices = new List<int>();
+        foreach (int index in bitset)
+        {
+            actualIndices.Add(index);
+        }
+
+        // Should yield all indices in ascending order
+        var sortedExpected = expectedIndices.OrderBy(x => x).ToArray();
+        await Assert.That(actualIndices.Count).IsEqualTo(sortedExpected.Length);
+        for (int i = 0; i < sortedExpected.Length; i++)
+        {
+            await Assert.That(actualIndices[i]).IsEqualTo(sortedExpected[i]);
+        }
+    }
+
+    [Test]
+    public async Task GetEnumerator_ConsecutiveBits_YieldsAllIndices()
+    {
+        // Test consecutive bits within a single ulong bucket
+        var bitset = ImmutableBitSet<TBits>.Empty.Set(0).Set(1).Set(2).Set(3);
+        var indices = new List<int>();
+        foreach (int index in bitset)
+        {
+            indices.Add(index);
+        }
+
+        await Assert.That(indices.Count).IsEqualTo(4);
+        await Assert.That(indices[0]).IsEqualTo(0);
+        await Assert.That(indices[1]).IsEqualTo(1);
+        await Assert.That(indices[2]).IsEqualTo(2);
+        await Assert.That(indices[3]).IsEqualTo(3);
+    }
 }
 
 [InheritsTests]

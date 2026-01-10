@@ -291,6 +291,44 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     /// <summary>
+    /// Returns the index of the first (lowest) bit that is set.
+    /// </summary>
+    /// <returns>The zero-based index of the first set bit, or -1 if no bits are set.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int FirstSetBit()
+    {
+        var span = GetReadOnlySpan();
+        for (int i = 0; i < ULongCount; i++)
+        {
+            ulong value = span[i];
+            if (value != 0)
+            {
+                return i * 64 + BitOperations.TrailingZeroCount(value);
+            }
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Returns the index of the last (highest) bit that is set.
+    /// </summary>
+    /// <returns>The zero-based index of the last set bit, or -1 if no bits are set.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int LastSetBit()
+    {
+        var span = GetReadOnlySpan();
+        for (int i = ULongCount - 1; i >= 0; i--)
+        {
+            ulong value = span[i];
+            if (value != 0)
+            {
+                return i * 64 + (63 - BitOperations.LeadingZeroCount(value));
+            }
+        }
+        return -1;
+    }
+
+    /// <summary>
     /// Performs a bitwise AND operation between two bitsets.
     /// </summary>
     /// <param name="left">The first bitset.</param>
@@ -320,6 +358,85 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     public static ImmutableBitSet<TBits> operator ^(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
         => left.Xor(right);
 
+    /// <summary>
+    /// Returns an enumerator that iterates through the indices of all set bits.
+    /// </summary>
+    /// <returns>An enumerator for the set bit indices.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public SetBitEnumerator GetEnumerator() => new(this);
+
     /// <inheritdoc/>
     public override string ToString() => $"ImmutableBitSet<{typeof(TBits).Name}>({PopCount()} bits set)";
+
+    /// <summary>
+    /// Enumerator for iterating through set bit indices in an <see cref="ImmutableBitSet{TBits}"/>.
+    /// </summary>
+    public ref struct SetBitEnumerator
+    {
+        private readonly ImmutableBitSet<TBits> _bitset;
+        private int _bucketIndex;
+        private ulong _currentBucket;
+        private int _current;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal SetBitEnumerator(ImmutableBitSet<TBits> bitset)
+        {
+            _bitset = bitset;
+            _bucketIndex = 0;
+            _currentBucket = 0;
+            _current = -1;
+
+            // Load first non-empty bucket
+            var span = bitset.GetReadOnlySpan();
+            while (_bucketIndex < ULongCount && span[_bucketIndex] == 0)
+            {
+                _bucketIndex++;
+            }
+
+            if (_bucketIndex < ULongCount)
+            {
+                _currentBucket = span[_bucketIndex];
+            }
+        }
+
+        /// <summary>
+        /// Gets the current set bit index.
+        /// </summary>
+        public int Current
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _current;
+        }
+
+        /// <summary>
+        /// Advances the enumerator to the next set bit.
+        /// </summary>
+        /// <returns><c>true</c> if there is another set bit; otherwise, <c>false</c>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool MoveNext()
+        {
+            while (_bucketIndex < ULongCount)
+            {
+                if (_currentBucket != 0)
+                {
+                    // Find the lowest set bit in current bucket
+                    int bitPos = BitOperations.TrailingZeroCount(_currentBucket);
+                    _current = _bucketIndex * 64 + bitPos;
+
+                    // Clear this bit for next iteration
+                    _currentBucket &= _currentBucket - 1;
+                    return true;
+                }
+
+                // Move to next bucket
+                _bucketIndex++;
+                if (_bucketIndex < ULongCount)
+                {
+                    _currentBucket = _bitset.GetReadOnlySpan()[_bucketIndex];
+                }
+            }
+
+            return false;
+        }
+    }
 }

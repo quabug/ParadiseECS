@@ -31,10 +31,11 @@ public partial class ComponentTypeTests
     }
 
     // IDs are now automatically assigned by the source generator based on alphabetical ordering:
-    // - ComponentTypeTests.A: ID 0 (Paradise.ECS.Test.ComponentTypeTests.A)
+    // - ComponentTypeTests.TestNested: ID 0 (Paradise.ECS.Test.ComponentTypeTests.TestNested)
     // - TestHealth: ID 1 (Paradise.ECS.Test.TestHealth)
     // - TestPosition: ID 2 (Paradise.ECS.Test.TestPosition)
-    // - TestVelocity: ID 3 (Paradise.ECS.Test.TestVelocity)
+    // - TestTag: ID 3 (Paradise.ECS.Test.TestTag)
+    // - TestVelocity: ID 4 (Paradise.ECS.Test.TestVelocity)
 
     [Test]
     public async Task ComponentId_Default_IsValid()
@@ -80,7 +81,8 @@ public partial class ComponentTypeTests
         await Assert.That(TestNested.TypeId.Value).IsEqualTo(0);
         await Assert.That(TestHealth.TypeId.Value).IsEqualTo(1);
         await Assert.That(TestPosition.TypeId.Value).IsEqualTo(2);
-        await Assert.That(TestVelocity.TypeId.Value).IsEqualTo(3);
+        await Assert.That(TestTag.TypeId.Value).IsEqualTo(3);
+        await Assert.That(TestVelocity.TypeId.Value).IsEqualTo(4);
     }
 
     [Test]
@@ -120,7 +122,8 @@ public partial class ComponentTypeTests
         await Assert.That(GetTypeId<TestNested>().Value).IsEqualTo(0);
         await Assert.That(GetTypeId<TestHealth>().Value).IsEqualTo(1);
         await Assert.That(GetTypeId<TestPosition>().Value).IsEqualTo(2);
-        await Assert.That(GetTypeId<TestVelocity>().Value).IsEqualTo(3);
+        await Assert.That(GetTypeId<TestTag>().Value).IsEqualTo(3);
+        await Assert.That(GetTypeId<TestVelocity>().Value).IsEqualTo(4);
     }
 
     // Helper to get TypeId via generic constraint

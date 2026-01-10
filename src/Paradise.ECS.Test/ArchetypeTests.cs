@@ -278,7 +278,8 @@ public class ArchetypeTests
     {
         await Assert.That(ComponentRegistry.GetId(typeof(TestHealth)).Value).IsEqualTo(1);
         await Assert.That(ComponentRegistry.GetId(typeof(TestPosition)).Value).IsEqualTo(2);
-        await Assert.That(ComponentRegistry.GetId(typeof(TestVelocity)).Value).IsEqualTo(3);
+        await Assert.That(ComponentRegistry.GetId(typeof(TestTag)).Value).IsEqualTo(3);
+        await Assert.That(ComponentRegistry.GetId(typeof(TestVelocity)).Value).IsEqualTo(4);
     }
 
     [Test]
