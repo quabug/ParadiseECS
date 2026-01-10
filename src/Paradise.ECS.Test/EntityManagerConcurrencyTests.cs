@@ -50,7 +50,7 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
         await Assert.That(uniqueEntities.Count).IsEqualTo(allEntities.Count);
 
         // Verify all are alive
-        var allAlive = allEntities.All(e => _manager.IsAlive(e));
+        var allAlive = allEntities.All(_manager.IsAlive);
         await Assert.That(allAlive).IsTrue();
     }
 
@@ -183,8 +183,8 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
         }
 
         var exceptions = new ConcurrentBag<Exception>();
-        var random = new Random(42);
 
+#pragma warning disable CA5394 // Random is fine for tests - no security requirement
         var tasks = Enumerable.Range(0, threadCount).Select(threadId => Task.Run(() =>
         {
             try
@@ -194,7 +194,43 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
                 {
                     var entity = entities[localRandom.Next(entityCount)];
                     // Just check - should not throw
-                    var isAlive = _manager.IsAlive(entity);
+                    _ = _manager.IsAlive(entity);
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+#pragma warning restore CA5394
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        await Assert.That(exceptions).IsEmpty();
+
+        // All entities should still be alive
+        var allAlive = entities.All(_manager.IsAlive);
+        await Assert.That(allAlive).IsTrue();
+    }
+
+    [Test]
+    public async Task ConcurrentCapacityExpansion_NoDataLoss()
+    {
+        using var manager = new EntityManager();
+
+        const int threadCount = 8;
+        const int entitiesPerThread = 1000; // More entities to trigger array expansion
+        var allEntities = new ConcurrentBag<Entity>();
+        var exceptions = new ConcurrentBag<Exception>();
+
+        var tasks = Enumerable.Range(0, threadCount).Select(_ => Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < entitiesPerThread; i++)
+                {
+                    var entity = manager.Create();
+                    allEntities.Add(entity);
                 }
             }
             catch (Exception ex)
@@ -206,54 +242,13 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
         await Task.WhenAll(tasks).ConfigureAwait(false);
 
         await Assert.That(exceptions).IsEmpty();
+        await Assert.That(allEntities.Count).IsEqualTo(threadCount * entitiesPerThread);
 
-        // All entities should still be alive
-        var allAlive = entities.All(e => _manager.IsAlive(e));
+        // Verify all created entities are still alive
+        var allAlive = allEntities.All(manager.IsAlive);
         await Assert.That(allAlive).IsTrue();
-    }
 
-    [Test]
-    public async Task ConcurrentCapacityExpansion_NoDataLoss()
-    {
-        var manager = new EntityManager();
-        try
-        {
-            const int threadCount = 8;
-            const int entitiesPerThread = 1000; // More entities to trigger chunk expansion
-            var allEntities = new ConcurrentBag<Entity>();
-            var exceptions = new ConcurrentBag<Exception>();
-
-            var tasks = Enumerable.Range(0, threadCount).Select(_ => Task.Run(() =>
-            {
-                try
-                {
-                    for (int i = 0; i < entitiesPerThread; i++)
-                    {
-                        var entity = manager.Create();
-                        allEntities.Add(entity);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    exceptions.Add(ex);
-                }
-            })).ToArray();
-
-            await Task.WhenAll(tasks).ConfigureAwait(false);
-
-            await Assert.That(exceptions).IsEmpty();
-            await Assert.That(allEntities.Count).IsEqualTo(threadCount * entitiesPerThread);
-
-            // Verify all created entities are still alive
-            var allAlive = allEntities.All(e => manager.IsAlive(e));
-            await Assert.That(allAlive).IsTrue();
-
-            await Assert.That(manager.AliveCount).IsEqualTo(threadCount * entitiesPerThread);
-        }
-        finally
-        {
-            manager.Dispose();
-        }
+        await Assert.That(manager.AliveCount).IsEqualTo(threadCount * entitiesPerThread);
     }
 
     [Test]
@@ -264,6 +259,7 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
         var allCreated = new ConcurrentBag<Entity>();
         var exceptions = new ConcurrentBag<Exception>();
 
+#pragma warning disable CA5394 // Random is fine for tests - no security requirement
         var tasks = Enumerable.Range(0, threadCount).Select(threadId => Task.Run(() =>
         {
             try
@@ -305,6 +301,7 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
                 exceptions.Add(ex);
             }
         })).ToArray();
+#pragma warning restore CA5394
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
 
