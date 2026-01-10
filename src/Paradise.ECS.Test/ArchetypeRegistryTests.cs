@@ -1,43 +1,14 @@
-using System.Collections.Immutable;
-
 namespace Paradise.ECS.Test;
 
 public class ArchetypeRegistryTests : IDisposable
 {
     private readonly ChunkManager _chunkManager;
-    private readonly ArchetypeRegistry<Bit64> _registry;
-    private static readonly ImmutableArray<ComponentTypeInfo> s_globalComponentInfos = Builds_globalComponentInfos();
-
-    private static ImmutableArray<ComponentTypeInfo> Builds_globalComponentInfos()
-    {
-        // Include all test components
-        var components = new[]
-        {
-            ComponentTypeInfo.Create<TestPosition>(),
-            ComponentTypeInfo.Create<TestVelocity>(),
-            ComponentTypeInfo.Create<TestHealth>(),
-            ComponentTypeInfo.Create<TestTag>()
-        };
-
-        int maxId = components.Max(c => c.Id.Value);
-        var builder = ImmutableArray.CreateBuilder<ComponentTypeInfo>(maxId + 1);
-        for (int i = 0; i <= maxId; i++)
-        {
-            builder.Add(default);
-        }
-
-        foreach (var comp in components)
-        {
-            builder[comp.Id.Value] = comp;
-        }
-
-        return builder.MoveToImmutable();
-    }
+    private readonly ArchetypeRegistry<Bit64, ComponentRegistry> _registry;
 
     public ArchetypeRegistryTests()
     {
         _chunkManager = new ChunkManager(initialCapacity: 16);
-        _registry = new ArchetypeRegistry<Bit64>(_chunkManager, s_globalComponentInfos);
+        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry>(_chunkManager);
     }
 
     public void Dispose()
@@ -246,36 +217,15 @@ public class ArchetypeRegistryTests : IDisposable
 public class ArchetypeRegistryConcurrencyTests : IDisposable
 {
     private readonly ChunkManager _chunkManager;
-    private readonly ArchetypeRegistry<Bit64> _registry;
-    private static readonly ImmutableArray<ComponentTypeInfo> s_globalComponentInfos = Builds_globalComponentInfos();
+    private readonly ArchetypeRegistry<Bit64, ComponentRegistry> _registry;
 
-    private static ImmutableArray<ComponentTypeInfo> Builds_globalComponentInfos()
-    {
-        // Build global array large enough for concurrent test (uses component IDs 0-9)
-        var builder = ImmutableArray.CreateBuilder<ComponentTypeInfo>(64);
-        for (int i = 0; i < 64; i++)
-        {
-            builder.Add(new ComponentTypeInfo(new ComponentId(i), 4, 4));
-        }
-        // Also include actual test components
-        var testComponents = new[]
-        {
-            ComponentTypeInfo.Create<TestPosition>(),
-            ComponentTypeInfo.Create<TestVelocity>(),
-            ComponentTypeInfo.Create<TestHealth>()
-        };
-        foreach (var comp in testComponents)
-        {
-            if (comp.Id.Value < 64)
-                builder[comp.Id.Value] = comp;
-        }
-        return builder.MoveToImmutable();
-    }
+    // Number of test components available in ComponentRegistry (0-4)
+    private const int TestComponentCount = 5;
 
     public ArchetypeRegistryConcurrencyTests()
     {
         _chunkManager = new ChunkManager(initialCapacity: 64);
-        _registry = new ArchetypeRegistry<Bit64>(_chunkManager, s_globalComponentInfos);
+        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry>(_chunkManager);
     }
 
     public void Dispose()
@@ -289,7 +239,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
 
-        var tasks = new Task<ArchetypeStore<Bit64>>[10];
+        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreate(mask));
@@ -310,7 +260,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreate_DifferentMasks_CreatesMultipleArchetypes()
     {
-        var tasks = new Task<ArchetypeStore<Bit64>>[10];
+        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int bitIndex = i;
@@ -325,7 +275,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
 
         // Each should create a unique archetype
         var uniqueIds = results.Select(r => r.Id).Distinct().ToList();
-        await Assert.That(uniqueIds.Count).IsEqualTo(10);
-        await Assert.That(_registry.Count).IsEqualTo(10);
+        await Assert.That(uniqueIds.Count).IsEqualTo(TestComponentCount);
+        await Assert.That(_registry.Count).IsEqualTo(TestComponentCount);
     }
 }

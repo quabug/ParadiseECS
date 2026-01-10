@@ -40,6 +40,7 @@ public struct ArchetypeLayoutHeader<TBits>
 /// This provides better cache utilization and SIMD opportunities when iterating components.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <remarks>
 /// Memory layout example for 100 entities with Position(12B), Velocity(12B), Health(8B):
 /// <code>
@@ -52,13 +53,13 @@ public struct ArchetypeLayoutHeader<TBits>
 /// </code>
 /// BaseOffsets uses short (2 bytes) indexed by (componentId - minComponentId).
 /// -1 indicates component not present; valid offsets are 0 to 32767.
-/// Component sizes should be looked up from ComponentTypeInfo globally.
+/// Component sizes are looked up from TRegistry.TypeInfos.
 /// </remarks>
-public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
+public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposable
     where TBits : unmanaged, IStorage
+    where TRegistry : IComponentRegistry
 {
     private readonly IAllocator _allocator;
-    private readonly ImmutableArray<ComponentTypeInfo> _globalComponentInfos;
     private byte* _data;
 
     /// <summary>
@@ -133,15 +134,14 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
     }
 
     /// <summary>
-    /// Creates a new archetype layout from a component mask and global component info lookup.
+    /// Creates a new archetype layout from a component mask.
+    /// Component type information is obtained from <typeparamref name="TRegistry"/>.TypeInfos.
     /// </summary>
     /// <param name="componentMask">The component mask defining which components are in this archetype.</param>
-    /// <param name="globalComponentInfos">Global component type information array indexed by component ID.</param>
     /// <param name="allocator">The memory allocator to use. If null, uses <see cref="NativeMemoryAllocator.Shared"/>.</param>
-    public ImmutableArchetypeLayout(ImmutableBitSet<TBits> componentMask, ImmutableArray<ComponentTypeInfo> globalComponentInfos, IAllocator? allocator = null)
+    public ImmutableArchetypeLayout(ImmutableBitSet<TBits> componentMask, IAllocator? allocator = null)
     {
         _allocator = allocator ?? NativeMemoryAllocator.Shared;
-        _globalComponentInfos = globalComponentInfos;
 
         // Calculate min/max component ID range using FirstSetBit/LastSetBit
         int minId = componentMask.FirstSetBit();
@@ -158,7 +158,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
         int componentCount = componentMask.PopCount();
 
         // Layout: [Header<TBits>][BaseOffsets (short[])]
-        int baseOffsetsOffset = AlignUp(ArchetypeLayoutHeader<TBits>.SizeInBytes, sizeof(ushort));
+        int baseOffsetsOffset = Memory.AlignUp(ArchetypeLayoutHeader<TBits>.SizeInBytes, sizeof(ushort));
         int totalBytes = baseOffsetsOffset + componentSlots * sizeof(ushort);
 
         _data = (byte*)_allocator.Allocate((nuint)totalBytes);
@@ -175,10 +175,10 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
         short* baseOffsets = (short*)(_data + baseOffsetsOffset);
         Unsafe.InitBlock(baseOffsets, 0xFF, (uint)(componentSlots * sizeof(short)));
 
-        InitializeLayout(componentMask, globalComponentInfos);
+        InitializeLayout(componentMask);
     }
 
-    private void InitializeLayout(ImmutableBitSet<TBits> componentMask, ImmutableArray<ComponentTypeInfo> globalComponentInfos)
+    private void InitializeLayout(ImmutableBitSet<TBits> componentMask)
     {
         ref var header = ref Header;
         short* baseOffsets = (short*)(_data + header.BaseOffsetsOffset);
@@ -190,30 +190,22 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
             return;
         }
 
-        // Build component infos from mask using enumerator
-        // (enumerator yields IDs in ascending order, which is already sorted by alignment)
-        int componentCount = header.ComponentCount;
-        Span<ComponentTypeInfo> components = stackalloc ComponentTypeInfo[componentCount];
-        int idx = 0;
-        foreach (int componentId in componentMask)
-        {
-            components[idx++] = globalComponentInfos[componentId];
-        }
+        var typeInfos = TRegistry.TypeInfos;
 
         // Calculate total size per entity (without alignment)
         int totalSizePerEntity = 0;
-        foreach (var comp in components)
+        foreach (int componentId in componentMask)
         {
-            totalSizePerEntity += comp.Size;
+            totalSizePerEntity += typeInfos[componentId].Size;
         }
 
         if (totalSizePerEntity == 0)
         {
             header.EntitiesPerChunk = Chunk.ChunkSize;
             // Mark all tag components as present (offset 0)
-            foreach (var comp in components)
+            foreach (int componentId in componentMask)
             {
-                baseOffsets[comp.Id.Value - minId] = 0;
+                baseOffsets[componentId - minId] = 0;
             }
             return;
         }
@@ -226,7 +218,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
         // Calculate base offsets and verify fit, adjusting entitiesPerChunk if needed
         while (entitiesPerChunk > 1)
         {
-            int totalSize = CalculateAndStoreOffsets(components, baseOffsets, minId, entitiesPerChunk);
+            int totalSize = CalculateAndStoreOffsets(componentMask, typeInfos, baseOffsets, minId, entitiesPerChunk);
             if (totalSize <= Chunk.ChunkSize)
                 break;
             entitiesPerChunk--;
@@ -235,22 +227,24 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
         // Final calculation with the determined entitiesPerChunk
         if (entitiesPerChunk == 1)
         {
-            CalculateAndStoreOffsets(components, baseOffsets, minId, entitiesPerChunk);
+            CalculateAndStoreOffsets(componentMask, typeInfos, baseOffsets, minId, entitiesPerChunk);
         }
 
         header.EntitiesPerChunk = entitiesPerChunk;
     }
 
     private static int CalculateAndStoreOffsets(
-        ReadOnlySpan<ComponentTypeInfo> sortedComponents,
+        ImmutableBitSet<TBits> componentMask,
+        ImmutableArray<ComponentTypeInfo> typeInfos,
         short* baseOffsets,
         int minId,
         int entitiesPerChunk)
     {
         int currentOffset = 0;
-        foreach (var comp in sortedComponents)
+        foreach (int componentId in componentMask)
         {
-            int slotIndex = comp.Id.Value - minId;
+            var comp = typeInfos[componentId];
+            int slotIndex = componentId - minId;
 
             // Tag components (size 0) have offset 0
             if (comp.Size == 0)
@@ -261,7 +255,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
 
             // Align the base offset
             int alignment = comp.Alignment > 0 ? comp.Alignment : 1;
-            currentOffset = AlignUp(currentOffset, alignment);
+            currentOffset = Memory.AlignUp(currentOffset, alignment);
 
             baseOffsets[slotIndex] = (short)currentOffset;
             currentOffset += comp.Size * entitiesPerChunk;
@@ -307,7 +301,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasComponent(ComponentId componentId)
     {
-        return GetBaseOffset(componentId) >= 0;
+        return ComponentMask.Get(componentId.Value);
     }
 
     /// <summary>
@@ -318,12 +312,46 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasComponent<T>() where T : unmanaged, IComponent
     {
-        return GetBaseOffset<T>() >= 0;
+        return ComponentMask.Get(T.TypeId.Value);
+    }
+
+    /// <summary>
+    /// Gets the base offset for a component type's array within the chunk.
+    /// </summary>
+    /// <param name="type">The component type.</param>
+    /// <returns>The base offset, or -1 if the component is not in this archetype or type is not a registered component.</returns>
+    public int GetBaseOffset(Type type)
+    {
+        var id = TRegistry.GetId(type);
+        return id.IsValid ? GetBaseOffset(id) : -1;
+    }
+
+    /// <summary>
+    /// Checks if this archetype contains the specified component type.
+    /// </summary>
+    /// <param name="type">The component type.</param>
+    /// <returns><c>true</c> if the component is present; otherwise, <c>false</c>.</returns>
+    public bool HasComponent(Type type)
+    {
+        var id = TRegistry.GetId(type);
+        return id.IsValid && ComponentMask.Get(id.Value);
+    }
+
+    /// <summary>
+    /// Calculates the byte offset for a specific entity and component type.
+    /// </summary>
+    /// <param name="entityIndex">The entity's index within the chunk.</param>
+    /// <param name="type">The component type.</param>
+    /// <returns>The byte offset from chunk start, or -1 if component not present or type is not a registered component.</returns>
+    public int GetEntityComponentOffset(int entityIndex, Type type)
+    {
+        var id = TRegistry.GetId(type);
+        return id.IsValid ? GetEntityComponentOffset(entityIndex, id) : -1;
     }
 
     /// <summary>
     /// Calculates the byte offset for a specific entity and component.
-    /// Uses stored component type info to look up the size.
+    /// Uses <typeparamref name="TRegistry"/>.TypeInfos to look up the component size.
     /// </summary>
     /// <param name="entityIndex">The entity's index within the chunk.</param>
     /// <param name="componentId">The component ID.</param>
@@ -335,7 +363,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
         if (baseOffset < 0)
             return -1;
 
-        return baseOffset + entityIndex * _globalComponentInfos[componentId.Value].Size;
+        return baseOffset + entityIndex * TRegistry.TypeInfos[componentId.Value].Size;
     }
 
     /// <summary>
@@ -348,12 +376,6 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
     public int GetEntityComponentOffset<T>(int entityIndex) where T : unmanaged, IComponent
     {
         return GetEntityComponentOffset(entityIndex, T.TypeId);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int AlignUp(int value, int alignment)
-    {
-        return (value + alignment - 1) & ~(alignment - 1);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

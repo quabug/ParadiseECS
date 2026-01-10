@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Paradise.ECS.Generators.Test;
 
@@ -12,7 +13,7 @@ public static class GeneratorTestHelper
     /// <summary>
     /// Creates a compilation with the given source code and runs the ComponentGenerator.
     /// </summary>
-    public static GeneratorDriverRunResult RunGenerator(string source, bool includeEcsReferences = true)
+    public static GeneratorDriverRunResult RunGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 
@@ -49,10 +50,65 @@ public static class GeneratorTestHelper
 
         var generator = new ComponentGenerator();
 
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(generator);
+        // Create analyzer config options provider if root namespace is specified
+        var optionsProvider = rootNamespace != null
+            ? new TestAnalyzerConfigOptionsProvider(rootNamespace)
+            : null;
+
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators: [generator.AsSourceGenerator()],
+            optionsProvider: optionsProvider);
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
 
         return driver.GetRunResult();
+    }
+
+    private sealed class TestAnalyzerConfigOptionsProvider : AnalyzerConfigOptionsProvider
+    {
+        private readonly TestGlobalOptions _globalOptions;
+
+        public TestAnalyzerConfigOptionsProvider(string rootNamespace)
+        {
+            _globalOptions = new TestGlobalOptions(rootNamespace);
+        }
+
+        public override AnalyzerConfigOptions GlobalOptions => _globalOptions;
+
+        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => TestAnalyzerConfigOptions.Empty;
+
+        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => TestAnalyzerConfigOptions.Empty;
+
+        private sealed class TestGlobalOptions : AnalyzerConfigOptions
+        {
+            private readonly string _rootNamespace;
+
+            public TestGlobalOptions(string rootNamespace)
+            {
+                _rootNamespace = rootNamespace;
+            }
+
+            public override bool TryGetValue(string key, out string value)
+            {
+                if (key == "build_property.RootNamespace")
+                {
+                    value = _rootNamespace;
+                    return true;
+                }
+                value = null!;
+                return false;
+            }
+        }
+
+        private sealed class TestAnalyzerConfigOptions : AnalyzerConfigOptions
+        {
+            public static readonly TestAnalyzerConfigOptions Empty = new();
+
+            public override bool TryGetValue(string key, out string value)
+            {
+                value = null!;
+                return false;
+            }
+        }
     }
 
     /// <summary>
@@ -82,6 +138,19 @@ public static class GeneratorTestHelper
     public static string? GetGeneratedSource(string source, string hintName)
     {
         var sources = GetGeneratedSources(source);
+        return sources.FirstOrDefault(s => s.HintName == hintName).Source;
+    }
+
+    /// <summary>
+    /// Gets the generated source for a specific hint name with a custom root namespace.
+    /// </summary>
+    public static string? GetGeneratedSource(string source, string hintName, string rootNamespace)
+    {
+        var result = RunGenerator(source, rootNamespace: rootNamespace);
+        var sources = result.GeneratedTrees.Select(t => (
+            HintName: Path.GetFileName(t.FilePath),
+            Source: t.GetText().ToString()
+        ));
         return sources.FirstOrDefault(s => s.HintName == hintName).Source;
     }
 }

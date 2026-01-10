@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
 namespace Paradise.ECS;
@@ -10,12 +9,13 @@ namespace Paradise.ECS;
 /// (e.g., check-then-act) require external synchronization.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
-public sealed class ArchetypeStore<TBits>
+/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
+public sealed class ArchetypeStore<TBits, TRegistry>
     where TBits : unmanaged, IStorage
+    where TRegistry : IComponentRegistry
 {
-    private readonly ImmutableArchetypeLayout<TBits> _layout;
+    private readonly ImmutableArchetypeLayout<TBits, TRegistry> _layout;
     private readonly ChunkManager _chunkManager;
-    private readonly ImmutableArray<ComponentTypeInfo> _globalComponentInfos;
     private readonly List<ChunkHandle> _chunks = [];
     private int _entityCount;
 
@@ -27,7 +27,7 @@ public sealed class ArchetypeStore<TBits>
     /// <summary>
     /// Gets the layout describing component offsets within this archetype.
     /// </summary>
-    public ImmutableArchetypeLayout<TBits> Layout => _layout;
+    public ImmutableArchetypeLayout<TBits, TRegistry> Layout => _layout;
 
     /// <summary>
     /// Gets the current number of entities in this archetype.
@@ -50,16 +50,14 @@ public sealed class ArchetypeStore<TBits>
     /// </summary>
     /// <param name="id">The unique archetype ID.</param>
     /// <param name="layout">The component layout for this archetype.</param>
-    /// <param name="globalComponentInfos">Global component type information array indexed by component ID.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public ArchetypeStore(int id, ImmutableArchetypeLayout<TBits> layout, ImmutableArray<ComponentTypeInfo> globalComponentInfos, ChunkManager chunkManager)
+    public ArchetypeStore(int id, ImmutableArchetypeLayout<TBits, TRegistry> layout, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(chunkManager);
 
         Id = id;
         _layout = layout;
-        _globalComponentInfos = globalComponentInfos;
         _chunkManager = chunkManager;
     }
 
@@ -143,7 +141,7 @@ public sealed class ArchetypeStore<TBits>
             if (baseOffset < 0)
                 continue; // Component not in this archetype
 
-            int size = _globalComponentInfos[id].Size;
+            int size = TRegistry.TypeInfos[id].Size;
             if (size == 0)
                 continue; // Skip tag components
 

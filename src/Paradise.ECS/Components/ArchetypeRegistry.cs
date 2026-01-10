@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Collections.Immutable;
 
 namespace Paradise.ECS;
 
@@ -8,14 +7,16 @@ namespace Paradise.ECS;
 /// Thread-safe for concurrent archetype creation and lookup.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
-public sealed class ArchetypeRegistry<TBits> : IDisposable where TBits : unmanaged, IStorage
+/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
+public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
+    where TBits : unmanaged, IStorage
+    where TRegistry : IComponentRegistry
 {
     private readonly ConcurrentDictionary<ImmutableBitSet<TBits>, int> _maskToArchetypeId = new();
-    private readonly List<ArchetypeStore<TBits>> _archetypes = [];
-    private readonly List<ImmutableArchetypeLayout<TBits>> _layouts = [];
+    private readonly List<ArchetypeStore<TBits, TRegistry>> _archetypes = [];
+    private readonly List<ImmutableArchetypeLayout<TBits, TRegistry>> _layouts = [];
     private readonly Lock _createLock = new();
     private readonly ChunkManager _chunkManager;
-    private readonly ImmutableArray<ComponentTypeInfo> _globalComponentInfos;
     private int _disposed;
 
     /// <summary>
@@ -27,12 +28,10 @@ public sealed class ArchetypeRegistry<TBits> : IDisposable where TBits : unmanag
     /// Creates a new archetype registry.
     /// </summary>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    /// <param name="globalComponentInfos">Global component type information array indexed by component ID.</param>
-    public ArchetypeRegistry(ChunkManager chunkManager, ImmutableArray<ComponentTypeInfo> globalComponentInfos)
+    public ArchetypeRegistry(ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(chunkManager);
         _chunkManager = chunkManager;
-        _globalComponentInfos = globalComponentInfos;
     }
 
     /// <summary>
@@ -40,7 +39,7 @@ public sealed class ArchetypeRegistry<TBits> : IDisposable where TBits : unmanag
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>
     /// <returns>The archetype store for this mask.</returns>
-    public ArchetypeStore<TBits> GetOrCreate(ImmutableBitSet<TBits> mask)
+    public ArchetypeStore<TBits, TRegistry> GetOrCreate(ImmutableBitSet<TBits> mask)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
@@ -60,9 +59,9 @@ public sealed class ArchetypeRegistry<TBits> : IDisposable where TBits : unmanag
             return _archetypes[existingId];
         }
 
-        var layout = new ImmutableArchetypeLayout<TBits>(mask, _globalComponentInfos);
+        var layout = new ImmutableArchetypeLayout<TBits, TRegistry>(mask);
         int newId = _archetypes.Count;
-        var store = new ArchetypeStore<TBits>(newId, layout, _globalComponentInfos, _chunkManager);
+        var store = new ArchetypeStore<TBits, TRegistry>(newId, layout, _chunkManager);
 
         _layouts.Add(layout);
         _archetypes.Add(store);
@@ -76,7 +75,7 @@ public sealed class ArchetypeRegistry<TBits> : IDisposable where TBits : unmanag
     /// </summary>
     /// <param name="archetypeId">The archetype ID.</param>
     /// <returns>The archetype store, or null if not found.</returns>
-    public ArchetypeStore<TBits>? GetById(int archetypeId)
+    public ArchetypeStore<TBits, TRegistry>? GetById(int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
@@ -91,7 +90,7 @@ public sealed class ArchetypeRegistry<TBits> : IDisposable where TBits : unmanag
     /// <param name="mask">The component mask.</param>
     /// <param name="store">The archetype store if found.</param>
     /// <returns>True if found.</returns>
-    public bool TryGet(ImmutableBitSet<TBits> mask, out ArchetypeStore<TBits>? store)
+    public bool TryGet(ImmutableBitSet<TBits> mask, out ArchetypeStore<TBits, TRegistry>? store)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
@@ -112,7 +111,7 @@ public sealed class ArchetypeRegistry<TBits> : IDisposable where TBits : unmanag
     /// <param name="none">Components that must not be present.</param>
     /// <param name="any">At least one of these components must be present. Pass empty for no constraint.</param>
     /// <returns>Enumerable of matching archetype stores.</returns>
-    public IEnumerable<ArchetypeStore<TBits>> GetMatching(
+    public IEnumerable<ArchetypeStore<TBits, TRegistry>> GetMatching(
         ImmutableBitSet<TBits> all,
         ImmutableBitSet<TBits> none,
         ImmutableBitSet<TBits> any)

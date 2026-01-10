@@ -1,11 +1,9 @@
-using System.Collections.Immutable;
-
 namespace Paradise.ECS.Test;
 
 public class ArchetypeStoreTests : IDisposable
 {
     private readonly ChunkManager _chunkManager;
-    private readonly List<ImmutableArchetypeLayout<Bit64>> _layouts = [];
+    private readonly List<ImmutableArchetypeLayout<Bit64, ComponentRegistry>> _layouts = [];
 
     public ArchetypeStoreTests()
     {
@@ -21,43 +19,16 @@ public class ArchetypeStoreTests : IDisposable
         _chunkManager?.Dispose();
     }
 
-    private static ImmutableArray<ComponentTypeInfo> BuildGlobalComponentInfos(ReadOnlySpan<ComponentTypeInfo> components)
+    private ArchetypeStore<Bit64, ComponentRegistry> CreateStore(params ComponentTypeInfo[] components)
     {
-        if (components.IsEmpty)
-            return [];
-
-        int maxId = 0;
-        foreach (var comp in components)
-        {
-            if (comp.Id.Value > maxId)
-                maxId = comp.Id.Value;
-        }
-
-        var builder = ImmutableArray.CreateBuilder<ComponentTypeInfo>(maxId + 1);
-        for (int i = 0; i <= maxId; i++)
-        {
-            builder.Add(default);
-        }
-
-        foreach (var comp in components)
-        {
-            builder[comp.Id.Value] = comp;
-        }
-
-        return builder.MoveToImmutable();
-    }
-
-    private ArchetypeStore<Bit64> CreateStore(params ComponentTypeInfo[] components)
-    {
-        var globalInfos = BuildGlobalComponentInfos(components);
         var mask = ImmutableBitSet<Bit64>.Empty;
         foreach (var comp in components)
         {
             mask = mask.Set(comp.Id.Value);
         }
-        var layout = new ImmutableArchetypeLayout<Bit64>(mask, globalInfos);
+        var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(mask);
         _layouts.Add(layout);
-        return new ArchetypeStore<Bit64>(_layouts.Count - 1, layout, globalInfos, _chunkManager);
+        return new ArchetypeStore<Bit64, ComponentRegistry>(_layouts.Count - 1, layout, _chunkManager);
     }
 
     [Test]
