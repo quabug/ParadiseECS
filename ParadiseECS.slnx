@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Paradise.ECS.Generators.Test/Paradise.ECS.Generators.Test.csproj" />
+  </Folder>
   <Project Path="src/Paradise.ECS.Generators/Paradise.ECS.Generators.csproj" />
   <Project Path="src/Paradise.ECS.Test/Paradise.ECS.Test.csproj" />
   <Project Path="src/Paradise.ECS/Paradise.ECS.csproj" />
