@@ -56,8 +56,8 @@ public sealed class EntityManager : IDisposable
     /// <returns>A valid entity handle.</returns>
     public Entity Create()
     {
-        ThrowIfDisposed();
         using var _ = new OperationGuard(ref _operationCount);
+        if (_disposed != 0) return Entity.Invalid;
 
         if (_freeSlots.TryPop(out int id))
         {
@@ -91,8 +91,6 @@ public sealed class EntityManager : IDisposable
     /// <param name="entity">The entity to destroy.</param>
     public void Destroy(Entity entity)
     {
-        ThrowIfDisposed();
-
         if (!entity.IsValid)
             return;
 
@@ -100,6 +98,7 @@ public sealed class EntityManager : IDisposable
             return;
 
         using var _ = new OperationGuard(ref _operationCount);
+        if (_disposed != 0) return;
 
         var metas = Volatile.Read(ref _metas);
         ref var meta = ref metas[entity.Id];
@@ -141,6 +140,8 @@ public sealed class EntityManager : IDisposable
         if (entity.Id >= Volatile.Read(ref _nextEntityId))
             return false;
 
+        if (_disposed != 0) return false;
+
         var metas = Volatile.Read(ref _metas);
         ref var meta = ref metas[entity.Id];
         return Volatile.Read(ref meta.Version) == entity.Version;
@@ -167,12 +168,6 @@ public sealed class EntityManager : IDisposable
         var newMetas = new EntityMeta[newCapacity];
         Array.Copy(metas, newMetas, metas.Length);
         Volatile.Write(ref _metas, newMetas);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ThrowIfDisposed()
-    {
-        ThrowHelper.ThrowIfDisposed(Volatile.Read(ref _disposed) != 0, this);
     }
 
     public void Dispose()
