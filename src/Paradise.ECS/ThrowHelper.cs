@@ -93,4 +93,41 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void ThrowIfGreaterThan(int value, int other, [CallerArgumentExpression(nameof(value))] string? paramName = null)
         => ArgumentOutOfRangeException.ThrowIfGreaterThan(value, other, paramName);
+
+    /// <summary>
+    /// Throws if the component ID exceeds the capacity of the bit storage.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ThrowIfComponentIdExceedsCapacity(int componentId, int capacity)
+    {
+        if (componentId >= capacity)
+            ThrowComponentIdExceedsCapacity(componentId, capacity);
+    }
+
+    /// <summary>
+    /// Throws if the component ID is invalid (negative).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ThrowIfInvalidComponentId(ComponentId id)
+    {
+        if (!id.IsValid)
+            ThrowInvalidComponentId();
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowComponentIdExceedsCapacity(int componentId, int capacity)
+        => throw new InvalidOperationException(
+            $"Component ID {componentId} exceeds capacity {capacity}. Use a larger bit storage type.");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowInvalidComponentId()
+        => throw new InvalidOperationException(
+            "Component type has not been registered. Ensure the type is marked with [Component] attribute.");
+
+    /// <summary>
+    /// Throws an <see cref="ArgumentException"/> with the specified message.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowArgumentException(string message, string? paramName = null)
+        => throw new ArgumentException(message, paramName);
 }

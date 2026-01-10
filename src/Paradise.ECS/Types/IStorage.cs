@@ -33,9 +33,3 @@ public struct Bit1024 : IStorage
 {
     private ulong _element0;
 }
-
-[InlineArray(32)]
-public struct Bit2048 : IStorage
-{
-    private ulong _element0;
-}

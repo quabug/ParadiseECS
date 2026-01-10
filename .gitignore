@@ -29,6 +29,7 @@
 !**/packages/build/
 
 # OS
+*.swp
 .DS_Store
 Thumbs.db
 
@@ -56,5 +57,6 @@ assets/shaders/*.wgsl
 # Test results and coverage
 TestResults/
 coverage/
+coverage.cobertura.xml
 
 *.binlog
