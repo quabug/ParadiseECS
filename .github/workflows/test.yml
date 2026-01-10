@@ -35,7 +35,7 @@ jobs:
 
       - name: Test
         run: |
-          dotnet test -p:PublishAot=false \
+          dotnet test -p:PublishAot=false -- \
             --coverage \
             --coverage-output-format cobertura \
             --coverage-output coverage.cobertura.xml \
@@ -44,10 +44,10 @@ jobs:
       - name: List generated coverage files
         run: |
           echo "Searching for coverage files..."
-          find TestResults -name "*.cobertura.xml" -type f
+          find . -name "coverage.cobertura.xml" -type f
           echo ""
           echo "File count:"
-          find TestResults -name "*.cobertura.xml" -type f | wc -l
+          find . -name "coverage.cobertura.xml" -type f | wc -l
 
       - name: Install ReportGenerator
         run: dotnet tool install --global dotnet-reportgenerator-globaltool
@@ -55,7 +55,7 @@ jobs:
       - name: Generate coverage report
         run: |
           # Collect all coverage files into a semicolon-separated list
-          coverage_files=$(find TestResults -name "coverage.cobertura.xml" -type f | tr '\n' ';' | sed 's/;$//')
+          coverage_files=$(find . -name "coverage.cobertura.xml" -type f | tr '\n' ';' | sed 's/;$//')
 
           if [ -z "$coverage_files" ]; then
             echo "ERROR: No coverage files found!"

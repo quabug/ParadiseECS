@@ -17,17 +17,17 @@ namespace Paradise.ECS;
 /// - Meta blocks are lazily allocated on-demand using CAS
 /// - Maximum capacity: MaxMetaBlocks * EntriesPerMetaBlock (~1M chunks)
 /// </summary>
-internal sealed unsafe class ChunkManager : IDisposable
+public sealed unsafe class ChunkManager : IDisposable
 {
     /// <summary>
     /// Metadata for a single chunk slot.
-    /// Version and ShareCount are packed into VersionAndShareCount for atomic CAS operations.
+    /// Uses PackedVersion for Version (44 bits) and ShareCount (20 bits) packed for atomic CAS operations.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct ChunkMeta
     {
         public ulong Pointer;             // 8 bytes - pointer to data chunk memory
-        public ulong VersionAndShareCount; // 8 bytes - packed [Version:48][ShareCount:16] for atomic CAS
+        public ulong VersionAndShareCount; // 8 bytes - PackedVersion raw value for atomic CAS
     }
 
     private const int MetaSize = 16; // sizeof(ChunkMeta): 8 + 8
@@ -35,7 +35,6 @@ internal sealed unsafe class ChunkManager : IDisposable
     private const int EntriesPerMetaBlockShift = 10; // log2(1024)
     private const int EntriesPerMetaBlockMask = EntriesPerMetaBlock - 1; // 0x3FF
     private const int MaxMetaBlocks = 1024; // ~1M chunks max capacity (16GB)
-    private const int ShareCountBits = 16; // bits used for ShareCount in packed VersionAndShareCount
 
     private readonly IAllocator _allocator;
     private readonly nint[] _metaBlocks = new nint[MaxMetaBlocks];
@@ -87,28 +86,6 @@ internal sealed unsafe class ChunkManager : IDisposable
     }
 
     /// <summary>
-    /// Packs version and shareCount into a single 64-bit value for CAS operations.
-    /// Layout: [Version:48][ShareCount:16]
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong Pack(ulong version, ushort shareCount)
-        => (version << ShareCountBits) | shareCount;
-
-    /// <summary>
-    /// Extracts version (upper 48 bits) from packed VersionAndShareCount.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ulong GetVersion(ulong packed)
-        => packed >> ShareCountBits;
-
-    /// <summary>
-    /// Extracts shareCount (lower 16 bits) from packed VersionAndShareCount.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ushort GetShareCount(ulong packed)
-        => (ushort)packed;
-
-    /// <summary>
     /// Gets a reference to the metadata for a given slot id.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -126,7 +103,7 @@ internal sealed unsafe class ChunkManager : IDisposable
     public ChunkHandle Allocate()
     {
         using var _ = BeginOperation();
-        if (_disposed != 0) return ChunkHandle.Invalid;
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if (!_freeSlots.TryPop(out int id))
         {
@@ -145,10 +122,14 @@ internal sealed unsafe class ChunkManager : IDisposable
 
         // Allocate data chunk memory if needed (reuse existing if available)
         if (meta.Pointer == 0)
+        {
             meta.Pointer = (ulong)_allocator.AllocateZeroed(Chunk.ChunkSize);
+            // Initialize version to 1 for new slots (version 0 indicates invalid handle)
+            meta.VersionAndShareCount = new PackedVersion(version: 1, index: 0).Value;
+        }
 
         // Direct field access is safe here - slot is exclusively ours
-        return new ChunkHandle(id, GetVersion(meta.VersionAndShareCount));
+        return new ChunkHandle(id, new PackedVersion(meta.VersionAndShareCount).Version);
     }
 
     /// <summary>
@@ -182,10 +163,11 @@ internal sealed unsafe class ChunkManager : IDisposable
     public void Free(ChunkHandle handle)
     {
         if (!handle.IsValid) return;
-        if (handle.Id >= Volatile.Read(ref _nextSlotId)) return;
 
         using var _ = BeginOperation();
         if (_disposed != 0) return;
+
+        if (handle.Id >= Volatile.Read(ref _nextSlotId)) return;
 
         ref var meta = ref GetMeta(handle.Id);
 
@@ -193,19 +175,18 @@ internal sealed unsafe class ChunkManager : IDisposable
         while (true)
         {
             ulong current = Volatile.Read(ref meta.VersionAndShareCount);
-            var version = GetVersion(current);
-            var shareCount = GetShareCount(current);
+            var packed = new PackedVersion(current);
 
             // Check version - if stale, nothing to do
-            if (version != handle.Version)
+            if (packed.Version != handle.Version)
                 return; // Already freed or stale handle
 
             // Check if chunk is borrowed
-            if (shareCount != 0)
+            if (packed.Index != 0)
                 ThrowChunkInUse(handle);
 
             // Atomically increment version (wraps on overflow) and set shareCount to 0
-            ulong next = Pack(version + 1, 0);
+            ulong next = new PackedVersion(packed.Version + 1, 0).Value;
             if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
                 break; // Success
 
@@ -228,11 +209,14 @@ internal sealed unsafe class ChunkManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Chunk Get(ChunkHandle handle)
     {
-        if (!handle.IsValid || (uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
+        if (!handle.IsValid)
             return default;
 
         using var _ = BeginOperation();
-        if (_disposed != 0) return default;
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+
+        if ((uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
+            return default;
 
         ref var meta = ref GetMeta(handle.Id);
 
@@ -240,13 +224,12 @@ internal sealed unsafe class ChunkManager : IDisposable
         while (true)
         {
             ulong current = Volatile.Read(ref meta.VersionAndShareCount);
-            var version = GetVersion(current);
-            var shareCount = GetShareCount(current);
+            var packed = new PackedVersion(current);
 
-            if (version != handle.Version)
+            if (packed.Version != handle.Version)
                 return default; // Stale handle
 
-            ulong next = Pack(version, (ushort)(shareCount + 1));
+            ulong next = new PackedVersion(packed.Version, packed.Index + 1).Value;
             if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
                 return new Chunk(this, handle.Id, (void*)meta.Pointer);
 
@@ -261,11 +244,11 @@ internal sealed unsafe class ChunkManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Release(int id)
     {
+        using var _ = BeginOperation();
+        if (_disposed != 0) return;
+
         if (id >= Volatile.Read(ref _nextSlotId))
             return;
-
-        using var _ = BeginOperation();
-        if (_disposed != 0) return; // Memory already freed
 
         ref var meta = ref GetMeta(id);
 
@@ -273,11 +256,10 @@ internal sealed unsafe class ChunkManager : IDisposable
         while (true)
         {
             ulong current = Volatile.Read(ref meta.VersionAndShareCount);
-            var version = GetVersion(current);
-            var shareCount = GetShareCount(current);
-            Debug.Assert(shareCount > 0, "ShareCount underflow - Release called without matching Get");
+            var packed = new PackedVersion(current);
+            Debug.Assert(packed.Index > 0, "ShareCount underflow - Release called without matching Get");
 
-            ulong next = Pack(version, (ushort)(shareCount - 1));
+            ulong next = new PackedVersion(packed.Version, packed.Index - 1).Value;
             if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
                 return;
 

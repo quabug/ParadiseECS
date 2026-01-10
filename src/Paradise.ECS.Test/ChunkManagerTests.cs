@@ -101,7 +101,8 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Get_WithInvalidHandleId_ReturnsDefaultChunk()
     {
-        var invalidHandle = new ChunkHandle(99999, 0); // Id way out of range
+        // Version 0 makes this handle invalid; Id is also out of range
+        var invalidHandle = new ChunkHandle(99999, 0);
 
         // Should not throw - returns default chunk
         bool noException = true;
@@ -140,13 +141,12 @@ public class ChunkManagerExceptionTests : IDisposable
     }
 
     [Test]
-    public async Task Allocate_AfterDispose_ReturnsInvalidHandle()
+    public async Task Allocate_AfterDispose_ThrowsObjectDisposedException()
     {
         var manager = new ChunkManager(initialCapacity: 4);
         manager.Dispose();
 
-        var handle = manager.Allocate();
-        await Assert.That(handle.IsValid).IsFalse();
+        await Assert.That(manager.Allocate).Throws<ObjectDisposedException>();
     }
 
     [Test]
@@ -196,10 +196,11 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Get_WithNegativeId_ReturnsDefaultChunk()
     {
+        // With packed representation, -1 becomes 0xFFFFFF (max 24-bit value) for Id
+        // Version 0 means invalid, so this handle is invalid
         var negativeHandle = new ChunkHandle(-1, 0);
 
         // Should not throw - returns default chunk
-        // Note: ChunkHandle.Invalid is (-1, 0), so this is the invalid handle
         bool noException = true;
         try
         {
@@ -235,24 +236,26 @@ public class ChunkManagerExceptionTests : IDisposable
         var handle = manager.Allocate();
         manager.Dispose();
 
-        // Free after dispose should be a no-op (not throw)
         await Assert.That(() => manager.Free(handle)).ThrowsNothing();
     }
 
     [Test]
-    public async Task Get_AfterDispose_ReturnsDefaultChunk()
+    public async Task Get_AfterDispose_ThrowsObjectDisposedException()
     {
         var manager = new ChunkManager(initialCapacity: 4);
         var handle = manager.Allocate();
         manager.Dispose();
 
-        // Get after dispose should return default chunk
-        bool isValid;
+        bool threw = false;
+        try
         {
             using var chunk = manager.Get(handle);
-            isValid = chunk.IsValid;
         }
-        await Assert.That(isValid).IsFalse();
+        catch (ObjectDisposedException)
+        {
+            threw = true;
+        }
+        await Assert.That(threw).IsTrue();
     }
 
     [Test]
@@ -303,7 +306,6 @@ public class ChunkManagerExceptionTests : IDisposable
 
         manager.Dispose();
 
-        // Release after dispose should be a no-op
         await Assert.That(() => manager.Release(handle.Id)).ThrowsNothing();
     }
 }
@@ -357,7 +359,7 @@ public class ChunkHandleTests
     [Test]
     public async Task IsValid_ValidHandle_ReturnsTrue()
     {
-        var handle = new ChunkHandle(0, 0);
+        var handle = new ChunkHandle(0, 1); // Version must be >= 1 for valid handle
         await Assert.That(handle.IsValid).IsTrue();
     }
 
