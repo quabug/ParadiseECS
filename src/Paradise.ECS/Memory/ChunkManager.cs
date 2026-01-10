@@ -103,7 +103,7 @@ public sealed unsafe class ChunkManager : IDisposable
     public ChunkHandle Allocate()
     {
         using var _ = BeginOperation();
-        if (_disposed != 0) return ChunkHandle.Invalid;
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if (!_freeSlots.TryPop(out int id))
         {
@@ -163,10 +163,11 @@ public sealed unsafe class ChunkManager : IDisposable
     public void Free(ChunkHandle handle)
     {
         if (!handle.IsValid) return;
-        if (handle.Id >= Volatile.Read(ref _nextSlotId)) return;
 
         using var _ = BeginOperation();
         if (_disposed != 0) return;
+
+        if (handle.Id >= Volatile.Read(ref _nextSlotId)) return;
 
         ref var meta = ref GetMeta(handle.Id);
 
@@ -208,11 +209,14 @@ public sealed unsafe class ChunkManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Chunk Get(ChunkHandle handle)
     {
-        if (!handle.IsValid || (uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
+        if (!handle.IsValid)
             return default;
 
         using var _ = BeginOperation();
-        if (_disposed != 0) return default;
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+
+        if ((uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
+            return default;
 
         ref var meta = ref GetMeta(handle.Id);
 
@@ -240,11 +244,11 @@ public sealed unsafe class ChunkManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Release(int id)
     {
+        using var _ = BeginOperation();
+        if (_disposed != 0) return;
+
         if (id >= Volatile.Read(ref _nextSlotId))
             return;
-
-        using var _ = BeginOperation();
-        if (_disposed != 0) return; // Memory already freed
 
         ref var meta = ref GetMeta(id);
 

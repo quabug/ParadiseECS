@@ -57,7 +57,7 @@ public sealed class EntityManager : IDisposable
     public Entity Create()
     {
         using var _ = new OperationGuard(ref _operationCount);
-        if (_disposed != 0) return Entity.Invalid;
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if (_freeSlots.TryPop(out int id))
         {
@@ -94,11 +94,11 @@ public sealed class EntityManager : IDisposable
         if (!entity.IsValid)
             return;
 
-        if (entity.Id >= Volatile.Read(ref _nextEntityId))
-            return;
-
         using var _ = new OperationGuard(ref _operationCount);
         if (_disposed != 0) return;
+
+        if (entity.Id >= Volatile.Read(ref _nextEntityId))
+            return;
 
         var metas = Volatile.Read(ref _metas);
         ref var meta = ref metas[entity.Id];
@@ -137,10 +137,10 @@ public sealed class EntityManager : IDisposable
         if (!entity.IsValid)
             return false;
 
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+
         if (entity.Id >= Volatile.Read(ref _nextEntityId))
             return false;
-
-        if (_disposed != 0) return false;
 
         var metas = Volatile.Read(ref _metas);
         ref var meta = ref metas[entity.Id];

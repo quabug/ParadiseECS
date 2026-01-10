@@ -259,12 +259,22 @@ public class EntityManagerTests : IDisposable
     }
 
     [Test]
-    public async Task Destroy_AfterDispose_ThrowsObjectDisposedException()
+    public async Task Destroy_AfterDispose_DoesNotThrow()
     {
         var manager = new EntityManager();
         var entity = manager.Create();
         manager.Dispose();
 
-        await Assert.That(() => manager.Destroy(entity)).Throws<ObjectDisposedException>();
+        await Assert.That(() => manager.Destroy(entity)).ThrowsNothing();
+    }
+
+    [Test]
+    public async Task IsAlive_AfterDispose_ThrowsObjectDisposedException()
+    {
+        var manager = new EntityManager();
+        var entity = manager.Create();
+        manager.Dispose();
+
+        await Assert.That(() => manager.IsAlive(entity)).Throws<ObjectDisposedException>();
     }
 }
