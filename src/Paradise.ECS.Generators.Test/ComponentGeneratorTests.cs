@@ -492,6 +492,158 @@ public class ComponentGeneratorDiagnosticTests
         var pecs004 = diagnostics.FirstOrDefault(d => d.Id == "PECS004");
         await Assert.That(pecs004).IsNull();
     }
+
+    [Test]
+    public async Task ComponentNestedInClass_GeneratesCorrectPartialClass()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            public partial class OuterClass
+            {
+                [Component]
+                public partial struct NestedInClass
+                {
+                    public int Value;
+                }
+            }
+            """;
+
+        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+
+        var generated = sources.FirstOrDefault(s => s.HintName.Contains("NestedInClass", StringComparison.Ordinal)).Source;
+        await Assert.That(generated).IsNotNull();
+        await Assert.That(generated).Contains("partial class OuterClass");
+        await Assert.That(generated).Contains("partial struct NestedInClass : global::Paradise.ECS.IComponent");
+    }
+
+    [Test]
+    public async Task ComponentNestedInInterface_GeneratesCorrectPartialInterface()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            public partial interface IOuterInterface
+            {
+                [Component]
+                public partial struct NestedInInterface
+                {
+                    public int Value;
+                }
+            }
+            """;
+
+        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+
+        var generated = sources.FirstOrDefault(s => s.HintName.Contains("NestedInInterface", StringComparison.Ordinal)).Source;
+        await Assert.That(generated).IsNotNull();
+        await Assert.That(generated).Contains("partial interface IOuterInterface");
+        await Assert.That(generated).Contains("partial struct NestedInInterface : global::Paradise.ECS.IComponent");
+    }
+
+    [Test]
+    public async Task ComponentNestedInGenericStruct_ReportsPECS005()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            public partial struct GenericOuter<T>
+            {
+                [Component]
+                public partial struct NestedInGeneric
+                {
+                    public int Value;
+                }
+            }
+            """;
+
+        var diagnostics = GeneratorTestHelper.GetDiagnostics(source);
+
+        var pecs005 = diagnostics.FirstOrDefault(d => d.Id == "PECS005");
+        await Assert.That(pecs005).IsNotNull();
+        await Assert.That(pecs005!.Severity).IsEqualTo(DiagnosticSeverity.Error);
+        await Assert.That(pecs005.GetMessage(System.Globalization.CultureInfo.InvariantCulture)).Contains("a generic type");
+    }
+
+    [Test]
+    public async Task ComponentNestedInGenericClass_ReportsPECS005()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            public partial class GenericOuter<T>
+            {
+                [Component]
+                public partial struct NestedInGeneric
+                {
+                    public int Value;
+                }
+            }
+            """;
+
+        var diagnostics = GeneratorTestHelper.GetDiagnostics(source);
+
+        var pecs005 = diagnostics.FirstOrDefault(d => d.Id == "PECS005");
+        await Assert.That(pecs005).IsNotNull();
+        await Assert.That(pecs005!.Severity).IsEqualTo(DiagnosticSeverity.Error);
+        await Assert.That(pecs005.GetMessage(System.Globalization.CultureInfo.InvariantCulture)).Contains("a generic type");
+    }
+
+    [Test]
+    public async Task ComponentNestedInNonGenericStruct_NoError()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            public partial struct OuterStruct
+            {
+                [Component]
+                public partial struct ValidNested
+                {
+                    public int Value;
+                }
+            }
+            """;
+
+        var diagnostics = GeneratorTestHelper.GetDiagnostics(source);
+
+        var pecs005 = diagnostics.FirstOrDefault(d => d.Id == "PECS005");
+        await Assert.That(pecs005).IsNull();
+    }
+
+    [Test]
+    public async Task ComponentNestedInGenericType_DoesNotGenerateCode()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            public partial class GenericOuter<T>
+            {
+                [Component]
+                public partial struct NestedInGeneric
+                {
+                    public int Value;
+                }
+            }
+            """;
+
+        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+
+        var generated = sources.FirstOrDefault(s => s.HintName.Contains("NestedInGeneric", StringComparison.Ordinal));
+        await Assert.That(generated.Source).IsNull();
+    }
 }
 
 public class ComponentGeneratorRegistryTests

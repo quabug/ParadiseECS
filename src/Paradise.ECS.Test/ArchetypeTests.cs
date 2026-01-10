@@ -276,9 +276,9 @@ public class ArchetypeTests
     [Test]
     public async Task ComponentRegistry_GetId_ReturnsCorrectId()
     {
-        await Assert.That(ComponentRegistry.GetId(typeof(TestHealth)).Value).IsEqualTo(0);
-        await Assert.That(ComponentRegistry.GetId(typeof(TestPosition)).Value).IsEqualTo(1);
-        await Assert.That(ComponentRegistry.GetId(typeof(TestVelocity)).Value).IsEqualTo(2);
+        await Assert.That(ComponentRegistry.GetId(typeof(TestHealth)).Value).IsEqualTo(1);
+        await Assert.That(ComponentRegistry.GetId(typeof(TestPosition)).Value).IsEqualTo(2);
+        await Assert.That(ComponentRegistry.GetId(typeof(TestVelocity)).Value).IsEqualTo(3);
     }
 
     [Test]
@@ -295,7 +295,7 @@ public class ArchetypeTests
         var found = ComponentRegistry.TryGetId(typeof(TestPosition), out var id);
 
         await Assert.That(found).IsTrue();
-        await Assert.That(id.Value).IsEqualTo(1);
+        await Assert.That(id.Value).IsEqualTo(2);
     }
 
     [Test]
@@ -312,7 +312,7 @@ public class ArchetypeTests
         var guid = new System.Guid("5B9313BE-CB77-4C8B-A0E4-82A3B369C717"); // TestHealth's GUID
         var id = ComponentRegistry.GetId(guid);
 
-        await Assert.That(id.Value).IsEqualTo(0);
+        await Assert.That(id.Value).IsEqualTo(1);
     }
 
     [Test]

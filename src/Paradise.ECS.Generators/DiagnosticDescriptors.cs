@@ -54,4 +54,16 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "The GUID provided to [Component] attribute must be a valid GUID format (e.g., '12345678-1234-1234-1234-123456789012').");
+
+    /// <summary>
+    /// PECS005: Component nested in generic type.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UnsupportedContainingType = new(
+        id: "PECS005",
+        title: "Component nested in generic type",
+        messageFormat: "Component '{0}' is nested inside '{1}' which is {2}. Components cannot be nested inside generic types.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Component types cannot be nested inside generic types because the source generator cannot infer type parameters.");
 }

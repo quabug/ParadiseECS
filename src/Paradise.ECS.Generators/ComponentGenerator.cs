@@ -56,13 +56,31 @@ public class ComponentGenerator : IIncrementalGenerator
             ? null
             : typeSymbol.ContainingNamespace.ToDisplayString();
 
-        // Get type name and containing types for nested structs
+        // Get type name and containing types for nested components
         var typeName = typeSymbol.Name;
-        var containingTypesList = new List<string>();
+        var containingTypesList = new List<ContainingTypeInfo>();
+        string? invalidContainingType = null;
+        string? invalidContainingTypeReason = null;
         var parent = typeSymbol.ContainingType;
         while (parent != null)
         {
-            containingTypesList.Add(parent.Name);
+            // Get the keyword for this type kind
+            var keyword = parent.TypeKind switch
+            {
+                TypeKind.Class => parent.IsRecord ? "record class" : "class",
+                TypeKind.Struct => parent.IsRecord ? "record struct" : "struct",
+                TypeKind.Interface => "interface",
+                _ => "struct" // Fallback, shouldn't happen
+            };
+            containingTypesList.Add(new ContainingTypeInfo(parent.Name, keyword));
+
+            // Check for unsupported containing type (only generic types are rejected)
+            if (invalidContainingType == null && parent.IsGenericType)
+            {
+                invalidContainingType = parent.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat);
+                invalidContainingTypeReason = "a generic type";
+            }
+
             parent = parent.ContainingType;
         }
         containingTypesList.Reverse();
@@ -105,6 +123,12 @@ public class ComponentGenerator : IIncrementalGenerator
             }
         }
 
+        // Check if struct has any instance fields
+        var hasInstanceFields = typeSymbol.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Any(f => !f.IsStatic);
+        var isEmpty = !hasInstanceFields;
+
         return new ComponentInfo(
             fullyQualifiedName,
             typeSymbol.Locations.FirstOrDefault() ?? Location.None,
@@ -113,7 +137,10 @@ public class ComponentGenerator : IIncrementalGenerator
             typeName,
             containingTypes,
             validGuid,
-            invalidGuid);
+            invalidGuid,
+            invalidContainingType,
+            invalidContainingTypeReason,
+            isEmpty);
     }
 
     private static void GenerateComponentCode(
@@ -147,10 +174,20 @@ public class ComponentGenerator : IIncrementalGenerator
                     component.FullyQualifiedName,
                     component.InvalidGuid));
             }
+
+            if (component.InvalidContainingType != null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.UnsupportedContainingType,
+                    component.Location,
+                    component.FullyQualifiedName,
+                    component.InvalidContainingType,
+                    component.InvalidContainingTypeReason));
+            }
         }
 
-        // Filter to only valid (unmanaged) components for code generation
-        var validComponents = sorted.Where(static c => c.IsUnmanaged).ToList();
+        // Filter to only valid components for code generation
+        var validComponents = sorted.Where(static c => c.IsUnmanaged && c.HasValidNesting).ToList();
 
         if (validComponents.Count == 0)
             return;
@@ -395,7 +432,7 @@ public class ComponentGenerator : IIncrementalGenerator
         var indent = "";
         foreach (var containingType in component.ContainingTypes)
         {
-            sb.AppendLine($"{indent}partial struct {containingType}");
+            sb.AppendLine($"{indent}partial {containingType.Keyword} {containingType.Name}");
             sb.AppendLine($"{indent}{{");
             indent += "    ";
         }
@@ -421,10 +458,24 @@ public class ComponentGenerator : IIncrementalGenerator
         }
         sb.AppendLine();
         sb.AppendLine($"{indent}    /// <summary>The size of this component in bytes.</summary>");
-        sb.AppendLine($"{indent}    public static int Size {{ get; }} = global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::{component.FullyQualifiedName}>();");
+        if (component.IsEmpty)
+        {
+            sb.AppendLine($"{indent}    public static int Size => 0;");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}    public static int Size {{ get; }} = global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::{component.FullyQualifiedName}>();");
+        }
         sb.AppendLine();
         sb.AppendLine($"{indent}    /// <summary>The alignment of this component in bytes.</summary>");
-        sb.AppendLine($"{indent}    public static int Alignment {{ get; }} = global::Paradise.ECS.AlignmentHelper<global::{component.FullyQualifiedName}>.Alignment;");
+        if (component.IsEmpty)
+        {
+            sb.AppendLine($"{indent}    public static int Alignment => 0;");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}    public static int Alignment {{ get; }} = global::Paradise.ECS.AlignmentHelper<global::{component.FullyQualifiedName}>.Alignment;");
+        }
         sb.AppendLine($"{indent}}}");
 
         // Close containing types
@@ -446,9 +497,14 @@ public class ComponentGenerator : IIncrementalGenerator
         public bool IsUnmanaged { get; }
         public string? Namespace { get; }
         public string TypeName { get; }
-        public ImmutableArray<string> ContainingTypes { get; }
+        public ImmutableArray<ContainingTypeInfo> ContainingTypes { get; }
         public string? Guid { get; }
         public string? InvalidGuid { get; }
+        public string? InvalidContainingType { get; }
+        public string? InvalidContainingTypeReason { get; }
+        public bool IsEmpty { get; }
+
+        public bool HasValidNesting => InvalidContainingType == null;
 
         public ComponentInfo(
             string fullyQualifiedName,
@@ -456,9 +512,12 @@ public class ComponentGenerator : IIncrementalGenerator
             bool isUnmanaged,
             string? ns,
             string typeName,
-            ImmutableArray<string> containingTypes,
+            ImmutableArray<ContainingTypeInfo> containingTypes,
             string? guid,
-            string? invalidGuid)
+            string? invalidGuid,
+            string? invalidContainingType,
+            string? invalidContainingTypeReason,
+            bool isEmpty)
         {
             FullyQualifiedName = fullyQualifiedName;
             Location = location;
@@ -468,6 +527,24 @@ public class ComponentGenerator : IIncrementalGenerator
             ContainingTypes = containingTypes;
             Guid = guid;
             InvalidGuid = invalidGuid;
+            InvalidContainingType = invalidContainingType;
+            InvalidContainingTypeReason = invalidContainingTypeReason;
+            IsEmpty = isEmpty;
+        }
+    }
+
+    /// <summary>
+    /// Information about a containing type for nested components.
+    /// </summary>
+    private readonly struct ContainingTypeInfo
+    {
+        public string Name { get; }
+        public string Keyword { get; }
+
+        public ContainingTypeInfo(string name, string keyword)
+        {
+            Name = name;
+            Keyword = keyword;
         }
     }
 }

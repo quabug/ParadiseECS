@@ -23,12 +23,18 @@ public partial struct TestVelocity
     public float X, Y, Z;
 }
 
-public class ComponentTypeTests
+public partial class ComponentTypeTests
 {
-    // IDs are now automatically assigned by the source generator:
-    // - TestHealth: ID 0 (alphabetically first: Paradise.ECS.Test.TestHealth)
-    // - TestPosition: ID 1 (Paradise.ECS.Test.TestPosition)
-    // - TestVelocity: ID 2 (Paradise.ECS.Test.TestVelocity)
+    [Component]
+    public partial struct TestNested
+    {
+    }
+
+    // IDs are now automatically assigned by the source generator based on alphabetical ordering:
+    // - ComponentTypeTests.A: ID 0 (Paradise.ECS.Test.ComponentTypeTests.A)
+    // - TestHealth: ID 1 (Paradise.ECS.Test.TestHealth)
+    // - TestPosition: ID 2 (Paradise.ECS.Test.TestPosition)
+    // - TestVelocity: ID 3 (Paradise.ECS.Test.TestVelocity)
 
     [Test]
     public async Task ComponentId_Default_IsValid()
@@ -71,14 +77,16 @@ public class ComponentTypeTests
     [Test]
     public async Task Component_TypeId_ReturnsAssignedId()
     {
-        await Assert.That(TestHealth.TypeId.Value).IsEqualTo(0);
-        await Assert.That(TestPosition.TypeId.Value).IsEqualTo(1);
-        await Assert.That(TestVelocity.TypeId.Value).IsEqualTo(2);
+        await Assert.That(TestNested.TypeId.Value).IsEqualTo(0);
+        await Assert.That(TestHealth.TypeId.Value).IsEqualTo(1);
+        await Assert.That(TestPosition.TypeId.Value).IsEqualTo(2);
+        await Assert.That(TestVelocity.TypeId.Value).IsEqualTo(3);
     }
 
     [Test]
     public async Task Component_Size_ReturnsCorrectSize()
     {
+        await Assert.That(TestNested.Size).IsEqualTo(0);    // empty struct
         await Assert.That(TestPosition.Size).IsEqualTo(12); // 3 floats
         await Assert.That(TestVelocity.Size).IsEqualTo(12); // 3 floats
         await Assert.That(TestHealth.Size).IsEqualTo(8);    // 2 ints
@@ -109,9 +117,10 @@ public class ComponentTypeTests
     public async Task Component_TypeId_AccessibleViaGenericConstraint()
     {
         // TypeId is accessible via generic constraint
-        await Assert.That(GetTypeId<TestHealth>().Value).IsEqualTo(0);
-        await Assert.That(GetTypeId<TestPosition>().Value).IsEqualTo(1);
-        await Assert.That(GetTypeId<TestVelocity>().Value).IsEqualTo(2);
+        await Assert.That(GetTypeId<TestNested>().Value).IsEqualTo(0);
+        await Assert.That(GetTypeId<TestHealth>().Value).IsEqualTo(1);
+        await Assert.That(GetTypeId<TestPosition>().Value).IsEqualTo(2);
+        await Assert.That(GetTypeId<TestVelocity>().Value).IsEqualTo(3);
     }
 
     // Helper to get TypeId via generic constraint
@@ -121,7 +130,8 @@ public class ComponentTypeTests
     public async Task Component_Size_AccessibleViaGenericConstraint()
     {
         // Size is accessible via generic constraint
-        await Assert.That(GetSize<TestHealth>()).IsEqualTo(8);     // 2 ints
+        await Assert.That(GetSize<TestNested>()).IsEqualTo(0);   // empty struct
+        await Assert.That(GetSize<TestHealth>()).IsEqualTo(8);   // 2 ints
         await Assert.That(GetSize<TestPosition>()).IsEqualTo(12);  // 3 floats
         await Assert.That(GetSize<TestVelocity>()).IsEqualTo(12);  // 3 floats
     }
@@ -134,7 +144,8 @@ public class ComponentTypeTests
     {
         // Alignment is a static property generated on each component struct
         // int has alignment 4, float has alignment 4
-        await Assert.That(TestHealth.Alignment).IsEqualTo(4);    // int alignment
+        await Assert.That(TestNested.Alignment).IsEqualTo(0);   // empty struct
+        await Assert.That(TestHealth.Alignment).IsEqualTo(4);   // int alignment
         await Assert.That(TestPosition.Alignment).IsEqualTo(4);  // float alignment
         await Assert.That(TestVelocity.Alignment).IsEqualTo(4);  // float alignment
     }
@@ -145,6 +156,7 @@ public class ComponentTypeTests
     [Test]
     public async Task Component_Alignment_AccessibleViaGenericConstraint()
     {
+        await Assert.That(GetAlignment<TestNested>()).IsEqualTo(0);  // empty struct
         await Assert.That(GetAlignment<TestHealth>()).IsEqualTo(4);
         await Assert.That(GetAlignment<TestPosition>()).IsEqualTo(4);
         await Assert.That(GetAlignment<TestVelocity>()).IsEqualTo(4);
