@@ -101,7 +101,8 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Get_WithInvalidHandleId_ReturnsDefaultChunk()
     {
-        var invalidHandle = new ChunkHandle(99999, 0); // Id way out of range
+        // Version 0 makes this handle invalid; Id is also out of range
+        var invalidHandle = new ChunkHandle(99999, 0);
 
         // Should not throw - returns default chunk
         bool noException = true;
@@ -196,10 +197,11 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Get_WithNegativeId_ReturnsDefaultChunk()
     {
+        // With packed representation, -1 becomes 0xFFFFFF (max 24-bit value) for Id
+        // Version 0 means invalid, so this handle is invalid
         var negativeHandle = new ChunkHandle(-1, 0);
 
         // Should not throw - returns default chunk
-        // Note: ChunkHandle.Invalid is (-1, 0), so this is the invalid handle
         bool noException = true;
         try
         {
@@ -357,7 +359,7 @@ public class ChunkHandleTests
     [Test]
     public async Task IsValid_ValidHandle_ReturnsTrue()
     {
-        var handle = new ChunkHandle(0, 0);
+        var handle = new ChunkHandle(0, 1); // Version must be >= 1 for valid handle
         await Assert.That(handle.IsValid).IsTrue();
     }
 
