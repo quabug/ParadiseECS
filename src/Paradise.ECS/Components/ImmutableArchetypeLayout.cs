@@ -189,6 +189,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
         }
 
         // Build component infos from mask using enumerator
+        // (enumerator yields IDs in ascending order, which is already sorted by alignment)
         int componentCount = header.ComponentCount;
         Span<ComponentTypeInfo> components = stackalloc ComponentTypeInfo[componentCount];
         int idx = 0;
@@ -196,14 +197,6 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
         {
             components[idx++] = globalComponentInfos[componentId];
         }
-
-        // Sort components by alignment (descending) then by ID
-        // This minimizes alignment padding between arrays
-        components.Sort(static (a, b) =>
-        {
-            int cmp = b.Alignment.CompareTo(a.Alignment);
-            return cmp != 0 ? cmp : a.Id.Value.CompareTo(b.Id.Value);
-        });
 
         // Calculate total size per entity (without alignment)
         int totalSizePerEntity = 0;

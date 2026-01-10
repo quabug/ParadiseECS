@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace Paradise.ECS.Test;
 
-[Component]
+[Component(Id = 4)]
 public partial struct TestTag; // Zero-size component for layout tests
 
 public class ArchetypeLayoutTests

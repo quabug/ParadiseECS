@@ -276,10 +276,11 @@ public class ArchetypeTests
     [Test]
     public async Task ComponentRegistry_GetId_ReturnsCorrectId()
     {
-        await Assert.That(ComponentRegistry.GetId(typeof(TestHealth)).Value).IsEqualTo(1);
-        await Assert.That(ComponentRegistry.GetId(typeof(TestPosition)).Value).IsEqualTo(2);
-        await Assert.That(ComponentRegistry.GetId(typeof(TestTag)).Value).IsEqualTo(3);
-        await Assert.That(ComponentRegistry.GetId(typeof(TestVelocity)).Value).IsEqualTo(4);
+        // IDs sorted by alignment (descending) then by name
+        await Assert.That(ComponentRegistry.GetId(typeof(TestHealth)).Value).IsEqualTo(0);    // alignment=4
+        await Assert.That(ComponentRegistry.GetId(typeof(TestPosition)).Value).IsEqualTo(1);  // alignment=4
+        await Assert.That(ComponentRegistry.GetId(typeof(TestVelocity)).Value).IsEqualTo(2);  // alignment=4
+        await Assert.That(ComponentRegistry.GetId(typeof(TestTag)).Value).IsEqualTo(4);       // alignment=0
     }
 
     [Test]
@@ -296,7 +297,7 @@ public class ArchetypeTests
         var found = ComponentRegistry.TryGetId(typeof(TestPosition), out var id);
 
         await Assert.That(found).IsTrue();
-        await Assert.That(id.Value).IsEqualTo(2);
+        await Assert.That(id.Value).IsEqualTo(1);  // alignment=4, sorted after TestHealth
     }
 
     [Test]
@@ -313,7 +314,7 @@ public class ArchetypeTests
         var guid = new System.Guid("5B9313BE-CB77-4C8B-A0E4-82A3B369C717"); // TestHealth's GUID
         var id = ComponentRegistry.GetId(guid);
 
-        await Assert.That(id.Value).IsEqualTo(1);
+        await Assert.That(id.Value).IsEqualTo(0);  // TestHealth: alignment=4, first alphabetically
     }
 
     [Test]

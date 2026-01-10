@@ -6,12 +6,12 @@ namespace Paradise.ECS;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Components are assigned sequential IDs (0, 1, 2...) based on alphabetical
-/// ordering of their fully qualified type names. The component ID is assigned
-/// at compile time by the Paradise.ECS source generator.
+/// Components are assigned IDs at module initialization time. By default, IDs are
+/// auto-assigned based on alignment (descending) then fully qualified type name.
 /// </para>
 /// <para>
-/// This ensures deterministic IDs across different devices and compilation cycles.
+/// You can manually specify an ID using the <see cref="Id"/> property. Manual IDs
+/// take precedence, and auto-assigned IDs will skip over any manually assigned values.
 /// </para>
 /// </remarks>
 /// <example>
@@ -20,6 +20,12 @@ namespace Paradise.ECS;
 /// public partial struct Position
 /// {
 ///     public float X, Y, Z;
+/// }
+///
+/// [Component(Id = 100)]  // Manually assign ID 100
+/// public partial struct FixedIdComponent
+/// {
+///     public int Value;
 /// }
 /// </code>
 /// </example>
@@ -40,7 +46,17 @@ public sealed class ComponentAttribute : Attribute
     /// </summary>
     /// <remarks>
     /// When specified, this GUID provides a stable identifier that persists even when
-    /// components are added/removed (unlike TypeId which changes based on alphabetical ordering).
+    /// components are added/removed (unlike TypeId which changes based on auto-assignment).
     /// </remarks>
     public string? Guid { get; }
+
+    /// <summary>
+    /// Gets or sets the manual component ID. When set, this ID is used instead of auto-assignment.
+    /// </summary>
+    /// <remarks>
+    /// Use this to ensure a component always has the same ID regardless of other components
+    /// in the project. Auto-assigned IDs will skip over manually assigned values.
+    /// Must be a non-negative integer. -1 (default) means auto-assign.
+    /// </remarks>
+    public int Id { get; set; } = -1;
 }
