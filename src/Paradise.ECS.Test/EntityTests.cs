@@ -14,7 +14,7 @@ public class EntityTests
     {
         var entity = Entity.Invalid;
         await Assert.That(entity.IsValid).IsFalse();
-        await Assert.That(entity.Id).IsEqualTo(-1);
+        await Assert.That(entity).IsEqualTo(default(Entity));
     }
 
     [Test]
@@ -23,7 +23,7 @@ public class EntityTests
         var entity = new Entity(42, 1);
         await Assert.That(entity.IsValid).IsTrue();
         await Assert.That(entity.Id).IsEqualTo(42);
-        await Assert.That(entity.Version).IsEqualTo(1);
+        await Assert.That(entity.Version).IsEqualTo(1u);
     }
 
     [Test]

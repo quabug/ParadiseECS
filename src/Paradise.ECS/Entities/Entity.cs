@@ -6,18 +6,18 @@ namespace Paradise.ECS;
 /// </summary>
 /// <param name="Id">The unique identifier of the entity.</param>
 /// <param name="Version">Incrementing version for destroyed entity detection.</param>
-public readonly record struct Entity(int Id, int Version)
+public readonly record struct Entity(int Id, uint Version)
 {
     /// <summary>
-    /// The Invalid entity handle.
+    /// The Invalid entity handle. Equal to <c>default(Entity)</c>.
     /// </summary>
-    public static readonly Entity Invalid = new(-1, 0);
+    public static readonly Entity Invalid = default;
 
     /// <summary>
-    /// Gets whether this entity handle is valid (not the Invalid entity).
+    /// Gets whether this entity handle is valid (not the Invalid entity or default).
     /// Note: Does not check if the entity is still alive in the manager.
     /// </summary>
-    public bool IsValid => Id != -1;
+    public bool IsValid => Id > 0;
 
     public override string ToString() =>
         IsValid ? $"Entity(Id: {Id}, Ver: {Version})" : "Entity(Invalid)";
