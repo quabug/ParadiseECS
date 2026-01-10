@@ -58,6 +58,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
     where TBits : unmanaged, IStorage
 {
     private readonly IAllocator _allocator;
+    private readonly ImmutableArray<ComponentTypeInfo> _globalComponentInfos;
     private byte* _data;
 
     /// <summary>
@@ -140,6 +141,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
     public ImmutableArchetypeLayout(ImmutableBitSet<TBits> componentMask, ImmutableArray<ComponentTypeInfo> globalComponentInfos, IAllocator? allocator = null)
     {
         _allocator = allocator ?? NativeMemoryAllocator.Shared;
+        _globalComponentInfos = globalComponentInfos;
 
         // Calculate min/max component ID range using FirstSetBit/LastSetBit
         int minId = componentMask.FirstSetBit();
@@ -321,19 +323,19 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
 
     /// <summary>
     /// Calculates the byte offset for a specific entity and component.
+    /// Uses stored component type info to look up the size.
     /// </summary>
     /// <param name="entityIndex">The entity's index within the chunk.</param>
     /// <param name="componentId">The component ID.</param>
-    /// <param name="componentSize">The component size in bytes.</param>
     /// <returns>The byte offset from chunk start, or -1 if component not present.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int GetEntityComponentOffset(int entityIndex, ComponentId componentId, int componentSize)
+    public int GetEntityComponentOffset(int entityIndex, ComponentId componentId)
     {
         int baseOffset = GetBaseOffset(componentId);
         if (baseOffset < 0)
             return -1;
 
-        return baseOffset + entityIndex * componentSize;
+        return baseOffset + entityIndex * _globalComponentInfos[componentId.Value].Size;
     }
 
     /// <summary>
@@ -345,7 +347,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int GetEntityComponentOffset<T>(int entityIndex) where T : unmanaged, IComponent
     {
-        return GetEntityComponentOffset(entityIndex, T.TypeId, T.Size);
+        return GetEntityComponentOffset(entityIndex, T.TypeId);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
