@@ -6,7 +6,7 @@ public class EntityManagerTests : IDisposable
 
     public EntityManagerTests()
     {
-        _manager = new EntityManager(initialCapacity: 16);
+        _manager = new EntityManager();
     }
 
     public void Dispose()
@@ -19,8 +19,8 @@ public class EntityManagerTests : IDisposable
     {
         var entity = _manager.Create();
         await Assert.That(entity.IsValid).IsTrue();
-        await Assert.That(entity.Id).IsGreaterThanOrEqualTo(0u);
-        await Assert.That(entity.Version).IsGreaterThanOrEqualTo(0u);
+        await Assert.That(entity.Id).IsGreaterThanOrEqualTo(0);
+        await Assert.That(entity.Version).IsGreaterThanOrEqualTo(0);
     }
 
     [Test]
@@ -147,10 +147,10 @@ public class EntityManagerTests : IDisposable
     [Test]
     public async Task Create_BeyondInitialCapacity_ExpandsAutomatically()
     {
-        var manager = new EntityManager(initialCapacity: 4);
+        var manager = new EntityManager();
         try
         {
-            // Create more than initial capacity
+            // Create many entities to test expansion
             for (int i = 0; i < 100; i++)
             {
                 var entity = manager.Create();
@@ -168,19 +168,20 @@ public class EntityManagerTests : IDisposable
     [Test]
     public async Task Capacity_GrowsAsNeeded()
     {
-        var manager = new EntityManager(initialCapacity: 4);
+        var manager = new EntityManager();
         try
         {
             int initialCapacity = manager.Capacity;
 
-            // Create entities beyond initial capacity
-            for (int i = 0; i < 10; i++)
+            // Create entities beyond initial chunk capacity (4096 per chunk)
+            for (int i = 0; i < 5000; i++)
             {
                 manager.Create();
             }
 
             int newCapacity = manager.Capacity;
             await Assert.That(newCapacity).IsGreaterThan(initialCapacity);
+            await Assert.That(manager.AliveCount).IsEqualTo(5000);
         }
         finally
         {

@@ -8,7 +8,7 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
 
     public EntityManagerConcurrencyTests()
     {
-        _manager = new EntityManager(initialCapacity: 64);
+        _manager = new EntityManager();
     }
 
     public void Dispose()
@@ -215,11 +215,11 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentCapacityExpansion_NoDataLoss()
     {
-        var manager = new EntityManager(initialCapacity: 4);
+        var manager = new EntityManager();
         try
         {
             const int threadCount = 8;
-            const int entitiesPerThread = 100;
+            const int entitiesPerThread = 1000; // More entities to trigger chunk expansion
             var allEntities = new ConcurrentBag<Entity>();
             var exceptions = new ConcurrentBag<Exception>();
 

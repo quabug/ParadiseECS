@@ -6,7 +6,7 @@ namespace Paradise.ECS;
 /// <summary>
 /// Thread-safe manager for entity lifecycle.
 /// Handles entity creation, destruction, and validation using version-based handles.
-/// Uses lock-free CAS operations for thread safety.
+/// Uses chunk-based storage for entity metadata and lock-free CAS operations for thread safety.
 /// </summary>
 public sealed class EntityManager : IDisposable
 {
@@ -18,33 +18,55 @@ public sealed class EntityManager : IDisposable
         public int Version; // Version counter for stale handle detection
     }
 
-    private const int InitialCapacity = 1024;
-    private const int MaxEntities = int.MaxValue;
+    private const int MetaSize = 4; // sizeof(EntityMeta): sizeof(int)
+    private const int EntriesPerChunk = Chunk.ChunkSize / MetaSize; // 4096 entries per 16KB chunk
+    private const int EntriesPerChunkShift = 12; // log2(4096)
+    private const int EntriesPerChunkMask = EntriesPerChunk - 1; // 0xFFF
+    private const int MaxChunks = 524288; // ~2B entities max (4096 * 524288)
+    private const int InitialChunks = 1; // Start with 1 chunk (4096 entities)
 
-    private EntityMeta[] _entities;
+    private readonly ChunkManager _chunkManager;
+    private readonly bool _ownsChunkManager;
+    private readonly ChunkHandle[] _metaChunks = new ChunkHandle[MaxChunks];
     private readonly ConcurrentStack<int> _freeSlots = new();
     private int _nextEntityId; // Next fresh entity ID to allocate (atomic)
     private int _disposed; // 0 = not disposed, 1 = disposed
     private int _aliveCount; // Number of currently alive entities (atomic)
+    private int _allocatedChunks; // Number of chunks currently allocated
 
     /// <summary>
-    /// Creates a new EntityManager with the default initial capacity.
+    /// Creates a new EntityManager with a default ChunkManager.
     /// </summary>
     public EntityManager()
-        : this(InitialCapacity)
+        : this(new ChunkManager(), ownsChunkManager: true)
     {
     }
 
     /// <summary>
-    /// Creates a new EntityManager with a custom initial capacity.
+    /// Creates a new EntityManager with a shared ChunkManager.
     /// </summary>
-    /// <param name="initialCapacity">Initial capacity for entity storage.</param>
-    public EntityManager(int initialCapacity)
+    /// <param name="chunkManager">The ChunkManager to use for chunk allocation.</param>
+    public EntityManager(ChunkManager chunkManager)
+        : this(chunkManager, ownsChunkManager: false)
     {
-        if (initialCapacity <= 0)
-            ThrowHelper.ThrowArgumentOutOfRangeException(nameof(initialCapacity));
+    }
 
-        _entities = new EntityMeta[initialCapacity];
+    /// <summary>
+    /// Creates a new EntityManager with a ChunkManager.
+    /// </summary>
+    /// <param name="chunkManager">The ChunkManager to use for chunk allocation.</param>
+    /// <param name="ownsChunkManager">Whether this EntityManager owns and should dispose the ChunkManager.</param>
+    private EntityManager(ChunkManager chunkManager, bool ownsChunkManager)
+    {
+        _chunkManager = chunkManager ?? throw new ArgumentNullException(nameof(chunkManager));
+        _ownsChunkManager = ownsChunkManager;
+
+        // Allocate initial chunk
+        for (int i = 0; i < InitialChunks; i++)
+        {
+            _metaChunks[i] = _chunkManager.Allocate();
+            _allocatedChunks++;
+        }
     }
 
     /// <summary>
@@ -55,7 +77,7 @@ public sealed class EntityManager : IDisposable
     /// <summary>
     /// Gets the total capacity of the entity storage (including free slots).
     /// </summary>
-    public int Capacity => _entities.Length;
+    public int Capacity => Volatile.Read(ref _allocatedChunks) * EntriesPerChunk;
 
     /// <summary>
     /// Creates a new entity and returns a handle to it.
@@ -79,11 +101,11 @@ public sealed class EntityManager : IDisposable
         // Allocate a new entity ID
         id = Interlocked.Increment(ref _nextEntityId) - 1;
 
-        if (id >= MaxEntities)
+        if (id >= MaxChunks * EntriesPerChunk)
             ThrowCapacityExceeded();
 
-        // Ensure capacity (thread-safe resize)
-        EnsureCapacity(id);
+        // Ensure capacity (thread-safe chunk allocation)
+        EnsureChunkAllocated(id);
 
         ref var newMeta = ref GetMeta(id);
         int newVersion = Volatile.Read(ref newMeta.Version);
@@ -156,38 +178,40 @@ public sealed class EntityManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref EntityMeta GetMeta(int id)
     {
-        return ref _entities[id];
+        int chunkIndex = id >> EntriesPerChunkShift;
+        int indexInChunk = id & EntriesPerChunkMask;
+
+        var handle = _metaChunks[chunkIndex];
+        var chunk = _chunkManager.Get(handle);
+        ref var result = ref chunk.GetSpan<EntityMeta>(0, EntriesPerChunk)[indexInChunk];
+        chunk.Dispose();
+        return ref result;
     }
 
     /// <summary>
-    /// Ensures the entity array has capacity for the given id.
-    /// Uses lock-free resizing with CAS.
+    /// Ensures the chunk for the given entity id is allocated.
+    /// Uses lock-free allocation with CAS.
     /// </summary>
-    private void EnsureCapacity(int id)
+    private void EnsureChunkAllocated(int id)
     {
-        var currentArray = Volatile.Read(ref _entities);
-        if (id < currentArray.Length)
+        int chunkIndex = id >> EntriesPerChunkShift;
+
+        // Fast path - chunk already allocated
+        var handle = Volatile.Read(ref _metaChunks[chunkIndex]);
+        if (handle.IsValid)
             return;
 
-        // Calculate new capacity (double until sufficient)
-        int newCapacity = currentArray.Length;
-        while (id >= newCapacity)
-        {
-            newCapacity *= 2;
-            if (newCapacity < 0) // Overflow
-                newCapacity = MaxEntities;
-        }
-
-        // Lock to prevent multiple threads resizing simultaneously
+        // Slow path - need to allocate chunk
         lock (_freeSlots)
         {
             // Double-check after acquiring lock
-            if (id < _entities.Length)
+            handle = _metaChunks[chunkIndex];
+            if (handle.IsValid)
                 return;
 
-            var newArray = new EntityMeta[newCapacity];
-            Array.Copy(_entities, newArray, _entities.Length);
-            Volatile.Write(ref _entities, newArray);
+            // Allocate new chunk
+            _metaChunks[chunkIndex] = _chunkManager.Allocate();
+            Interlocked.Increment(ref _allocatedChunks);
         }
     }
 
@@ -200,16 +224,34 @@ public sealed class EntityManager : IDisposable
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowCapacityExceeded()
-        => throw new InvalidOperationException($"EntityManager capacity exceeded (max {MaxEntities} entities)");
+        => throw new InvalidOperationException($"EntityManager capacity exceeded (max {MaxChunks * EntriesPerChunk} entities)");
 
     public void Dispose()
     {
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
 
-        _entities = Array.Empty<EntityMeta>();
+        // Free all allocated chunks
+        int chunksToFree = _allocatedChunks;
+        for (int i = 0; i < chunksToFree; i++)
+        {
+            var handle = _metaChunks[i];
+            if (handle.IsValid)
+            {
+                _chunkManager.Free(handle);
+                _metaChunks[i] = ChunkHandle.Invalid;
+            }
+        }
+
+        // Dispose ChunkManager if we own it
+        if (_ownsChunkManager)
+        {
+            _chunkManager.Dispose();
+        }
+
         _freeSlots.Clear();
         _nextEntityId = 0;
         _aliveCount = 0;
+        _allocatedChunks = 0;
     }
 }

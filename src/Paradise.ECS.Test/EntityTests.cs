@@ -22,8 +22,8 @@ public class EntityTests
     {
         var entity = new Entity(42, 1);
         await Assert.That(entity.IsValid).IsTrue();
-        await Assert.That(entity.Id).IsEqualTo(42u);
-        await Assert.That(entity.Version).IsEqualTo(1u);
+        await Assert.That(entity.Id).IsEqualTo(42);
+        await Assert.That(entity.Version).IsEqualTo(1);
     }
 
     [Test]
