@@ -69,13 +69,13 @@ public class ComponentGenerator : IIncrementalGenerator
         var containingTypes = containingTypesList.ToImmutableArray();
 
         // Get optional GUID from attribute (constructor arg or named arg)
-        string? guid = null;
+        string? rawGuid = null;
         foreach (var attr in context.Attributes)
         {
             // Check constructor argument first
             if (attr.ConstructorArguments.Length > 0 && attr.ConstructorArguments[0].Value is string ctorGuid)
             {
-                guid = ctorGuid;
+                rawGuid = ctorGuid;
                 break;
             }
 
@@ -84,9 +84,24 @@ public class ComponentGenerator : IIncrementalGenerator
             {
                 if (namedArg.Key == "Guid" && namedArg.Value.Value is string guidValue)
                 {
-                    guid = guidValue;
+                    rawGuid = guidValue;
                     break;
                 }
+            }
+        }
+
+        // Validate GUID format if provided
+        string? validGuid = null;
+        string? invalidGuid = null;
+        if (rawGuid != null)
+        {
+            if (Guid.TryParse(rawGuid, out _))
+            {
+                validGuid = rawGuid;
+            }
+            else
+            {
+                invalidGuid = rawGuid;
             }
         }
 
@@ -97,7 +112,8 @@ public class ComponentGenerator : IIncrementalGenerator
             ns,
             typeName,
             containingTypes,
-            guid);
+            validGuid,
+            invalidGuid);
     }
 
     private static void GenerateComponentCode(
@@ -121,6 +137,15 @@ public class ComponentGenerator : IIncrementalGenerator
                     DiagnosticDescriptors.ComponentNotUnmanaged,
                     component.Location,
                     component.FullyQualifiedName));
+            }
+
+            if (component.InvalidGuid != null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.InvalidGuidFormat,
+                    component.Location,
+                    component.FullyQualifiedName,
+                    component.InvalidGuid));
             }
         }
 
@@ -380,6 +405,7 @@ public class ComponentGenerator : IIncrementalGenerator
         public string TypeName { get; }
         public ImmutableArray<string> ContainingTypes { get; }
         public string? Guid { get; }
+        public string? InvalidGuid { get; }
 
         public ComponentInfo(
             string fullyQualifiedName,
@@ -388,7 +414,8 @@ public class ComponentGenerator : IIncrementalGenerator
             string? ns,
             string typeName,
             ImmutableArray<string> containingTypes,
-            string? guid)
+            string? guid,
+            string? invalidGuid)
         {
             FullyQualifiedName = fullyQualifiedName;
             Location = location;
@@ -397,6 +424,7 @@ public class ComponentGenerator : IIncrementalGenerator
             TypeName = typeName;
             ContainingTypes = containingTypes;
             Guid = guid;
+            InvalidGuid = invalidGuid;
         }
     }
 }

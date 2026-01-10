@@ -422,6 +422,76 @@ public class ComponentGeneratorDiagnosticTests
         var pecs001 = diagnostics.FirstOrDefault(d => d.Id == "PECS001");
         await Assert.That(pecs001).IsNotNull();
     }
+
+    [Test]
+    public async Task InvalidGuidFormat_ReportsPECS004()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component("not-a-valid-guid")]
+            public partial struct BadGuidComponent
+            {
+                public int Value;
+            }
+            """;
+
+        var diagnostics = GeneratorTestHelper.GetDiagnostics(source);
+
+        var pecs004 = diagnostics.FirstOrDefault(d => d.Id == "PECS004");
+        await Assert.That(pecs004).IsNotNull();
+        await Assert.That(pecs004!.Severity).IsEqualTo(DiagnosticSeverity.Error);
+        await Assert.That(pecs004.GetMessage(System.Globalization.CultureInfo.InvariantCulture)).Contains("TestNamespace.BadGuidComponent");
+        await Assert.That(pecs004.GetMessage(System.Globalization.CultureInfo.InvariantCulture)).Contains("not-a-valid-guid");
+    }
+
+    [Test]
+    public async Task InvalidGuidFormat_StillGeneratesComponentWithoutGuid()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component("invalid")]
+            public partial struct ComponentWithBadGuid
+            {
+                public int Value;
+            }
+            """;
+
+        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+
+        // Component should still be generated (just without the GUID)
+        var generated = sources.FirstOrDefault(s => s.HintName == "TestNamespace_ComponentWithBadGuid.g.cs").Source;
+        await Assert.That(generated).IsNotNull();
+        await Assert.That(generated).Contains("partial struct ComponentWithBadGuid : global::Paradise.ECS.IComponent");
+        // Should use Guid.Empty since the provided GUID was invalid
+        await Assert.That(generated).Contains("public static global::System.Guid Guid => global::System.Guid.Empty;");
+    }
+
+    [Test]
+    public async Task ValidGuidFormat_NoErrorReported()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component("12345678-1234-1234-1234-123456789012")]
+            public partial struct ValidGuidComponent
+            {
+                public int Value;
+            }
+            """;
+
+        var diagnostics = GeneratorTestHelper.GetDiagnostics(source);
+
+        var pecs004 = diagnostics.FirstOrDefault(d => d.Id == "PECS004");
+        await Assert.That(pecs004).IsNull();
+    }
 }
 
 public class ComponentGeneratorRegistryTests

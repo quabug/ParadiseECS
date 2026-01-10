@@ -42,4 +42,16 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Component types must be value types (structs) for efficient storage.");
+
+    /// <summary>
+    /// PECS004: Invalid GUID format.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidGuidFormat = new(
+        id: "PECS004",
+        title: "Invalid GUID format",
+        messageFormat: "Component '{0}' has invalid GUID format '{1}'",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The GUID provided to [Component] attribute must be a valid GUID format (e.g., '12345678-1234-1234-1234-123456789012').");
 }
