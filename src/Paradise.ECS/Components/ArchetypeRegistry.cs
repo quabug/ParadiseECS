@@ -17,6 +17,10 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     private readonly List<ImmutableArchetypeLayout<TBits, TRegistry>> _layouts = [];
     private readonly Lock _createLock = new();
     private readonly ChunkManager _chunkManager;
+
+    // Graph edges for O(1) structural changes.
+    private readonly ConcurrentDictionary<EdgeKey, int> _edges = new();
+
     private int _disposed;
 
     /// <summary>
@@ -59,8 +63,11 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
             return _archetypes[existingId];
         }
 
-        var layout = new ImmutableArchetypeLayout<TBits, TRegistry>(mask);
         int newId = _archetypes.Count;
+        if (newId > EcsLimits.MaxArchetypeId)
+            throw new InvalidOperationException($"Archetype count exceeded maximum of {EcsLimits.MaxArchetypeId}.");
+
+        var layout = new ImmutableArchetypeLayout<TBits, TRegistry>(mask);
         var store = new ArchetypeStore<TBits, TRegistry>(newId, layout, _chunkManager);
 
         _layouts.Add(layout);
@@ -141,6 +148,76 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
             }
         }
         return count;
+    }
+
+    /// <summary>
+    /// Gets or creates the archetype resulting from adding a component to the source archetype.
+    /// Uses cached graph edges for O(1) lookup on subsequent calls.
+    /// </summary>
+    /// <param name="source">The source archetype.</param>
+    /// <param name="componentId">The component to add.</param>
+    /// <returns>The target archetype with the component added.</returns>
+    public ArchetypeStore<TBits, TRegistry> GetOrCreateWithAdd(
+        ArchetypeStore<TBits, TRegistry> source,
+        ComponentId componentId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        ArgumentNullException.ThrowIfNull(source);
+
+        var addKey = EdgeKey.ForAdd(source.Id, componentId.Value);
+
+        // Fast path: edge already exists
+        if (_edges.TryGetValue(addKey, out int targetId))
+        {
+            using var _ = _createLock.EnterScope();
+            return _archetypes[targetId];
+        }
+
+        // Slow path: compute mask and get/create archetype
+        var newMask = source.Layout.ComponentMask.Set(componentId);
+        var target = GetOrCreate(newMask);
+
+        // Cache bidirectional edges
+        var removeKey = EdgeKey.ForRemove(target.Id, componentId.Value);
+        _edges[addKey] = target.Id;
+        _edges[removeKey] = source.Id;
+
+        return target;
+    }
+
+    /// <summary>
+    /// Gets or creates the archetype resulting from removing a component from the source archetype.
+    /// Uses cached graph edges for O(1) lookup on subsequent calls.
+    /// </summary>
+    /// <param name="source">The source archetype.</param>
+    /// <param name="componentId">The component to remove.</param>
+    /// <returns>The target archetype with the component removed.</returns>
+    public ArchetypeStore<TBits, TRegistry> GetOrCreateWithRemove(
+        ArchetypeStore<TBits, TRegistry> source,
+        ComponentId componentId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        ArgumentNullException.ThrowIfNull(source);
+
+        var removeKey = EdgeKey.ForRemove(source.Id, componentId.Value);
+
+        // Fast path: edge already exists
+        if (_edges.TryGetValue(removeKey, out int targetId))
+        {
+            using var _ = _createLock.EnterScope();
+            return _archetypes[targetId];
+        }
+
+        // Slow path: compute mask and get/create archetype
+        var newMask = source.Layout.ComponentMask.Clear(componentId);
+        var target = GetOrCreate(newMask);
+
+        // Cache bidirectional edges
+        var addKey = EdgeKey.ForAdd(target.Id, componentId.Value);
+        _edges[removeKey] = target.Id;
+        _edges[addKey] = source.Id;
+
+        return target;
     }
 
     public void Dispose()

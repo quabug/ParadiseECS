@@ -217,6 +217,135 @@ public class ArchetypeRegistryTests : IDisposable
             _registry.Dispose();
         }).ThrowsNothing();
     }
+
+    [Test]
+    public async Task GetOrCreateWithAdd_CreatesTargetArchetype()
+    {
+        // Start with {Position}
+        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var source = _registry.GetOrCreate(posOnly);
+
+        // Add Velocity -> should get {Position, Velocity}
+        var target = _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId);
+
+        var expectedMask = posOnly.Set(TestVelocity.TypeId);
+        await Assert.That(target).IsNotNull();
+        await Assert.That(target.Layout.ComponentMask).IsEqualTo(expectedMask);
+        await Assert.That(_registry.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task GetOrCreateWithAdd_ReusesExistingEdge()
+    {
+        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var source = _registry.GetOrCreate(posOnly);
+
+        // First call creates edge
+        var target1 = _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId);
+        // Second call should reuse edge
+        var target2 = _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId);
+
+        await Assert.That(target1).IsSameReferenceAs(target2);
+        await Assert.That(_registry.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task GetOrCreateWithAdd_CachesEdge()
+    {
+        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var source = _registry.GetOrCreate(posOnly);
+
+        // First call creates edge
+        var target1 = _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId);
+        // Second call should use cached edge (same result)
+        var target2 = _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId);
+
+        await Assert.That(target1).IsSameReferenceAs(target2);
+        await Assert.That(target1.Id).IsNotEqualTo(source.Id);
+    }
+
+    [Test]
+    public async Task GetOrCreateWithRemove_CreatesTargetArchetype()
+    {
+        // Start with {Position, Velocity}
+        var posVel = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
+        var source = _registry.GetOrCreate(posVel);
+
+        // Remove Velocity -> should get {Position}
+        var target = _registry.GetOrCreateWithRemove(source, TestVelocity.TypeId);
+
+        var expectedMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        await Assert.That(target).IsNotNull();
+        await Assert.That(target.Layout.ComponentMask).IsEqualTo(expectedMask);
+        await Assert.That(_registry.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task GetOrCreateWithRemove_ReusesExistingEdge()
+    {
+        var posVel = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
+        var source = _registry.GetOrCreate(posVel);
+
+        // First call creates edge
+        var target1 = _registry.GetOrCreateWithRemove(source, TestVelocity.TypeId);
+        // Second call should reuse edge
+        var target2 = _registry.GetOrCreateWithRemove(source, TestVelocity.TypeId);
+
+        await Assert.That(target1).IsSameReferenceAs(target2);
+        await Assert.That(_registry.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task BidirectionalEdges_AreConsistent()
+    {
+        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var source = _registry.GetOrCreate(posOnly);
+
+        // Add Velocity: {Position} -> {Position, Velocity}
+        var target = _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId);
+
+        // Verify bidirectional: removing Velocity from target should return source
+        var backToSource = _registry.GetOrCreateWithRemove(target, TestVelocity.TypeId);
+
+        await Assert.That(backToSource).IsSameReferenceAs(source);
+        await Assert.That(_registry.Count).IsEqualTo(2); // No new archetypes created
+    }
+
+    [Test]
+    public async Task GetOrCreateWithAdd_ReusesExistingArchetype()
+    {
+        // Pre-create {Position, Velocity}
+        var posVel = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
+        var preExisting = _registry.GetOrCreate(posVel);
+
+        // Create {Position}
+        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var source = _registry.GetOrCreate(posOnly);
+
+        // Add Velocity should return the pre-existing archetype
+        var target = _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId);
+
+        await Assert.That(target).IsSameReferenceAs(preExisting);
+        await Assert.That(_registry.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task GetOrCreateWithRemove_ReusesExistingArchetype()
+    {
+        // Pre-create {Position}
+        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var preExisting = _registry.GetOrCreate(posOnly);
+
+        // Create {Position, Velocity}
+        var posVel = posOnly.Set(TestVelocity.TypeId);
+        var source = _registry.GetOrCreate(posVel);
+
+        // Remove Velocity should return the pre-existing archetype
+        var target = _registry.GetOrCreateWithRemove(source, TestVelocity.TypeId);
+
+        await Assert.That(target).IsSameReferenceAs(preExisting);
+        await Assert.That(_registry.Count).IsEqualTo(2);
+    }
 }
 
 public class ArchetypeRegistryConcurrencyTests : IDisposable
@@ -282,5 +411,50 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var uniqueIds = results.Select(r => r.Id).Distinct().ToList();
         await Assert.That(uniqueIds.Count).IsEqualTo(TestComponentCount);
         await Assert.That(_registry.Count).IsEqualTo(TestComponentCount);
+    }
+
+    [Test]
+    public async Task ConcurrentGetOrCreateWithAdd_SameSourceAndComponent_CreatesSingleEdge()
+    {
+        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var source = _registry.GetOrCreate(posOnly);
+
+        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[10];
+        for (int i = 0; i < tasks.Length; i++)
+        {
+            tasks[i] = Task.Run(() => _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId));
+        }
+
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        // All should return the same archetype
+        var first = results[0];
+        foreach (var store in results)
+        {
+            await Assert.That(store).IsSameReferenceAs(first);
+        }
+
+        await Assert.That(_registry.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task ConcurrentGetOrCreateWithAdd_DifferentComponents_CreatesMultipleEdges()
+    {
+        var empty = ImmutableBitSet<Bit64>.Empty;
+        var source = _registry.GetOrCreate(empty);
+
+        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[TestComponentCount];
+        for (int i = 0; i < tasks.Length; i++)
+        {
+            int componentId = i;
+            tasks[i] = Task.Run(() => _registry.GetOrCreateWithAdd(source, new ComponentId(componentId)));
+        }
+
+        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        // Each should create a unique archetype
+        var uniqueIds = results.Select(r => r.Id).Distinct().ToList();
+        await Assert.That(uniqueIds.Count).IsEqualTo(TestComponentCount);
+        await Assert.That(_registry.Count).IsEqualTo(TestComponentCount + 1); // +1 for empty source
     }
 }

@@ -15,6 +15,10 @@ public class ComponentGenerator : IIncrementalGenerator
 {
     private const string ComponentAttributeFullName = "Paradise.ECS.ComponentAttribute";
     private const string RegistryNamespaceAttributeFullName = "Paradise.ECS.ComponentRegistryNamespaceAttribute";
+    private const string EcsLimitsFullName = "Paradise.ECS.EcsLimits";
+
+    // Default fallback value if EcsLimits is not found (11 bits = 2047)
+    private const int DefaultMaxComponentTypeId = (1 << 11) - 1;
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -50,12 +54,30 @@ public class ComponentGenerator : IIncrementalGenerator
             .Combine(rootNamespaceFromBuildProperty)
             .Select(static (pair, _) => pair.Left ?? pair.Right ?? "Paradise.ECS");
 
-        // Collect all components and combine with root namespace
-        var collected = componentTypes.Collect();
-        var collectedWithNamespace = collected.Combine(rootNamespace);
+        // Get maxComponentTypeId from EcsLimits class
+        var maxComponentTypeId = context.CompilationProvider
+            .Select((compilation, _) =>
+            {
+                var ecsLimitsType = compilation.GetTypeByMetadataName(EcsLimitsFullName);
+                if (ecsLimitsType != null)
+                {
+                    var field = ecsLimitsType.GetMembers("MaxComponentTypeId")
+                        .OfType<IFieldSymbol>()
+                        .FirstOrDefault();
+                    if (field is { HasConstantValue: true, ConstantValue: int value })
+                        return value;
+                }
+                return DefaultMaxComponentTypeId;
+            });
 
-        context.RegisterSourceOutput(collectedWithNamespace, static (ctx, data) =>
-            GenerateComponentCode(ctx, data.Left, data.Right));
+        // Collect all components and combine with root namespace and max ID
+        var collected = componentTypes.Collect();
+        var collectedWithConfig = collected
+            .Combine(rootNamespace)
+            .Combine(maxComponentTypeId);
+
+        context.RegisterSourceOutput(collectedWithConfig, static (ctx, data) =>
+            GenerateComponentCode(ctx, data.Left.Left, data.Left.Right, data.Right));
     }
 
     private static ComponentInfo? GetComponentInfo(GeneratorAttributeSyntaxContext context)
@@ -176,7 +198,8 @@ public class ComponentGenerator : IIncrementalGenerator
     private static void GenerateComponentCode(
         SourceProductionContext context,
         ImmutableArray<ComponentInfo> components,
-        string rootNamespace)
+        string rootNamespace,
+        int maxComponentTypeId)
     {
         if (components.IsEmpty)
             return;
@@ -215,13 +238,56 @@ public class ComponentGenerator : IIncrementalGenerator
                     component.InvalidContainingType,
                     component.InvalidContainingTypeReason));
             }
+
+            // Validate manual ID doesn't exceed limit
+            if (component.ManualId.HasValue && component.ManualId.Value > maxComponentTypeId)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.ComponentIdExceedsLimit,
+                    component.Location,
+                    component.FullyQualifiedName,
+                    component.ManualId.Value,
+                    maxComponentTypeId));
+            }
         }
 
         // Filter to only valid components for code generation
-        var validComponents = sorted.Where(static c => c.IsUnmanaged && c.HasValidNesting).ToList();
+        // Exclude components with invalid manual IDs
+        var validComponents = sorted.Where(c =>
+            c.IsUnmanaged &&
+            c.HasValidNesting &&
+            (!c.ManualId.HasValue || c.ManualId.Value <= maxComponentTypeId)).ToList();
 
         if (validComponents.Count == 0)
             return;
+
+        // Calculate the maximum component ID that will be assigned
+        // Manual IDs occupy specific slots, auto-assigned IDs fill remaining slots
+        var manualIds = new HashSet<int>(validComponents
+            .Where(c => c.ManualId.HasValue)
+            .Select(c => c.ManualId!.Value));
+        var autoAssignCount = validComponents.Count - manualIds.Count;
+
+        // Find the max ID that will be used:
+        // Either the highest manual ID, or the ID assigned to the last auto-assigned component
+        int maxAssignedId = manualIds.Count > 0 ? manualIds.Max() : -1;
+        int nextAutoId = 0;
+        for (int i = 0; i < autoAssignCount; i++)
+        {
+            while (manualIds.Contains(nextAutoId)) nextAutoId++;
+            if (nextAutoId > maxAssignedId) maxAssignedId = nextAutoId;
+            nextAutoId++;
+        }
+
+        if (maxAssignedId > maxComponentTypeId)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.TooManyComponents,
+                null,
+                validComponents.Count,
+                maxComponentTypeId));
+            return;
+        }
 
         // Check if component count exceeds built-in capacity (1024)
         // If so, generate a custom storage type and warn

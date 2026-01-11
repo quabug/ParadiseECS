@@ -66,4 +66,28 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Component types cannot be nested inside generic types because the source generator cannot infer type parameters.");
+
+    /// <summary>
+    /// PECS006: Component type ID exceeds maximum limit.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ComponentIdExceedsLimit = new(
+        id: "PECS006",
+        title: "Component type ID exceeds maximum",
+        messageFormat: "Component '{0}' has ID {1} which exceeds the maximum allowed component type ID of {2}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Component type IDs must not exceed the maximum limit imposed by the archetype graph edge key packing (11 bits = 2047).");
+
+    /// <summary>
+    /// PECS007: Too many components - exceeds maximum component type ID.
+    /// </summary>
+    public static readonly DiagnosticDescriptor TooManyComponents = new(
+        id: "PECS007",
+        title: "Too many components",
+        messageFormat: "Project has {0} components which would result in IDs exceeding the maximum allowed component type ID of {1}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The total number of components (including manual ID assignments) must not exceed the maximum component type ID limit imposed by the archetype graph edge key packing.");
 }
