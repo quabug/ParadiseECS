@@ -62,7 +62,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref result._storage!);
 
             int vectorCount = Unsafe.SizeOf<TStorage>() / 32;
             for (int i = 0; i < vectorCount; i++)
@@ -76,7 +76,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref result._storage!);
 
             int vectorCount = Unsafe.SizeOf<TStorage>() / 16;
             for (int i = 0; i < vectorCount; i++)
@@ -90,7 +90,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, ulong>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, ulong>(ref result._storage!);
 
             for (int i = 0; i < ULongCount; i++)
             {
@@ -110,7 +110,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref result._storage!);
 
             int vectorCount = Unsafe.SizeOf<TStorage>() / 32;
             for (int i = 0; i < vectorCount; i++)
@@ -124,7 +124,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref result._storage!);
 
             int vectorCount = Unsafe.SizeOf<TStorage>() / 16;
             for (int i = 0; i < vectorCount; i++)
@@ -138,7 +138,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, ulong>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, ulong>(ref result._storage!);
 
             for (int i = 0; i < ULongCount; i++)
             {
@@ -158,7 +158,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref result._storage!);
 
             int vectorCount = Unsafe.SizeOf<TStorage>() / 32;
             for (int i = 0; i < vectorCount; i++)
@@ -172,7 +172,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref result._storage!);
 
             int vectorCount = Unsafe.SizeOf<TStorage>() / 16;
             for (int i = 0; i < vectorCount; i++)
@@ -186,7 +186,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, ulong>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, ulong>(ref result._storage!);
 
             for (int i = 0; i < ULongCount; i++)
             {
@@ -206,7 +206,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref result._storage!);
 
             int vectorCount = Unsafe.SizeOf<TStorage>() / 32;
             for (int i = 0; i < vectorCount; i++)
@@ -220,7 +220,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref result._storage!);
 
             int vectorCount = Unsafe.SizeOf<TStorage>() / 16;
             for (int i = 0; i < vectorCount; i++)
@@ -234,7 +234,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         {
             ref var a = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in other._storage));
-            ref var r = ref Unsafe.As<TStorage, ulong>(ref result._storage);
+            ref var r = ref Unsafe.As<TStorage, ulong>(ref result._storage!);
 
             for (int i = 0; i < ULongCount; i++)
             {
