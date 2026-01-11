@@ -39,7 +39,7 @@ public class ImmutableQueryDescriptionTests
     {
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.All.Get(TestPosition.TypeId.Value)).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -51,7 +51,7 @@ public class ImmutableQueryDescriptionTests
     {
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .With(typeof(TestPosition))
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.All.Get(TestPosition.TypeId.Value)).IsTrue();
     }
@@ -61,7 +61,7 @@ public class ImmutableQueryDescriptionTests
     {
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .Without<TestPosition>()
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.Get(TestPosition.TypeId.Value)).IsTrue();
@@ -73,7 +73,7 @@ public class ImmutableQueryDescriptionTests
     {
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .Without(typeof(TestPosition))
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.None.Get(TestPosition.TypeId.Value)).IsTrue();
     }
@@ -83,7 +83,7 @@ public class ImmutableQueryDescriptionTests
     {
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .WithAny<TestPosition>()
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -95,7 +95,7 @@ public class ImmutableQueryDescriptionTests
     {
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .WithAny(typeof(TestPosition))
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.Any.Get(TestPosition.TypeId.Value)).IsTrue();
     }
@@ -105,7 +105,7 @@ public class ImmutableQueryDescriptionTests
     {
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .With(TestPosition.TypeId.Value)
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.All.Get(TestPosition.TypeId.Value)).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -117,7 +117,7 @@ public class ImmutableQueryDescriptionTests
     {
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .Without(TestPosition.TypeId.Value)
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.Get(TestPosition.TypeId.Value)).IsTrue();
@@ -129,7 +129,7 @@ public class ImmutableQueryDescriptionTests
     {
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .WithAny(TestPosition.TypeId.Value)
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -142,7 +142,7 @@ public class ImmutableQueryDescriptionTests
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
             .With<TestVelocity>()
-            .ToImmutable();
+            .Description;
 
         var matchingMask = MakeMask(TestPosition.TypeId.Value, TestVelocity.TypeId.Value);
         var partialMask = MakeMask(TestPosition.TypeId.Value);
@@ -159,7 +159,7 @@ public class ImmutableQueryDescriptionTests
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
             .Without<TestVelocity>()
-            .ToImmutable();
+            .Description;
 
         var matchingMask = MakeMask(TestPosition.TypeId.Value);
         var excludedMask = MakeMask(TestPosition.TypeId.Value, TestVelocity.TypeId.Value);
@@ -174,7 +174,7 @@ public class ImmutableQueryDescriptionTests
         var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .WithAny<TestPosition>()
             .WithAny<TestVelocity>()
-            .ToImmutable();
+            .Description;
 
         var hasFirst = MakeMask(TestPosition.TypeId.Value);
         var hasSecond = MakeMask(TestVelocity.TypeId.Value);
@@ -194,7 +194,7 @@ public class ImmutableQueryDescriptionTests
             .With<TestPosition>()
             .Without<TestHealth>()
             .WithAny<TestVelocity>()
-            .ToImmutable();
+            .Description;
 
         // Has Position + Velocity, no Health - matches
         var matching = MakeMask(TestPosition.TypeId.Value, TestVelocity.TypeId.Value);
@@ -219,12 +219,12 @@ public class ImmutableQueryDescriptionTests
         var desc1 = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
             .Without<TestHealth>()
-            .ToImmutable();
+            .Description;
 
         var desc2 = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
             .Without<TestHealth>()
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc1).IsEqualTo(desc2);
         await Assert.That(desc1.GetHashCode()).IsEqualTo(desc2.GetHashCode());
@@ -235,11 +235,11 @@ public class ImmutableQueryDescriptionTests
     {
         var desc1 = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
-            .ToImmutable();
+            .Description;
 
         var desc2 = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestVelocity>()
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc1).IsNotEqualTo(desc2);
     }
@@ -251,7 +251,7 @@ public class ImmutableQueryDescriptionTests
             .With<TestPosition>()
             .With<TestVelocity>()
             .Without<TestHealth>()
-            .ToImmutable();
+            .Description;
 
         await Assert.That(desc.All.Get(TestPosition.TypeId.Value)).IsTrue();
         await Assert.That(desc.All.Get(TestVelocity.TypeId.Value)).IsTrue();

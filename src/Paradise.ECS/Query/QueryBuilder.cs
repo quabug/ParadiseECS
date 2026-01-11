@@ -129,11 +129,13 @@ public readonly ref struct QueryBuilder<TBits, TRegistry>
     }
 
     /// <summary>
-    /// Returns the immutable query description.
+    /// Gets the immutable query description.
     /// </summary>
-    /// <returns>The built immutable query description.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableQueryDescription<TBits> ToImmutable() => _description;
+    public ImmutableQueryDescription<TBits> Description
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _description;
+    }
 
     /// <summary>
     /// Builds a query from this description.
