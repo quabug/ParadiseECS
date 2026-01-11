@@ -36,7 +36,7 @@ public readonly record struct ImmutableQueryDescription<TBits>(
     /// <param name="archetypeMask">The archetype's component mask.</param>
     /// <returns>True if the archetype matches all constraints.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Matches(ImmutableBitSet<TBits> archetypeMask)
+    public bool Matches(in ImmutableBitSet<TBits> archetypeMask)
     {
         // Must contain all required components
         if (!archetypeMask.ContainsAll(All))
