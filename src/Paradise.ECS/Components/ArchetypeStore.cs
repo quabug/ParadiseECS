@@ -227,9 +227,6 @@ public sealed class ArchetypeStore<TBits, TRegistry>
         int entitiesPerChunk = _layout.EntitiesPerChunk;
         int entityCount = _entityCount;
         int neededChunks = (entityCount + entitiesPerChunk - 1) / entitiesPerChunk;
-        if (neededChunks == 0 && entityCount == 0)
-            neededChunks = 0;
-
         var chunks = _chunks;
         int chunkCount = _chunkCount;
         while (chunkCount > neededChunks)
