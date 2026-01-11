@@ -1,8 +1,10 @@
+using System.Collections;
+
 namespace Paradise.ECS;
 
 /// <summary>
-/// A cached query that efficiently iterates matching archetypes.
-/// Caches matching archetypes for performance, with lazy invalidation when new archetypes are added.
+/// A query that iterates matching archetypes.
+/// Matches archetypes on-demand without caching for simplicity.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
@@ -12,13 +14,6 @@ public sealed class Query<TBits, TRegistry>
 {
     private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
     private readonly ImmutableQueryDescription<TBits> _description;
-    private readonly List<ArchetypeStore<TBits, TRegistry>> _matchingArchetypes;
-    private int _lastArchetypeCount;
-
-    /// <summary>
-    /// Gets the query description that defines matching criteria.
-    /// </summary>
-    public ImmutableQueryDescription<TBits> Description => _description;
 
     /// <summary>
     /// Creates a new query with the specified description.
@@ -31,19 +26,17 @@ public sealed class Query<TBits, TRegistry>
 
         _archetypeRegistry = archetypeRegistry;
         _description = description;
-        _matchingArchetypes = [];
-        _lastArchetypeCount = -1; // Force initial refresh
     }
 
     /// <summary>
-    /// Gets the matching archetypes, refreshing the cache if needed.
+    /// Gets the query description.
     /// </summary>
-    /// <returns>A read-only list of matching archetype stores.</returns>
-    public IReadOnlyList<ArchetypeStore<TBits, TRegistry>> GetMatchingArchetypes()
-    {
-        RefreshCacheIfNeeded();
-        return _matchingArchetypes;
-    }
+    public ImmutableQueryDescription<TBits> Description => _description;
+
+    /// <summary>
+    /// Gets the matching archetypes by iterating and filtering the registry.
+    /// </summary>
+    public MatchingArchetypesEnumerable MatchingArchetypes => new(_archetypeRegistry, _description);
 
     /// <summary>
     /// Gets the total number of entities matching this query across all archetypes.
@@ -52,9 +45,8 @@ public sealed class Query<TBits, TRegistry>
     {
         get
         {
-            RefreshCacheIfNeeded();
             int count = 0;
-            foreach (var archetype in _matchingArchetypes)
+            foreach (var archetype in MatchingArchetypes)
             {
                 count += archetype.EntityCount;
             }
@@ -69,8 +61,7 @@ public sealed class Query<TBits, TRegistry>
     {
         get
         {
-            RefreshCacheIfNeeded();
-            foreach (var archetype in _matchingArchetypes)
+            foreach (var archetype in MatchingArchetypes)
             {
                 if (archetype.EntityCount > 0)
                     return false;
@@ -86,33 +77,85 @@ public sealed class Query<TBits, TRegistry>
     {
         get
         {
-            RefreshCacheIfNeeded();
-            return _matchingArchetypes.Count;
+            int count = 0;
+            foreach (var _ in MatchingArchetypes)
+            {
+                count++;
+            }
+            return count;
         }
     }
 
     /// <summary>
-    /// Refreshes the cached matching archetypes if the registry has been modified.
-    /// Only checks newly added archetypes for incremental updates.
+    /// Enumerable that iterates matching archetypes without allocation.
     /// </summary>
-    private void RefreshCacheIfNeeded()
+    public readonly struct MatchingArchetypesEnumerable : IEnumerable<ArchetypeStore<TBits, TRegistry>>
     {
-        int currentCount = _archetypeRegistry.Count;
-        if (currentCount == _lastArchetypeCount)
-            return;
+        private readonly ArchetypeRegistry<TBits, TRegistry> _registry;
+        private readonly ImmutableQueryDescription<TBits> _description;
 
-        // Only match archetypes added since last refresh
-        int startIndex = _lastArchetypeCount < 0 ? 0 : _lastArchetypeCount;
-        _archetypeRegistry.GetMatching(_description, _matchingArchetypes, startIndex);
-        _lastArchetypeCount = currentCount;
-    }
+        internal MatchingArchetypesEnumerable(
+            ArchetypeRegistry<TBits, TRegistry> registry,
+            ImmutableQueryDescription<TBits> description)
+        {
+            _registry = registry;
+            _description = description;
+        }
 
-    /// <summary>
-    /// Forces a refresh of the cached matching archetypes.
-    /// </summary>
-    public void Refresh()
-    {
-        _lastArchetypeCount = -1;
-        RefreshCacheIfNeeded();
+        public Enumerator GetEnumerator() => new(_registry, _description);
+
+        IEnumerator<ArchetypeStore<TBits, TRegistry>> IEnumerable<ArchetypeStore<TBits, TRegistry>>.GetEnumerator()
+            => GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        /// <summary>
+        /// Enumerator that filters archetypes by query description.
+        /// </summary>
+        public struct Enumerator : IEnumerator<ArchetypeStore<TBits, TRegistry>>
+        {
+            private readonly ArchetypeRegistry<TBits, TRegistry> _registry;
+            private readonly ImmutableQueryDescription<TBits> _description;
+            private readonly int _count;
+            private int _index;
+            private ArchetypeStore<TBits, TRegistry>? _current;
+
+            internal Enumerator(
+                ArchetypeRegistry<TBits, TRegistry> registry,
+                ImmutableQueryDescription<TBits> description)
+            {
+                _registry = registry;
+                _description = description;
+                _count = registry.Count;
+                _index = -1;
+                _current = null;
+            }
+
+            public ArchetypeStore<TBits, TRegistry> Current => _current!;
+
+            object IEnumerator.Current => Current;
+
+            public bool MoveNext()
+            {
+                while (++_index < _count)
+                {
+                    var archetype = _registry.GetById(_index);
+                    if (archetype != null && _description.Matches(archetype.Layout.ComponentMask))
+                    {
+                        _current = archetype;
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            public void Reset()
+            {
+                _index = -1;
+                _current = null;
+            }
+
+            public void Dispose() { }
+        }
     }
 }
