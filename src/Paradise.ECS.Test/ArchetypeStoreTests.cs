@@ -103,10 +103,9 @@ public class ArchetypeStoreTests : IDisposable
         store.AllocateEntity(out _, out _);
         store.AllocateEntity(out _, out _);
 
-        bool moved = store.RemoveEntity(1, out var movedEntity, out _);
+        bool moved = store.RemoveEntity(1);
 
         await Assert.That(moved).IsFalse();
-        await Assert.That(movedEntity).IsEqualTo(Entity.Invalid);
         await Assert.That(store.EntityCount).IsEqualTo(1);
     }
 
@@ -120,10 +119,9 @@ public class ArchetypeStoreTests : IDisposable
         store.AllocateEntity(out _, out _); // index 2
 
         // Remove middle entity (index 1) - should swap with last (index 2)
-        bool moved = store.RemoveEntity(1, out _, out int newIndex);
+        bool moved = store.RemoveEntity(1);
 
         await Assert.That(moved).IsTrue();
-        await Assert.That(newIndex).IsEqualTo(1); // Entity moved to index 1
         await Assert.That(store.EntityCount).IsEqualTo(2);
     }
 
@@ -134,10 +132,9 @@ public class ArchetypeStoreTests : IDisposable
 
         store.AllocateEntity(out _, out _);
 
-        bool moved = store.RemoveEntity(99, out var movedEntity, out _);
+        bool moved = store.RemoveEntity(99);
 
         await Assert.That(moved).IsFalse();
-        await Assert.That(movedEntity).IsEqualTo(Entity.Invalid);
     }
 
     [Test]
@@ -147,10 +144,9 @@ public class ArchetypeStoreTests : IDisposable
 
         store.AllocateEntity(out _, out _);
 
-        bool moved = store.RemoveEntity(-1, out var movedEntity, out _);
+        bool moved = store.RemoveEntity(-1);
 
         await Assert.That(moved).IsFalse();
-        await Assert.That(movedEntity).IsEqualTo(Entity.Invalid);
     }
 
     [Test]
@@ -170,7 +166,7 @@ public class ArchetypeStoreTests : IDisposable
         await Assert.That(store.ChunkCount).IsEqualTo(2);
 
         // Remove the last entity (in second chunk)
-        store.RemoveEntity(entitiesPerChunk, out _, out _);
+        store.RemoveEntity(entitiesPerChunk);
 
         await Assert.That(store.ChunkCount).IsEqualTo(1); // Second chunk trimmed
     }

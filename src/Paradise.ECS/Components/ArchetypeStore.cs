@@ -111,12 +111,9 @@ public sealed class ArchetypeStore<TBits, TRegistry>
     /// <param name="movedEntity">Output: the entity that was moved to fill the gap (Invalid if none).</param>
     /// <param name="movedEntityNewIndex">Output: the new index of the moved entity.</param>
     /// <returns>True if an entity was moved to fill the gap.</returns>
-    public bool RemoveEntity(int indexToRemove, out Entity movedEntity, out int movedEntityNewIndex)
+    public bool RemoveEntity(int indexToRemove)
     {
         using var _ = _lock.EnterScope();
-
-        movedEntity = Entity.Invalid;
-        movedEntityNewIndex = -1;
 
         int currentCount = _entityCount;
         if (indexToRemove < 0 || indexToRemove >= currentCount)
@@ -171,7 +168,6 @@ public sealed class ArchetypeStore<TBits, TRegistry>
             srcData.CopyTo(dstData);
         }
 
-        movedEntityNewIndex = indexToRemove;
         TrimEmptyChunksLocked();
 
         // Note: The caller needs to look up which entity was at lastIndex
