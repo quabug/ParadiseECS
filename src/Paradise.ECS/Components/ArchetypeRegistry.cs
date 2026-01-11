@@ -21,12 +21,15 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     // Graph edges for O(1) structural changes.
     private readonly ConcurrentDictionary<EdgeKey, int> _edges = new();
 
+    private int _activeOperations;
     private int _disposed;
 
     /// <summary>
     /// Gets the number of registered archetypes.
     /// </summary>
     public int Count => _archetypes.Count;
+
+    private OperationGuard BeginOperation() => new(ref _activeOperations);
 
     /// <summary>
     /// Creates a new archetype registry.
@@ -46,11 +49,12 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     public ArchetypeStore<TBits, TRegistry> GetOrCreate(ImmutableBitSet<TBits> mask)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        using var _ = BeginOperation();
 
         // Fast path: already exists
         if (_maskToArchetypeId.TryGetValue(mask, out int existingId))
         {
-            using var _ = _createLock.EnterScope();
+            using var lockScope = _createLock.EnterScope();
             return _archetypes[existingId];
         }
 
@@ -85,6 +89,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     public ArchetypeStore<TBits, TRegistry>? GetById(int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        using var _ = BeginOperation();
 
         if (archetypeId < 0 || archetypeId >= _archetypes.Count)
             return null;
@@ -100,6 +105,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     public bool TryGet(ImmutableBitSet<TBits> mask, out ArchetypeStore<TBits, TRegistry>? store)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        using var _ = BeginOperation();
 
         if (_maskToArchetypeId.TryGetValue(mask, out int id))
         {
@@ -128,10 +134,11 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     ) where T : IList<ArchetypeStore<TBits, TRegistry>>
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        using var _ = BeginOperation();
 
         int count = 0;
         bool hasAnyConstraint = !any.IsEmpty;
-        using var _ = _createLock.EnterScope();
+        using var lockScope = _createLock.EnterScope();
         foreach (var store in _archetypes)
         {
             // Get the mask from the store's component IDs
@@ -162,6 +169,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        using var _ = BeginOperation();
         ArgumentNullException.ThrowIfNull(source);
 
         var addKey = EdgeKey.ForAdd(source.Id, componentId.Value);
@@ -169,7 +177,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         // Fast path: edge already exists
         if (_edges.TryGetValue(addKey, out int targetId))
         {
-            using var _ = _createLock.EnterScope();
+            using var lockScope = _createLock.EnterScope();
             return _archetypes[targetId];
         }
 
@@ -197,6 +205,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        using var _ = BeginOperation();
         ArgumentNullException.ThrowIfNull(source);
 
         var removeKey = EdgeKey.ForRemove(source.Id, componentId.Value);
@@ -204,7 +213,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         // Fast path: edge already exists
         if (_edges.TryGetValue(removeKey, out int targetId))
         {
-            using var _ = _createLock.EnterScope();
+            using var lockScope = _createLock.EnterScope();
             return _archetypes[targetId];
         }
 
@@ -225,6 +234,11 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
 
+        // Wait for all in-flight operations to complete
+        var sw = new SpinWait();
+        while (Volatile.Read(ref _activeOperations) > 0)
+            sw.SpinOnce();
+
         foreach (var layout in _layouts)
         {
             layout.Dispose();
@@ -233,5 +247,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         _layouts.Clear();
         _archetypes.Clear();
         _maskToArchetypeId.Clear();
+        _edges.Clear();
     }
 }

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Paradise.ECS;
 
 /// <summary>
@@ -27,10 +29,18 @@ internal readonly struct EdgeKey : IEquatable<EdgeKey>
     private EdgeKey(uint value) => _value = value;
 
     public static EdgeKey ForAdd(int archetypeId, int componentId)
-        => new(((uint)archetypeId << TypeBits) | (uint)componentId);
+    {
+        Debug.Assert(archetypeId >= 0 && archetypeId <= EcsLimits.MaxArchetypeId);
+        Debug.Assert(componentId >= 0 && componentId <= EcsLimits.MaxComponentTypeId);
+        return new EdgeKey(((uint)archetypeId << TypeBits) | (uint)componentId);
+    }
 
     public static EdgeKey ForRemove(int archetypeId, int componentId)
-        => new(((uint)archetypeId << TypeBits) | (uint)componentId | RemoveFlag);
+    {
+        Debug.Assert(archetypeId >= 0 && archetypeId <= EcsLimits.MaxArchetypeId);
+        Debug.Assert(componentId >= 0 && componentId <= EcsLimits.MaxComponentTypeId);
+        return new EdgeKey(((uint)archetypeId << TypeBits) | (uint)componentId | RemoveFlag);
+    }
 
     public bool Equals(EdgeKey other) => _value == other._value;
     public override bool Equals(object? obj) => obj is EdgeKey other && Equals(other);
