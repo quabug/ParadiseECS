@@ -17,7 +17,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Empty_MatchesAllArchetypes()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty;
+        var desc = ImmutableQueryDescription<Bit64>.Empty;
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -27,7 +27,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Empty_MatchesAnyMask()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty;
+        var desc = ImmutableQueryDescription<Bit64>.Empty;
         var mask = MakeMask(TestPosition.TypeId.Value, TestVelocity.TypeId.Value);
 
         await Assert.That(desc.Matches(mask)).IsTrue();
@@ -37,8 +37,9 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task With_Generic_AddsToAllConstraint()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .With<TestPosition>();
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+            .With<TestPosition>()
+            .ToImmutable();
 
         await Assert.That(desc.All.Get(TestPosition.TypeId.Value)).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -48,8 +49,9 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task With_Type_AddsToAllConstraint()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .With(typeof(TestPosition));
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+            .With(typeof(TestPosition))
+            .ToImmutable();
 
         await Assert.That(desc.All.Get(TestPosition.TypeId.Value)).IsTrue();
     }
@@ -57,8 +59,9 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Without_Generic_AddsToNoneConstraint()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .Without<TestPosition>();
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+            .Without<TestPosition>()
+            .ToImmutable();
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.Get(TestPosition.TypeId.Value)).IsTrue();
@@ -68,8 +71,9 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Without_Type_AddsToNoneConstraint()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .Without(typeof(TestPosition));
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+            .Without(typeof(TestPosition))
+            .ToImmutable();
 
         await Assert.That(desc.None.Get(TestPosition.TypeId.Value)).IsTrue();
     }
@@ -77,8 +81,9 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task WithAny_Generic_AddsToAnyConstraint()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .WithAny<TestPosition>();
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+            .WithAny<TestPosition>()
+            .ToImmutable();
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -88,8 +93,9 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task WithAny_Type_AddsToAnyConstraint()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .WithAny(typeof(TestPosition));
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+            .WithAny(typeof(TestPosition))
+            .ToImmutable();
 
         await Assert.That(desc.Any.Get(TestPosition.TypeId.Value)).IsTrue();
     }
@@ -97,8 +103,9 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task With_ComponentId_AddsToAllConstraint()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .With(TestPosition.TypeId.Value);
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+            .With(TestPosition.TypeId.Value)
+            .ToImmutable();
 
         await Assert.That(desc.All.Get(TestPosition.TypeId.Value)).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -108,8 +115,9 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Without_ComponentId_AddsToNoneConstraint()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .Without(TestPosition.TypeId.Value);
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+            .Without(TestPosition.TypeId.Value)
+            .ToImmutable();
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.Get(TestPosition.TypeId.Value)).IsTrue();
@@ -119,8 +127,9 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task WithAny_ComponentId_AddsToAnyConstraint()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .WithAny(TestPosition.TypeId.Value);
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+            .WithAny(TestPosition.TypeId.Value)
+            .ToImmutable();
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -130,9 +139,10 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Matches_AllConstraint_RequiresAllComponents()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
-            .With<TestVelocity>();
+            .With<TestVelocity>()
+            .ToImmutable();
 
         var matchingMask = MakeMask(TestPosition.TypeId.Value, TestVelocity.TypeId.Value);
         var partialMask = MakeMask(TestPosition.TypeId.Value);
@@ -146,9 +156,10 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Matches_NoneConstraint_ExcludesComponents()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
-            .Without<TestVelocity>();
+            .Without<TestVelocity>()
+            .ToImmutable();
 
         var matchingMask = MakeMask(TestPosition.TypeId.Value);
         var excludedMask = MakeMask(TestPosition.TypeId.Value, TestVelocity.TypeId.Value);
@@ -160,9 +171,10 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Matches_AnyConstraint_RequiresAtLeastOne()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .WithAny<TestPosition>()
-            .WithAny<TestVelocity>();
+            .WithAny<TestVelocity>()
+            .ToImmutable();
 
         var hasFirst = MakeMask(TestPosition.TypeId.Value);
         var hasSecond = MakeMask(TestVelocity.TypeId.Value);
@@ -178,10 +190,11 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Matches_CombinedConstraints_AllMustPass()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
             .Without<TestHealth>()
-            .WithAny<TestVelocity>();
+            .WithAny<TestVelocity>()
+            .ToImmutable();
 
         // Has Position + Velocity, no Health - matches
         var matching = MakeMask(TestPosition.TypeId.Value, TestVelocity.TypeId.Value);
@@ -203,13 +216,15 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task RecordEquality_SameConstraints_AreEqual()
     {
-        var desc1 = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
+        var desc1 = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
-            .Without<TestHealth>();
+            .Without<TestHealth>()
+            .ToImmutable();
 
-        var desc2 = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
+        var desc2 = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
-            .Without<TestHealth>();
+            .Without<TestHealth>()
+            .ToImmutable();
 
         await Assert.That(desc1).IsEqualTo(desc2);
         await Assert.That(desc1.GetHashCode()).IsEqualTo(desc2.GetHashCode());
@@ -218,11 +233,13 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task RecordEquality_DifferentConstraints_AreNotEqual()
     {
-        var desc1 = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .With<TestPosition>();
+        var desc1 = new QueryBuilder<Bit64, ComponentRegistry>()
+            .With<TestPosition>()
+            .ToImmutable();
 
-        var desc2 = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
-            .With<TestVelocity>();
+        var desc2 = new QueryBuilder<Bit64, ComponentRegistry>()
+            .With<TestVelocity>()
+            .ToImmutable();
 
         await Assert.That(desc1).IsNotEqualTo(desc2);
     }
@@ -230,10 +247,11 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Chaining_PreservesExistingConstraints()
     {
-        var desc = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty
+        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
             .With<TestPosition>()
             .With<TestVelocity>()
-            .Without<TestHealth>();
+            .Without<TestHealth>()
+            .ToImmutable();
 
         await Assert.That(desc.All.Get(TestPosition.TypeId.Value)).IsTrue();
         await Assert.That(desc.All.Get(TestVelocity.TypeId.Value)).IsTrue();
@@ -245,7 +263,7 @@ public class ImmutableQueryDescriptionTests
     {
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            _ = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty.With(typeof(string));
+            _ = new QueryBuilder<Bit64, ComponentRegistry>().With(typeof(string));
             await Task.CompletedTask.ConfigureAwait(false);
         });
     }
@@ -255,7 +273,7 @@ public class ImmutableQueryDescriptionTests
     {
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            _ = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty.Without(typeof(int));
+            _ = new QueryBuilder<Bit64, ComponentRegistry>().Without(typeof(int));
             await Task.CompletedTask.ConfigureAwait(false);
         });
     }
@@ -265,7 +283,7 @@ public class ImmutableQueryDescriptionTests
     {
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            _ = ImmutableQueryDescription<Bit64, ComponentRegistry>.Empty.WithAny(typeof(object));
+            _ = new QueryBuilder<Bit64, ComponentRegistry>().WithAny(typeof(object));
             await Task.CompletedTask.ConfigureAwait(false);
         });
     }
@@ -274,7 +292,7 @@ public class ImmutableQueryDescriptionTests
     public async Task SingleArgConstructor_SetsOnlyAllConstraint()
     {
         var all = MakeMask(TestPosition.TypeId.Value);
-        var desc = new ImmutableQueryDescription<Bit64, ComponentRegistry>(all);
+        var desc = new ImmutableQueryDescription<Bit64>(all);
 
         await Assert.That(desc.All).IsEqualTo(all);
         await Assert.That(desc.None.IsEmpty).IsTrue();

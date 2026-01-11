@@ -124,12 +124,13 @@ public class ArchetypeRegistryTests : IDisposable
         _registry.GetOrCreate(posVel);
 
         // Query for archetypes with Position
-        var all = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var none = ImmutableBitSet<Bit64>.Empty;
-        var any = ImmutableBitSet<Bit64>.Empty;
+        var description = new ImmutableQueryDescription<Bit64>(
+            All: ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
+            None: ImmutableBitSet<Bit64>.Empty,
+            Any: ImmutableBitSet<Bit64>.Empty);
 
         var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
-        int count = _registry.GetMatching(all, none, any, matches);
+        int count = _registry.GetMatching(description, matches);
 
         await Assert.That(count).IsEqualTo(2); // posOnly and posVel
         await Assert.That(matches.Count).IsEqualTo(2);
@@ -146,12 +147,13 @@ public class ArchetypeRegistryTests : IDisposable
         _registry.GetOrCreate(posVel);
 
         // Query for archetypes with Position but NOT Velocity
-        var all = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var none = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
-        var any = ImmutableBitSet<Bit64>.Empty;
+        var description = new ImmutableQueryDescription<Bit64>(
+            All: ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
+            None: ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId),
+            Any: ImmutableBitSet<Bit64>.Empty);
 
         var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
-        int count = _registry.GetMatching(all, none, any, matches);
+        int count = _registry.GetMatching(description, matches);
 
         await Assert.That(count).IsEqualTo(1); // Only posOnly
     }
@@ -169,12 +171,13 @@ public class ArchetypeRegistryTests : IDisposable
         _registry.GetOrCreate(healthOnly);
 
         // Query for archetypes with Position OR Velocity
-        var all = ImmutableBitSet<Bit64>.Empty;
-        var none = ImmutableBitSet<Bit64>.Empty;
-        var any = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
+        var description = new ImmutableQueryDescription<Bit64>(
+            All: ImmutableBitSet<Bit64>.Empty,
+            None: ImmutableBitSet<Bit64>.Empty,
+            Any: ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId));
 
         var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
-        int count = _registry.GetMatching(all, none, any, matches);
+        int count = _registry.GetMatching(description, matches);
 
         await Assert.That(count).IsEqualTo(2); // posOnly and velOnly
     }
@@ -188,12 +191,10 @@ public class ArchetypeRegistryTests : IDisposable
         _registry.GetOrCreate(mask1);
         _registry.GetOrCreate(mask2);
 
-        var all = ImmutableBitSet<Bit64>.Empty;
-        var none = ImmutableBitSet<Bit64>.Empty;
-        var any = ImmutableBitSet<Bit64>.Empty;
+        var description = ImmutableQueryDescription<Bit64>.Empty;
 
         var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
-        int count = _registry.GetMatching(all, none, any, matches);
+        int count = _registry.GetMatching(description, matches);
 
         await Assert.That(count).IsEqualTo(2);
     }

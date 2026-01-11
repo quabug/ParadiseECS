@@ -118,37 +118,34 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     }
 
     /// <summary>
-    /// Iterates all archetypes matching the given filter.
+    /// Iterates all archetypes matching the given query description.
     /// </summary>
     /// <typeparam name="T">The collection type to store matching archetypes.</typeparam>
-    /// <param name="all">Components that must all be present.</param>
-    /// <param name="none">Components that must not be present.</param>
-    /// <param name="any">At least one of these components must be present. Pass empty for no constraint.</param>
+    /// <param name="description">The query description defining matching criteria.</param>
     /// <param name="output">The collection to receive matching archetype stores.</param>
+    /// <param name="startIndex">The archetype index to start matching from (inclusive).</param>
     /// <returns>The number of matching archetypes added to the output collection.</returns>
     public int GetMatching<T>(
-        ImmutableBitSet<TBits> all,
-        ImmutableBitSet<TBits> none,
-        ImmutableBitSet<TBits> any,
-        T output
+        ImmutableQueryDescription<TBits> description,
+        T output,
+        int startIndex = 0
     ) where T : IList<ArchetypeStore<TBits, TRegistry>>
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = BeginOperation();
 
         int count = 0;
-        bool hasAnyConstraint = !any.IsEmpty;
+        bool hasAnyConstraint = !description.Any.IsEmpty;
         using var lockScope = _createLock.EnterScope();
-        foreach (var store in _archetypes)
-        {
-            // Get the mask from the store's component IDs
-            var layout = store.Layout;
-            var mask = layout.ComponentMask;
 
-            // Check if archetype matches the filter
-            if (mask.ContainsAll(all) &&
-                mask.ContainsNone(none) &&
-                (!hasAnyConstraint || mask.ContainsAny(any)))
+        for (int i = startIndex; i < _archetypes.Count; i++)
+        {
+            var store = _archetypes[i];
+            var mask = store.Layout.ComponentMask;
+
+            if (mask.ContainsAll(description.All) &&
+                mask.ContainsNone(description.None) &&
+                (!hasAnyConstraint || mask.ContainsAny(description.Any)))
             {
                 output.Add(store);
                 count++;
