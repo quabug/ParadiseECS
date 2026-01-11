@@ -108,9 +108,7 @@ public sealed class ArchetypeStore<TBits, TRegistry>
     /// Thread-safe: Uses lock for synchronization.
     /// </summary>
     /// <param name="indexToRemove">The global entity index to remove.</param>
-    /// <param name="movedEntity">Output: the entity that was moved to fill the gap (Invalid if none).</param>
-    /// <param name="movedEntityNewIndex">Output: the new index of the moved entity.</param>
-    /// <returns>True if an entity was moved to fill the gap.</returns>
+    /// <returns>True if an entity was moved to fill the gap (caller must update entity location).</returns>
     public bool RemoveEntity(int indexToRemove)
     {
         using var _ = _lock.EnterScope();

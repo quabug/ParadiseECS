@@ -181,8 +181,9 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     private void InitializeLayout(ImmutableBitSet<TBits> componentMask)
     {
         ref var header = ref Header;
-        short* baseOffsets = (short*)(_data + header.BaseOffsetsOffset);
         int minId = header.MinComponentId;
+        int componentSlots = header.MaxComponentId - minId + 1;
+        var baseOffsets = new Span<short>((short*)(_data + header.BaseOffsetsOffset), componentSlots);
 
         if (componentMask.IsEmpty)
         {
@@ -236,7 +237,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     private static int CalculateAndStoreOffsets(
         ImmutableBitSet<TBits> componentMask,
         ImmutableArray<ComponentTypeInfo> typeInfos,
-        short* baseOffsets,
+        Span<short> baseOffsets,
         int minId,
         int entitiesPerChunk)
     {
