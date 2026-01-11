@@ -3,8 +3,8 @@ using System.Collections;
 namespace Paradise.ECS;
 
 /// <summary>
-/// A query that iterates matching archetypes.
-/// Matches archetypes on-demand without caching for simplicity.
+/// A query that iterates matching archetypes with incremental caching.
+/// Caches matching archetypes and updates incrementally when new archetypes are added.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
@@ -14,6 +14,8 @@ public sealed class Query<TBits, TRegistry>
 {
     private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
     private readonly ImmutableQueryDescription<TBits> _description;
+    private readonly List<ArchetypeStore<TBits, TRegistry>> _matchingArchetypes = [];
+    private int _lastCheckedCount;
 
     /// <summary>
     /// Creates a new query with the specified description.
@@ -34,9 +36,16 @@ public sealed class Query<TBits, TRegistry>
     public ImmutableQueryDescription<TBits> Description => _description;
 
     /// <summary>
-    /// Gets the matching archetypes by iterating and filtering the registry.
+    /// Gets the matching archetypes, updating the cache if new archetypes have been added.
     /// </summary>
-    public MatchingArchetypesEnumerable MatchingArchetypes => new(_archetypeRegistry, _description);
+    public MatchingArchetypesEnumerable MatchingArchetypes
+    {
+        get
+        {
+            UpdateCache();
+            return new(_matchingArchetypes);
+        }
+    }
 
     /// <summary>
     /// Gets the total number of entities matching this query across all archetypes.
@@ -45,8 +54,9 @@ public sealed class Query<TBits, TRegistry>
     {
         get
         {
+            UpdateCache();
             int count = 0;
-            foreach (var archetype in MatchingArchetypes)
+            foreach (var archetype in _matchingArchetypes)
             {
                 count += archetype.EntityCount;
             }
@@ -61,7 +71,8 @@ public sealed class Query<TBits, TRegistry>
     {
         get
         {
-            foreach (var archetype in MatchingArchetypes)
+            UpdateCache();
+            foreach (var archetype in _matchingArchetypes)
             {
                 if (archetype.EntityCount > 0)
                     return false;
@@ -77,85 +88,41 @@ public sealed class Query<TBits, TRegistry>
     {
         get
         {
-            int count = 0;
-            foreach (var _ in MatchingArchetypes)
-            {
-                count++;
-            }
-            return count;
+            UpdateCache();
+            return _matchingArchetypes.Count;
         }
     }
 
     /// <summary>
-    /// Enumerable that iterates matching archetypes without allocation.
+    /// Updates the cache with any new archetypes added since the last check.
+    /// </summary>
+    private void UpdateCache()
+    {
+        int currentCount = _archetypeRegistry.Count;
+        if (currentCount > _lastCheckedCount)
+        {
+            _archetypeRegistry.GetMatching(_description, _matchingArchetypes, _lastCheckedCount);
+            _lastCheckedCount = currentCount;
+        }
+    }
+
+    /// <summary>
+    /// Enumerable that iterates cached matching archetypes without allocation.
     /// </summary>
     public readonly struct MatchingArchetypesEnumerable : IEnumerable<ArchetypeStore<TBits, TRegistry>>
     {
-        private readonly ArchetypeRegistry<TBits, TRegistry> _registry;
-        private readonly ImmutableQueryDescription<TBits> _description;
+        private readonly List<ArchetypeStore<TBits, TRegistry>> _archetypes;
 
-        internal MatchingArchetypesEnumerable(
-            ArchetypeRegistry<TBits, TRegistry> registry,
-            ImmutableQueryDescription<TBits> description)
+        internal MatchingArchetypesEnumerable(List<ArchetypeStore<TBits, TRegistry>> archetypes)
         {
-            _registry = registry;
-            _description = description;
+            _archetypes = archetypes;
         }
 
-        public Enumerator GetEnumerator() => new(_registry, _description);
+        public List<ArchetypeStore<TBits, TRegistry>>.Enumerator GetEnumerator() => _archetypes.GetEnumerator();
 
         IEnumerator<ArchetypeStore<TBits, TRegistry>> IEnumerable<ArchetypeStore<TBits, TRegistry>>.GetEnumerator()
-            => GetEnumerator();
+            => _archetypes.GetEnumerator();
 
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
-        /// <summary>
-        /// Enumerator that filters archetypes by query description.
-        /// </summary>
-        public struct Enumerator : IEnumerator<ArchetypeStore<TBits, TRegistry>>
-        {
-            private readonly ArchetypeRegistry<TBits, TRegistry> _registry;
-            private readonly ImmutableQueryDescription<TBits> _description;
-            private readonly int _count;
-            private int _index;
-            private ArchetypeStore<TBits, TRegistry>? _current;
-
-            internal Enumerator(
-                ArchetypeRegistry<TBits, TRegistry> registry,
-                ImmutableQueryDescription<TBits> description)
-            {
-                _registry = registry;
-                _description = description;
-                _count = registry.Count;
-                _index = -1;
-                _current = null;
-            }
-
-            public ArchetypeStore<TBits, TRegistry> Current => _current!;
-
-            object IEnumerator.Current => Current;
-
-            public bool MoveNext()
-            {
-                while (++_index < _count)
-                {
-                    var archetype = _registry.GetById(_index);
-                    if (archetype != null && _description.Matches(archetype.Layout.ComponentMask))
-                    {
-                        _current = archetype;
-                        return true;
-                    }
-                }
-                return false;
-            }
-
-            public void Reset()
-            {
-                _index = -1;
-                _current = null;
-            }
-
-            public void Dispose() { }
-        }
+        IEnumerator IEnumerable.GetEnumerator() => _archetypes.GetEnumerator();
     }
 }
