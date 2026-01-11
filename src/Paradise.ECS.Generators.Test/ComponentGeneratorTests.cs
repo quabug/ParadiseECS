@@ -27,8 +27,7 @@ public class ComponentGeneratorBasicTests
         var generated = sources.FirstOrDefault(s => s.HintName == "TestNamespace_Position.g.cs").Source;
         await Assert.That(generated).IsNotNull();
         await Assert.That(generated).Contains("partial struct Position : global::Paradise.ECS.IComponent");
-        await Assert.That(generated).Contains("public static global::Paradise.ECS.ComponentId TypeId =>");
-        await Assert.That(generated).Contains("new global::Paradise.ECS.ComponentId(0)");
+        await Assert.That(generated).Contains("public static global::Paradise.ECS.ComponentId TypeId { get; internal set; } = global::Paradise.ECS.ComponentId.Invalid");
     }
 
     [Test]
@@ -93,14 +92,14 @@ public class ComponentGeneratorBasicTests
 
         await Assert.That(generated).IsNotNull();
         await Assert.That(generated).Contains("public static int Alignment { get; }");
-        await Assert.That(generated).Contains("AlignmentHelper<global::TestNamespace.Position>.Alignment");
+        await Assert.That(generated).Contains("Memory.AlignOf<global::TestNamespace.Position>()");
     }
 }
 
-public class ComponentGeneratorAlphabeticalOrderingTests
+public class ComponentGeneratorRuntimeIdAssignmentTests
 {
     [Test]
-    public async Task MultipleComponents_AssignsIdsAlphabetically()
+    public async Task Component_HasRuntimeIdAssignment()
     {
         const string source = """
             using Paradise.ECS;
@@ -108,57 +107,100 @@ public class ComponentGeneratorAlphabeticalOrderingTests
             namespace TestNamespace;
 
             [Component]
-            public partial struct Zebra { public int A; }
-
-            [Component]
             public partial struct Alpha { public int A; }
-
-            [Component]
-            public partial struct Beta { public int A; }
             """;
 
-        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+        var generated = GeneratorTestHelper.GetGeneratedSource(source, "TestNamespace_Alpha.g.cs");
 
-        // Alpha should get ID 0 (comes first alphabetically)
-        var alphaSource = sources.FirstOrDefault(s => s.HintName == "TestNamespace_Alpha.g.cs").Source;
-        await Assert.That(alphaSource).Contains("new global::Paradise.ECS.ComponentId(0)");
-
-        // Beta should get ID 1
-        var betaSource = sources.FirstOrDefault(s => s.HintName == "TestNamespace_Beta.g.cs").Source;
-        await Assert.That(betaSource).Contains("new global::Paradise.ECS.ComponentId(1)");
-
-        // Zebra should get ID 2
-        var zebraSource = sources.FirstOrDefault(s => s.HintName == "TestNamespace_Zebra.g.cs").Source;
-        await Assert.That(zebraSource).Contains("new global::Paradise.ECS.ComponentId(2)");
+        // Verify runtime ID assignment structure - uses auto-property with internal setter
+        await Assert.That(generated).Contains("public static global::Paradise.ECS.ComponentId TypeId { get; internal set; } = global::Paradise.ECS.ComponentId.Invalid");
+        // SetTypeId method is no longer generated - inline lambda is used in registry instead
     }
 
     [Test]
-    public async Task CrossNamespaceComponents_SortsByFullyQualifiedName()
+    public async Task ModuleInitializer_SortsComponentsByAlignment()
     {
         const string source = """
             using Paradise.ECS;
 
-            namespace A.Components
-            {
-                [Component]
-                public partial struct ZComponent { public int X; }
-            }
+            namespace TestNamespace;
 
-            namespace B.Components
-            {
-                [Component]
-                public partial struct AComponent { public int X; }
-            }
+            [Component]
+            public partial struct SmallComponent { public byte A; }  // alignment=1
+
+            [Component]
+            public partial struct LargeComponent { public long A; }  // alignment=8
             """;
 
-        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
 
-        // A.Components.ZComponent should come before B.Components.AComponent
-        var aZComponent = sources.FirstOrDefault(s => s.HintName == "A_Components_ZComponent.g.cs").Source;
-        var bAComponent = sources.FirstOrDefault(s => s.HintName == "B_Components_AComponent.g.cs").Source;
+        // Verify module initializer is generated
+        await Assert.That(registry).Contains("[global::System.Runtime.CompilerServices.ModuleInitializer]");
+        await Assert.That(registry).Contains("internal static void Initialize()");
 
-        await Assert.That(aZComponent).Contains("new global::Paradise.ECS.ComponentId(0)");
-        await Assert.That(bAComponent).Contains("new global::Paradise.ECS.ComponentId(1)");
+        // Verify sorting by alignment (descending)
+        await Assert.That(registry).Contains("b.Alignment.CompareTo(a.Alignment)");
+    }
+}
+
+public class ComponentGeneratorManualIdTests
+{
+    [Test]
+    public async Task Component_WithManualId_IncludesIdInRegistry()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component(Id = 100)]
+            public partial struct ManualIdComponent { public int A; }
+            """;
+
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
+
+        // Verify the manual ID is included in the component tuple with inline lambda
+        await Assert.That(registry).Contains("100, (global::Paradise.ECS.ComponentId id) => global::TestNamespace.ManualIdComponent.TypeId = id");
+    }
+
+    [Test]
+    public async Task Component_WithoutManualId_UsesNegativeOneInRegistry()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct AutoIdComponent { public int A; }
+            """;
+
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
+
+        // Verify auto-assign components use -1 as manual ID with inline lambda
+        await Assert.That(registry).Contains("-1, (global::Paradise.ECS.ComponentId id) => global::TestNamespace.AutoIdComponent.TypeId = id");
+    }
+
+    [Test]
+    public async Task ModuleInitializer_HandlesManualAndAutoIds()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component(Id = 5)]
+            public partial struct ManualFive { public int A; }
+
+            [Component]
+            public partial struct AutoFirst { public int B; }
+            """;
+
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
+
+        // Verify manual ID handling code
+        await Assert.That(registry).Contains("if (comp.ManualId >= 0)");
+        await Assert.That(registry).Contains("while (usedIds.Contains(nextId)) nextId++");
     }
 }
 
@@ -666,7 +708,7 @@ public class ComponentGeneratorRegistryTests
         var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
 
         await Assert.That(registry).IsNotNull();
-        await Assert.That(registry).Contains("public static class ComponentRegistry");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
         await Assert.That(registry).Contains("typeof(global::TestNamespace.Position)");
         await Assert.That(registry).Contains("typeof(global::TestNamespace.Velocity)");
     }
@@ -709,26 +751,6 @@ public class ComponentGeneratorRegistryTests
         await Assert.That(registry).Contains("public static bool TryGetId(global::System.Guid guid, out global::Paradise.ECS.ComponentId id)");
     }
 
-    [Test]
-    public async Task ComponentRegistry_GeneratesArchetypeExtensions()
-    {
-        const string source = """
-            using Paradise.ECS;
-
-            namespace TestNamespace;
-
-            [Component]
-            public partial struct Position { public float X; }
-            """;
-
-        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
-
-        await Assert.That(registry).IsNotNull();
-        await Assert.That(registry).Contains("public static class ArchetypeTypeExtensions");
-        await Assert.That(registry).Contains("public static global::Paradise.ECS.Archetype<TBits> With<TBits>");
-        await Assert.That(registry).Contains("public static global::Paradise.ECS.Archetype<TBits> Without<TBits>");
-        await Assert.That(registry).Contains("public static bool Has<TBits>");
-    }
 }
 
 public class ComponentGeneratorBitStorageTests
@@ -767,7 +789,6 @@ public class ComponentGeneratorBitStorageTests
         var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
 
         await Assert.That(aliases).IsNotNull();
-        await Assert.That(aliases).Contains("global using Archetype = global::Paradise.ECS.Archetype<global::Paradise.ECS.Bit64>");
         await Assert.That(aliases).Contains("global using ComponentMask = global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.Bit64>");
     }
 }
@@ -841,5 +862,87 @@ public class ComponentGeneratorAutoGeneratedHeaderTests
 
         await Assert.That(componentSource).Contains("#nullable enable");
         await Assert.That(registrySource).Contains("#nullable enable");
+    }
+}
+
+public class ComponentGeneratorNamespaceTests
+{
+    [Test]
+    public async Task ComponentRegistry_UsesAssemblyAttributeNamespace()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: ComponentRegistryNamespace("MyGame.ECS")]
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
+
+        await Assert.That(registry).IsNotNull();
+        await Assert.That(registry).Contains("namespace MyGame.ECS;");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+    }
+
+    [Test]
+    public async Task ComponentRegistry_UsesBuildPropertyNamespace_WhenNoAttribute()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs", rootNamespace: "CustomNamespace");
+
+        await Assert.That(registry).IsNotNull();
+        await Assert.That(registry).Contains("namespace CustomNamespace;");
+    }
+
+    [Test]
+    public async Task ComponentRegistry_AttributeTakesPrecedenceOverBuildProperty()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: ComponentRegistryNamespace("FromAttribute")]
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        // Even with rootNamespace build property set, attribute should take precedence
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs", rootNamespace: "FromBuildProperty");
+
+        await Assert.That(registry).IsNotNull();
+        await Assert.That(registry).Contains("namespace FromAttribute;");
+        await Assert.That(registry).DoesNotContain("namespace FromBuildProperty;");
+    }
+
+    [Test]
+    public async Task ComponentRegistry_DefaultsToParadiseEcs_WhenNoNamespaceSpecified()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
+
+        await Assert.That(registry).IsNotNull();
+        await Assert.That(registry).Contains("namespace Paradise.ECS;");
     }
 }

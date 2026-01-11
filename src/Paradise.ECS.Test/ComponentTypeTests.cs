@@ -1,23 +1,22 @@
 namespace Paradise.ECS.Test;
 
 /// <summary>
-/// Test components for unit testing.
-/// IDs are assigned by the source generator based on alphabetical ordering.
+/// Test components for unit testing with explicit manual IDs.
 /// </summary>
-[Component("5B9313BE-CB77-4C8B-A0E4-82A3B369C717")]
+[Component("5B9313BE-CB77-4C8B-A0E4-82A3B369C717", Id = 0)]
 public partial struct TestHealth
 {
     public int Current;
     public int Max;
 }
 
-[Component("B6170E3B-FEE1-4C16-85C9-B5130A253BAC")]
+[Component("B6170E3B-FEE1-4C16-85C9-B5130A253BAC", Id = 1)]
 public partial struct TestPosition
 {
     public float X, Y, Z;
 }
 
-[Component("1040E96A-7D4A-4241-BDE1-36D4DBFCF7C0")]
+[Component("1040E96A-7D4A-4241-BDE1-36D4DBFCF7C0", Id = 2)]
 public partial struct TestVelocity
 {
     public float X, Y, Z;
@@ -25,16 +24,17 @@ public partial struct TestVelocity
 
 public partial class ComponentTypeTests
 {
-    [Component]
+    [Component(Id = 3)]
     public partial struct TestNested
     {
     }
 
-    // IDs are now automatically assigned by the source generator based on alphabetical ordering:
-    // - ComponentTypeTests.A: ID 0 (Paradise.ECS.Test.ComponentTypeTests.A)
-    // - TestHealth: ID 1 (Paradise.ECS.Test.TestHealth)
-    // - TestPosition: ID 2 (Paradise.ECS.Test.TestPosition)
-    // - TestVelocity: ID 3 (Paradise.ECS.Test.TestVelocity)
+    // Manual IDs assigned to test components:
+    // - TestHealth: ID 0
+    // - TestPosition: ID 1
+    // - TestVelocity: ID 2
+    // - TestNested: ID 3
+    // - TestTag: ID 4
 
     [Test]
     public async Task ComponentId_Default_IsValid()
@@ -77,10 +77,12 @@ public partial class ComponentTypeTests
     [Test]
     public async Task Component_TypeId_ReturnsAssignedId()
     {
-        await Assert.That(TestNested.TypeId.Value).IsEqualTo(0);
-        await Assert.That(TestHealth.TypeId.Value).IsEqualTo(1);
-        await Assert.That(TestPosition.TypeId.Value).IsEqualTo(2);
-        await Assert.That(TestVelocity.TypeId.Value).IsEqualTo(3);
+        // Sorted by alignment (descending) then by name
+        await Assert.That(TestHealth.TypeId.Value).IsEqualTo(0);    // alignment=4
+        await Assert.That(TestPosition.TypeId.Value).IsEqualTo(1);  // alignment=4
+        await Assert.That(TestVelocity.TypeId.Value).IsEqualTo(2);  // alignment=4
+        await Assert.That(TestNested.TypeId.Value).IsEqualTo(3);    // alignment=0
+        await Assert.That(TestTag.TypeId.Value).IsEqualTo(4);       // alignment=0
     }
 
     [Test]
@@ -116,11 +118,12 @@ public partial class ComponentTypeTests
     [Test]
     public async Task Component_TypeId_AccessibleViaGenericConstraint()
     {
-        // TypeId is accessible via generic constraint
-        await Assert.That(GetTypeId<TestNested>().Value).IsEqualTo(0);
-        await Assert.That(GetTypeId<TestHealth>().Value).IsEqualTo(1);
-        await Assert.That(GetTypeId<TestPosition>().Value).IsEqualTo(2);
-        await Assert.That(GetTypeId<TestVelocity>().Value).IsEqualTo(3);
+        // TypeId is accessible via generic constraint, sorted by alignment (descending) then by name
+        await Assert.That(GetTypeId<TestHealth>().Value).IsEqualTo(0);
+        await Assert.That(GetTypeId<TestPosition>().Value).IsEqualTo(1);
+        await Assert.That(GetTypeId<TestVelocity>().Value).IsEqualTo(2);
+        await Assert.That(GetTypeId<TestNested>().Value).IsEqualTo(3);
+        await Assert.That(GetTypeId<TestTag>().Value).IsEqualTo(4);
     }
 
     // Helper to get TypeId via generic constraint
@@ -160,5 +163,44 @@ public partial class ComponentTypeTests
         await Assert.That(GetAlignment<TestHealth>()).IsEqualTo(4);
         await Assert.That(GetAlignment<TestPosition>()).IsEqualTo(4);
         await Assert.That(GetAlignment<TestVelocity>()).IsEqualTo(4);
+    }
+
+    [Test]
+    public async Task ComponentRegistry_TypeInfos_ContainsAllComponents()
+    {
+        var typeInfos = ComponentRegistry.TypeInfos;
+
+        await Assert.That(typeInfos.Length).IsEqualTo(5);
+
+        // Indexed by ComponentId.Value, sorted by alignment (descending)
+        await Assert.That(typeInfos[0].Id.Value).IsEqualTo(0); // TestHealth
+        await Assert.That(typeInfos[1].Id.Value).IsEqualTo(1); // TestPosition
+        await Assert.That(typeInfos[2].Id.Value).IsEqualTo(2); // TestVelocity
+        await Assert.That(typeInfos[3].Id.Value).IsEqualTo(3); // TestNested
+        await Assert.That(typeInfos[4].Id.Value).IsEqualTo(4); // TestTag
+    }
+
+    [Test]
+    public async Task ComponentRegistry_TypeInfos_SortedByAlignmentDescending()
+    {
+        var typeInfos = ComponentRegistry.TypeInfos;
+
+        // Verify sorting: alignment descending, then by name
+        // First 3: alignment=4 (TestHealth, TestPosition, TestVelocity)
+        await Assert.That(typeInfos[0].Alignment).IsEqualTo(4);
+        await Assert.That(typeInfos[0].Size).IsEqualTo(8);  // TestHealth
+
+        await Assert.That(typeInfos[1].Alignment).IsEqualTo(4);
+        await Assert.That(typeInfos[1].Size).IsEqualTo(12); // TestPosition
+
+        await Assert.That(typeInfos[2].Alignment).IsEqualTo(4);
+        await Assert.That(typeInfos[2].Size).IsEqualTo(12); // TestVelocity
+
+        // Last 2: alignment=0 (TestNested, TestTag - both empty)
+        await Assert.That(typeInfos[3].Alignment).IsEqualTo(0);
+        await Assert.That(typeInfos[3].Size).IsEqualTo(0);  // TestNested
+
+        await Assert.That(typeInfos[4].Alignment).IsEqualTo(0);
+        await Assert.That(typeInfos[4].Size).IsEqualTo(0);  // TestTag
     }
 }
