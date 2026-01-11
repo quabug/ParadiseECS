@@ -182,7 +182,8 @@ public sealed class ArchetypeStore<TBits, TRegistry>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ChunkHandle GetChunk(int chunkIndex)
     {
-        return Volatile.Read(ref _chunks)[chunkIndex];
+        using var _ = _lock.EnterScope();
+        return _chunks[chunkIndex];
     }
 
     /// <summary>
@@ -193,9 +194,8 @@ public sealed class ArchetypeStore<TBits, TRegistry>
     /// <returns>A read-only span of chunk handles.</returns>
     public ReadOnlySpan<ChunkHandle> GetChunks()
     {
-        var chunks = Volatile.Read(ref _chunks);
-        int count = Volatile.Read(ref _chunkCount);
-        return chunks.AsSpan(0, count);
+        using var _ = _lock.EnterScope();
+        return _chunks.AsSpan(0, _chunkCount);
     }
 
     /// <summary>

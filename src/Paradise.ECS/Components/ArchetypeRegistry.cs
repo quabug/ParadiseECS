@@ -124,6 +124,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
 
         int count = 0;
         bool hasAnyConstraint = !any.IsEmpty;
+        using var _ = _createLock.EnterScope();
         foreach (var store in _archetypes)
         {
             // Get the mask from the store's component IDs
