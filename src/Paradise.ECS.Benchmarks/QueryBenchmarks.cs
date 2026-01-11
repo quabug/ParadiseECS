@@ -1,4 +1,5 @@
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 using Paradise.ECS;
 
 namespace Paradise.ECS.Benchmarks;
@@ -33,6 +34,7 @@ public partial struct Armor
     public int Value;
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class QueryBenchmarks

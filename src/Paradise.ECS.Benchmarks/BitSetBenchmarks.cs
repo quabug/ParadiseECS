@@ -1,185 +1,24 @@
 using System.Collections;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Attributes;
-using Paradise.ECS;
 
 namespace Paradise.ECS.Benchmarks;
-
-/// <summary>
-/// Helper extensions for BitArray operations matching ImmutableBitSet API.
-/// Note: BitArray operations mutate in-place, so we clone for immutable semantics.
-/// </summary>
-public static class BitArrayExtensions
-{
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static BitArray SetBit(this BitArray array, int bit)
-    {
-        var clone = new BitArray(array);
-        clone.Set(bit, true);
-        return clone;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static BitArray ClearBit(this BitArray array, int bit)
-    {
-        var clone = new BitArray(array);
-        clone.Set(bit, false);
-        return clone;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static BitArray AndImmutable(this BitArray array, BitArray other)
-    {
-        var clone = new BitArray(array);
-        clone.And(other);
-        return clone;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static BitArray OrImmutable(this BitArray array, BitArray other)
-    {
-        var clone = new BitArray(array);
-        clone.Or(other);
-        return clone;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static BitArray XorImmutable(this BitArray array, BitArray other)
-    {
-        var clone = new BitArray(array);
-        clone.Xor(other);
-        return clone;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static BitArray AndNotImmutable(this BitArray array, BitArray other)
-    {
-        var clone = new BitArray(array);
-        var notOther = new BitArray(other).Not();
-        clone.And(notOther);
-        return clone;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool ContainsAll(this BitArray self, BitArray other)
-    {
-        for (int i = 0; i < self.Length; i++)
-        {
-            if (other[i] && !self[i])
-                return false;
-        }
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool ContainsNone(this BitArray self, BitArray other)
-    {
-        for (int i = 0; i < self.Length; i++)
-        {
-            if (self[i] && other[i])
-                return false;
-        }
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool ContainsAny(this BitArray self, BitArray other)
-    {
-        for (int i = 0; i < self.Length; i++)
-        {
-            if (self[i] && other[i])
-                return true;
-        }
-        return false;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool IsEmpty(this BitArray array)
-    {
-        for (int i = 0; i < array.Length; i++)
-        {
-            if (array[i]) return false;
-        }
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int PopCount(this BitArray array)
-    {
-        int count = 0;
-        for (int i = 0; i < array.Length; i++)
-        {
-            if (array[i]) count++;
-        }
-        return count;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int FirstSetBit(this BitArray array)
-    {
-        for (int i = 0; i < array.Length; i++)
-        {
-            if (array[i]) return i;
-        }
-        return -1;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int LastSetBit(this BitArray array)
-    {
-        for (int i = array.Length - 1; i >= 0; i--)
-        {
-            if (array[i]) return i;
-        }
-        return -1;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool BitArrayEquals(this BitArray self, BitArray other)
-    {
-        if (self.Length != other.Length) return false;
-        for (int i = 0; i < self.Length; i++)
-        {
-            if (self[i] != other[i]) return false;
-        }
-        return true;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static int BitArrayGetHashCode(this BitArray array)
-    {
-        var hash = new HashCode();
-        for (int i = 0; i < array.Length; i++)
-        {
-            hash.Add(array[i]);
-        }
-        return hash.ToHashCode();
-    }
-
-    /// <summary>
-    /// Enumerates set bit indices (to match ImmutableBitSet.GetEnumerator behavior).
-    /// </summary>
-    public static IEnumerable<int> EnumerateSetBits(this BitArray array)
-    {
-        for (int i = 0; i < array.Length; i++)
-        {
-            if (array[i]) yield return i;
-        }
-    }
-}
 
 // ============================================================================
 // Get/Set/Clear Benchmarks
 // ============================================================================
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetGetBenchmarks
 {
+    private long _int64;
     private ImmutableBitSet<Bit64> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit1024> _bit1024;
+    private BitVector<Bit256> _bitVector256;
+    private BitVector<Bit1024> _bitVector1024;
 
     private BitArray _bitArray64 = null!;
     private BitArray _bitArray256 = null!;
@@ -188,9 +27,12 @@ public class BitSetGetBenchmarks
     [GlobalSetup]
     public void Setup()
     {
+        _int64 = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 63);
         _bit64 = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(63);
         _bit256 = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180).Set(255);
         _bit1024 = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720).Set(1023);
+        _bitVector256 = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180).Set(255);
+        _bitVector1024 = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720).Set(1023);
 
         _bitArray64 = new BitArray(64);
         _bitArray64.Set(0, true); _bitArray64.Set(10, true); _bitArray64.Set(20, true);
@@ -206,14 +48,20 @@ public class BitSetGetBenchmarks
     }
 
     // === Get ===
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public bool Int64_Get() => (_int64 & (1L << 30)) != 0;
+
+    [Benchmark]
     public bool Bit64_Get() => _bit64.Get(30);
 
     [Benchmark]
     public bool BitArray64_Get() => _bitArray64.Get(30);
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public bool Bit256_Get() => _bit256.Get(120);
+
+    [Benchmark]
+    public bool BitVector256_Get() => _bitVector256.Get(120);
 
     [Benchmark]
     public bool BitArray256_Get() => _bitArray256.Get(120);
@@ -222,16 +70,23 @@ public class BitSetGetBenchmarks
     public bool Bit1024_Get() => _bit1024.Get(480);
 
     [Benchmark]
+    public bool BitVector1024_Get() => _bitVector1024.Get(480);
+
+    [Benchmark]
     public bool BitArray1024_Get() => _bitArray1024.Get(480);
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetSetBenchmarks
 {
+    private long _int64;
     private ImmutableBitSet<Bit64> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit1024> _bit1024;
+    private BitVector<Bit256> _bitVector256;
+    private BitVector<Bit1024> _bitVector1024;
 
     private BitArray _bitArray64 = null!;
     private BitArray _bitArray256 = null!;
@@ -240,42 +95,58 @@ public class BitSetSetBenchmarks
     [GlobalSetup]
     public void Setup()
     {
+        _int64 = 0L;
         _bit64 = ImmutableBitSet<Bit64>.Empty;
         _bit256 = ImmutableBitSet<Bit256>.Empty;
         _bit1024 = ImmutableBitSet<Bit1024>.Empty;
+        _bitVector256 = BitVector<Bit256>.Empty;
+        _bitVector1024 = BitVector<Bit1024>.Empty;
 
         _bitArray64 = new BitArray(64);
         _bitArray256 = new BitArray(256);
         _bitArray1024 = new BitArray(1024);
     }
 
-    // === Set (immutable - returns new instance) ===
-    [Benchmark(Baseline = true)]
+    // === Set ===
+    [Benchmark]
+    public long Int64_Set() => _int64 | (1L << 32);
+
+    [Benchmark]
     public ImmutableBitSet<Bit64> Bit64_Set() => _bit64.Set(32);
 
     [Benchmark]
-    public BitArray BitArray64_Set() => _bitArray64.SetBit(32);
+    public void BitArray64_Set() => _bitArray64.Set(32, true);
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public ImmutableBitSet<Bit256> Bit256_Set() => _bit256.Set(128);
 
     [Benchmark]
-    public BitArray BitArray256_Set() => _bitArray256.SetBit(128);
+    public BitVector<Bit256> BitVector256_Set() => _bitVector256.Set(128);
+
+    [Benchmark]
+    public void BitArray256_Set() => _bitArray256.Set(128, true);
 
     [Benchmark]
     public ImmutableBitSet<Bit1024> Bit1024_Set() => _bit1024.Set(512);
 
     [Benchmark]
-    public BitArray BitArray1024_Set() => _bitArray1024.SetBit(512);
+    public BitVector<Bit1024> BitVector1024_Set() => _bitVector1024.Set(512);
+
+    [Benchmark]
+    public void BitArray1024_Set() => _bitArray1024.Set(512, true);
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetClearBenchmarks
 {
+    private long _int64;
     private ImmutableBitSet<Bit64> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit1024> _bit1024;
+    private BitVector<Bit256> _bitVector256;
+    private BitVector<Bit1024> _bitVector1024;
 
     private BitArray _bitArray64 = null!;
     private BitArray _bitArray256 = null!;
@@ -284,9 +155,12 @@ public class BitSetClearBenchmarks
     [GlobalSetup]
     public void Setup()
     {
+        _int64 = 1L << 32;
         _bit64 = ImmutableBitSet<Bit64>.Empty.Set(32);
         _bit256 = ImmutableBitSet<Bit256>.Empty.Set(128);
         _bit1024 = ImmutableBitSet<Bit1024>.Empty.Set(512);
+        _bitVector256 = BitVector<Bit256>.Empty.Set(128);
+        _bitVector1024 = BitVector<Bit1024>.Empty.Set(512);
 
         _bitArray64 = new BitArray(64);
         _bitArray64.Set(32, true);
@@ -298,37 +172,50 @@ public class BitSetClearBenchmarks
         _bitArray1024.Set(512, true);
     }
 
-    // === Clear (immutable - returns new instance) ===
-    [Benchmark(Baseline = true)]
+    // === Clear ===
+    [Benchmark]
+    public long Int64_Clear() => _int64 & ~(1L << 32);
+
+    [Benchmark]
     public ImmutableBitSet<Bit64> Bit64_Clear() => _bit64.Clear(32);
 
     [Benchmark]
-    public BitArray BitArray64_Clear() => _bitArray64.ClearBit(32);
+    public void BitArray64_Clear() => _bitArray64.Set(32, false);
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public ImmutableBitSet<Bit256> Bit256_Clear() => _bit256.Clear(128);
 
     [Benchmark]
-    public BitArray BitArray256_Clear() => _bitArray256.ClearBit(128);
+    public BitVector<Bit256> BitVector256_Clear() => _bitVector256.Clear(128);
+
+    [Benchmark]
+    public void BitArray256_Clear() => _bitArray256.Set(128, false);
 
     [Benchmark]
     public ImmutableBitSet<Bit1024> Bit1024_Clear() => _bit1024.Clear(512);
 
     [Benchmark]
-    public BitArray BitArray1024_Clear() => _bitArray1024.ClearBit(512);
+    public BitVector<Bit1024> BitVector1024_Clear() => _bitVector1024.Clear(512);
+
+    [Benchmark]
+    public void BitArray1024_Clear() => _bitArray1024.Set(512, false);
 }
 
 // ============================================================================
 // Bitwise Operation Benchmarks (And, Or, Xor, AndNot)
 // ============================================================================
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetAndBenchmarks
 {
+    private long _int64A, _int64B;
     private ImmutableBitSet<Bit64> _bit64A, _bit64B;
     private ImmutableBitSet<Bit256> _bit256A, _bit256B;
     private ImmutableBitSet<Bit1024> _bit1024A, _bit1024B;
+    private BitVector<Bit256> _bitVector256A, _bitVector256B;
+    private BitVector<Bit1024> _bitVector1024A, _bitVector1024B;
 
     private BitArray _bitArray64A = null!, _bitArray64B = null!;
     private BitArray _bitArray256A = null!, _bitArray256B = null!;
@@ -337,8 +224,11 @@ public class BitSetAndBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30);
-        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40).Set(50);
+        _int64A = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50);
+        _int64B = (1L << 10) | (1L << 20) | (1L << 40) | (1L << 63);
+
+        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50);
+        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40).Set(63);
 
         _bit256A = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit256B = ImmutableBitSet<Bit256>.Empty.Set(60).Set(120).Set(200).Set(240);
@@ -346,10 +236,16 @@ public class BitSetAndBenchmarks
         _bit1024A = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
         _bit1024B = ImmutableBitSet<Bit1024>.Empty.Set(240).Set(480).Set(800).Set(960);
 
+        _bitVector256A = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
+        _bitVector256B = BitVector<Bit256>.Empty.Set(60).Set(120).Set(200).Set(240);
+
+        _bitVector1024A = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
+        _bitVector1024B = BitVector<Bit1024>.Empty.Set(240).Set(480).Set(800).Set(960);
+
         _bitArray64A = new BitArray(64);
-        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true);
+        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true); _bitArray64A.Set(40, true); _bitArray64A.Set(50, true);
         _bitArray64B = new BitArray(64);
-        _bitArray64B.Set(10, true); _bitArray64B.Set(20, true); _bitArray64B.Set(40, true); _bitArray64B.Set(50, true);
+        _bitArray64B.Set(10, true); _bitArray64B.Set(20, true); _bitArray64B.Set(40, true); _bitArray64B.Set(63, true);
 
         _bitArray256A = new BitArray(256);
         _bitArray256A.Set(0, true); _bitArray256A.Set(60, true); _bitArray256A.Set(120, true); _bitArray256A.Set(180, true);
@@ -362,32 +258,45 @@ public class BitSetAndBenchmarks
         _bitArray1024B.Set(240, true); _bitArray1024B.Set(480, true); _bitArray1024B.Set(800, true); _bitArray1024B.Set(960, true);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public long Int64_And() => _int64A & _int64B;
+
+    [Benchmark]
     public ImmutableBitSet<Bit64> Bit64_And() => _bit64A.And(_bit64B);
 
     [Benchmark]
-    public BitArray BitArray64_And() => _bitArray64A.AndImmutable(_bitArray64B);
+    public BitArray BitArray64_And() => _bitArray64A.And(_bitArray64B);
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public ImmutableBitSet<Bit256> Bit256_And() => _bit256A.And(_bit256B);
 
     [Benchmark]
-    public BitArray BitArray256_And() => _bitArray256A.AndImmutable(_bitArray256B);
+    public BitVector<Bit256> BitVector256_And() => _bitVector256A.And(in _bitVector256B);
+
+    [Benchmark]
+    public BitArray BitArray256_And() => _bitArray256A.And(_bitArray256B);
 
     [Benchmark]
     public ImmutableBitSet<Bit1024> Bit1024_And() => _bit1024A.And(_bit1024B);
 
     [Benchmark]
-    public BitArray BitArray1024_And() => _bitArray1024A.AndImmutable(_bitArray1024B);
+    public BitVector<Bit1024> BitVector1024_And() => _bitVector1024A.And(in _bitVector1024B);
+
+    [Benchmark]
+    public BitArray BitArray1024_And() => _bitArray1024A.And(_bitArray1024B);
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetOrBenchmarks
 {
+    private long _int64A, _int64B;
     private ImmutableBitSet<Bit64> _bit64A, _bit64B;
     private ImmutableBitSet<Bit256> _bit256A, _bit256B;
     private ImmutableBitSet<Bit1024> _bit1024A, _bit1024B;
+    private BitVector<Bit256> _bitVector256A, _bitVector256B;
+    private BitVector<Bit1024> _bitVector1024A, _bitVector1024B;
 
     private BitArray _bitArray64A = null!, _bitArray64B = null!;
     private BitArray _bitArray256A = null!, _bitArray256B = null!;
@@ -396,8 +305,11 @@ public class BitSetOrBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30);
-        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40).Set(50);
+        _int64A = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50);
+        _int64B = (1L << 10) | (1L << 20) | (1L << 40) | (1L << 63);
+
+        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50);
+        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40).Set(63);
 
         _bit256A = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit256B = ImmutableBitSet<Bit256>.Empty.Set(60).Set(120).Set(200).Set(240);
@@ -405,10 +317,16 @@ public class BitSetOrBenchmarks
         _bit1024A = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
         _bit1024B = ImmutableBitSet<Bit1024>.Empty.Set(240).Set(480).Set(800).Set(960);
 
+        _bitVector256A = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
+        _bitVector256B = BitVector<Bit256>.Empty.Set(60).Set(120).Set(200).Set(240);
+
+        _bitVector1024A = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
+        _bitVector1024B = BitVector<Bit1024>.Empty.Set(240).Set(480).Set(800).Set(960);
+
         _bitArray64A = new BitArray(64);
-        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true);
+        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true); _bitArray64A.Set(40, true); _bitArray64A.Set(50, true);
         _bitArray64B = new BitArray(64);
-        _bitArray64B.Set(10, true); _bitArray64B.Set(20, true); _bitArray64B.Set(40, true); _bitArray64B.Set(50, true);
+        _bitArray64B.Set(10, true); _bitArray64B.Set(20, true); _bitArray64B.Set(40, true); _bitArray64B.Set(63, true);
 
         _bitArray256A = new BitArray(256);
         _bitArray256A.Set(0, true); _bitArray256A.Set(60, true); _bitArray256A.Set(120, true); _bitArray256A.Set(180, true);
@@ -421,32 +339,45 @@ public class BitSetOrBenchmarks
         _bitArray1024B.Set(240, true); _bitArray1024B.Set(480, true); _bitArray1024B.Set(800, true); _bitArray1024B.Set(960, true);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public long Int64_Or() => _int64A | _int64B;
+
+    [Benchmark]
     public ImmutableBitSet<Bit64> Bit64_Or() => _bit64A.Or(_bit64B);
 
     [Benchmark]
-    public BitArray BitArray64_Or() => _bitArray64A.OrImmutable(_bitArray64B);
+    public BitArray BitArray64_Or() => _bitArray64A.Or(_bitArray64B);
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public ImmutableBitSet<Bit256> Bit256_Or() => _bit256A.Or(_bit256B);
 
     [Benchmark]
-    public BitArray BitArray256_Or() => _bitArray256A.OrImmutable(_bitArray256B);
+    public BitVector<Bit256> BitVector256_Or() => _bitVector256A.Or(in _bitVector256B);
+
+    [Benchmark]
+    public BitArray BitArray256_Or() => _bitArray256A.Or(_bitArray256B);
 
     [Benchmark]
     public ImmutableBitSet<Bit1024> Bit1024_Or() => _bit1024A.Or(_bit1024B);
 
     [Benchmark]
-    public BitArray BitArray1024_Or() => _bitArray1024A.OrImmutable(_bitArray1024B);
+    public BitVector<Bit1024> BitVector1024_Or() => _bitVector1024A.Or(in _bitVector1024B);
+
+    [Benchmark]
+    public BitArray BitArray1024_Or() => _bitArray1024A.Or(_bitArray1024B);
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetXorBenchmarks
 {
+    private long _int64A, _int64B;
     private ImmutableBitSet<Bit64> _bit64A, _bit64B;
     private ImmutableBitSet<Bit256> _bit256A, _bit256B;
     private ImmutableBitSet<Bit1024> _bit1024A, _bit1024B;
+    private BitVector<Bit256> _bitVector256A, _bitVector256B;
+    private BitVector<Bit1024> _bitVector1024A, _bitVector1024B;
 
     private BitArray _bitArray64A = null!, _bitArray64B = null!;
     private BitArray _bitArray256A = null!, _bitArray256B = null!;
@@ -455,8 +386,11 @@ public class BitSetXorBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30);
-        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40).Set(50);
+        _int64A = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50);
+        _int64B = (1L << 10) | (1L << 20) | (1L << 40) | (1L << 63);
+
+        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50);
+        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40).Set(63);
 
         _bit256A = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit256B = ImmutableBitSet<Bit256>.Empty.Set(60).Set(120).Set(200).Set(240);
@@ -464,10 +398,16 @@ public class BitSetXorBenchmarks
         _bit1024A = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
         _bit1024B = ImmutableBitSet<Bit1024>.Empty.Set(240).Set(480).Set(800).Set(960);
 
+        _bitVector256A = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
+        _bitVector256B = BitVector<Bit256>.Empty.Set(60).Set(120).Set(200).Set(240);
+
+        _bitVector1024A = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
+        _bitVector1024B = BitVector<Bit1024>.Empty.Set(240).Set(480).Set(800).Set(960);
+
         _bitArray64A = new BitArray(64);
-        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true);
+        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true); _bitArray64A.Set(40, true); _bitArray64A.Set(50, true);
         _bitArray64B = new BitArray(64);
-        _bitArray64B.Set(10, true); _bitArray64B.Set(20, true); _bitArray64B.Set(40, true); _bitArray64B.Set(50, true);
+        _bitArray64B.Set(10, true); _bitArray64B.Set(20, true); _bitArray64B.Set(40, true); _bitArray64B.Set(63, true);
 
         _bitArray256A = new BitArray(256);
         _bitArray256A.Set(0, true); _bitArray256A.Set(60, true); _bitArray256A.Set(120, true); _bitArray256A.Set(180, true);
@@ -480,42 +420,58 @@ public class BitSetXorBenchmarks
         _bitArray1024B.Set(240, true); _bitArray1024B.Set(480, true); _bitArray1024B.Set(800, true); _bitArray1024B.Set(960, true);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public long Int64_Xor() => _int64A ^ _int64B;
+
+    [Benchmark]
     public ImmutableBitSet<Bit64> Bit64_Xor() => _bit64A.Xor(_bit64B);
 
     [Benchmark]
-    public BitArray BitArray64_Xor() => _bitArray64A.XorImmutable(_bitArray64B);
+    public BitArray BitArray64_Xor() => _bitArray64A.Xor(_bitArray64B);
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public ImmutableBitSet<Bit256> Bit256_Xor() => _bit256A.Xor(_bit256B);
 
     [Benchmark]
-    public BitArray BitArray256_Xor() => _bitArray256A.XorImmutable(_bitArray256B);
+    public BitVector<Bit256> BitVector256_Xor() => _bitVector256A.Xor(in _bitVector256B);
+
+    [Benchmark]
+    public BitArray BitArray256_Xor() => _bitArray256A.Xor(_bitArray256B);
 
     [Benchmark]
     public ImmutableBitSet<Bit1024> Bit1024_Xor() => _bit1024A.Xor(_bit1024B);
 
     [Benchmark]
-    public BitArray BitArray1024_Xor() => _bitArray1024A.XorImmutable(_bitArray1024B);
+    public BitVector<Bit1024> BitVector1024_Xor() => _bitVector1024A.Xor(in _bitVector1024B);
+
+    [Benchmark]
+    public BitArray BitArray1024_Xor() => _bitArray1024A.Xor(_bitArray1024B);
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetAndNotBenchmarks
 {
+    private long _int64A, _int64B;
     private ImmutableBitSet<Bit64> _bit64A, _bit64B;
     private ImmutableBitSet<Bit256> _bit256A, _bit256B;
     private ImmutableBitSet<Bit1024> _bit1024A, _bit1024B;
+    private BitVector<Bit256> _bitVector256A, _bitVector256B;
+    private BitVector<Bit1024> _bitVector1024A, _bitVector1024B;
 
-    private BitArray _bitArray64A = null!, _bitArray64B = null!;
-    private BitArray _bitArray256A = null!, _bitArray256B = null!;
-    private BitArray _bitArray1024A = null!, _bitArray1024B = null!;
+    private BitArray _bitArray64A = null!, _bitArray64BNot = null!;
+    private BitArray _bitArray256A = null!, _bitArray256BNot = null!;
+    private BitArray _bitArray1024A = null!, _bitArray1024BNot = null!;
 
     [GlobalSetup]
     public void Setup()
     {
-        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30);
-        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40).Set(50);
+        _int64A = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50);
+        _int64B = (1L << 10) | (1L << 20) | (1L << 40) | (1L << 63);
+
+        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50);
+        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40).Set(63);
 
         _bit256A = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit256B = ImmutableBitSet<Bit256>.Empty.Set(60).Set(120).Set(200).Set(240);
@@ -523,63 +479,84 @@ public class BitSetAndNotBenchmarks
         _bit1024A = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
         _bit1024B = ImmutableBitSet<Bit1024>.Empty.Set(240).Set(480).Set(800).Set(960);
 
+        _bitVector256A = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
+        _bitVector256B = BitVector<Bit256>.Empty.Set(60).Set(120).Set(200).Set(240);
+
+        _bitVector1024A = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
+        _bitVector1024B = BitVector<Bit1024>.Empty.Set(240).Set(480).Set(800).Set(960);
+
         _bitArray64A = new BitArray(64);
-        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true);
-        _bitArray64B = new BitArray(64);
-        _bitArray64B.Set(10, true); _bitArray64B.Set(20, true); _bitArray64B.Set(40, true); _bitArray64B.Set(50, true);
+        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true); _bitArray64A.Set(40, true); _bitArray64A.Set(50, true);
+        _bitArray64BNot = new BitArray(64);
+        _bitArray64BNot.Set(10, true); _bitArray64BNot.Set(20, true); _bitArray64BNot.Set(40, true); _bitArray64BNot.Set(63, true);
+        _bitArray64BNot.Not();
 
         _bitArray256A = new BitArray(256);
         _bitArray256A.Set(0, true); _bitArray256A.Set(60, true); _bitArray256A.Set(120, true); _bitArray256A.Set(180, true);
-        _bitArray256B = new BitArray(256);
-        _bitArray256B.Set(60, true); _bitArray256B.Set(120, true); _bitArray256B.Set(200, true); _bitArray256B.Set(240, true);
+        _bitArray256BNot = new BitArray(256);
+        _bitArray256BNot.Set(60, true); _bitArray256BNot.Set(120, true); _bitArray256BNot.Set(200, true); _bitArray256BNot.Set(240, true);
+        _bitArray256BNot.Not();
 
         _bitArray1024A = new BitArray(1024);
         _bitArray1024A.Set(0, true); _bitArray1024A.Set(240, true); _bitArray1024A.Set(480, true); _bitArray1024A.Set(720, true);
-        _bitArray1024B = new BitArray(1024);
-        _bitArray1024B.Set(240, true); _bitArray1024B.Set(480, true); _bitArray1024B.Set(800, true); _bitArray1024B.Set(960, true);
+        _bitArray1024BNot = new BitArray(1024);
+        _bitArray1024BNot.Set(240, true); _bitArray1024BNot.Set(480, true); _bitArray1024BNot.Set(800, true); _bitArray1024BNot.Set(960, true);
+        _bitArray1024BNot.Not();
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public long Int64_AndNot() => _int64A & ~_int64B;
+
+    [Benchmark]
     public ImmutableBitSet<Bit64> Bit64_AndNot() => _bit64A.AndNot(_bit64B);
 
     [Benchmark]
-    public BitArray BitArray64_AndNot() => _bitArray64A.AndNotImmutable(_bitArray64B);
+    public BitArray BitArray64_AndNot() => _bitArray64A.And(_bitArray64BNot);
 
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public ImmutableBitSet<Bit256> Bit256_AndNot() => _bit256A.AndNot(_bit256B);
 
     [Benchmark]
-    public BitArray BitArray256_AndNot() => _bitArray256A.AndNotImmutable(_bitArray256B);
+    public BitVector<Bit256> BitVector256_AndNot() => _bitVector256A.AndNot(in _bitVector256B);
+
+    [Benchmark]
+    public BitArray BitArray256_AndNot() => _bitArray256A.And(_bitArray256BNot);
 
     [Benchmark]
     public ImmutableBitSet<Bit1024> Bit1024_AndNot() => _bit1024A.AndNot(_bit1024B);
 
     [Benchmark]
-    public BitArray BitArray1024_AndNot() => _bitArray1024A.AndNotImmutable(_bitArray1024B);
+    public BitVector<Bit1024> BitVector1024_AndNot() => _bitVector1024A.AndNot(in _bitVector1024B);
+
+    [Benchmark]
+    public BitArray BitArray1024_AndNot() => _bitArray1024A.And(_bitArray1024BNot);
 }
 
 // ============================================================================
 // Query Operation Benchmarks (ContainsAll, ContainsAny, ContainsNone)
 // ============================================================================
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetContainsAllBenchmarks
 {
+    private long _int64A, _int64B;
     private ImmutableBitSet<Bit64> _bit64A, _bit64B;
     private ImmutableBitSet<Bit256> _bit256A, _bit256B;
     private ImmutableBitSet<Bit1024> _bit1024A, _bit1024B;
-
-    private BitArray _bitArray64A = null!, _bitArray64B = null!;
-    private BitArray _bitArray256A = null!, _bitArray256B = null!;
-    private BitArray _bitArray1024A = null!, _bitArray1024B = null!;
+    private BitVector<Bit256> _bitVector256A, _bitVector256B;
+    private BitVector<Bit1024> _bitVector1024A, _bitVector1024B;
 
     [GlobalSetup]
     public void Setup()
     {
         // A contains all bits from B
-        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40);
-        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20);
+        _int64A = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50) | (1L << 63);
+        _int64B = (1L << 10) | (1L << 20) | (1L << 40);
+
+        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50).Set(63);
+        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40);
 
         _bit256A = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180).Set(240);
         _bit256B = ImmutableBitSet<Bit256>.Empty.Set(60).Set(120);
@@ -587,62 +564,53 @@ public class BitSetContainsAllBenchmarks
         _bit1024A = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720).Set(960);
         _bit1024B = ImmutableBitSet<Bit1024>.Empty.Set(240).Set(480);
 
-        _bitArray64A = new BitArray(64);
-        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true);
-        _bitArray64A.Set(30, true); _bitArray64A.Set(40, true);
-        _bitArray64B = new BitArray(64);
-        _bitArray64B.Set(10, true); _bitArray64B.Set(20, true);
+        _bitVector256A = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180).Set(240);
+        _bitVector256B = BitVector<Bit256>.Empty.Set(60).Set(120);
 
-        _bitArray256A = new BitArray(256);
-        _bitArray256A.Set(0, true); _bitArray256A.Set(60, true); _bitArray256A.Set(120, true);
-        _bitArray256A.Set(180, true); _bitArray256A.Set(240, true);
-        _bitArray256B = new BitArray(256);
-        _bitArray256B.Set(60, true); _bitArray256B.Set(120, true);
-
-        _bitArray1024A = new BitArray(1024);
-        _bitArray1024A.Set(0, true); _bitArray1024A.Set(240, true); _bitArray1024A.Set(480, true);
-        _bitArray1024A.Set(720, true); _bitArray1024A.Set(960, true);
-        _bitArray1024B = new BitArray(1024);
-        _bitArray1024B.Set(240, true); _bitArray1024B.Set(480, true);
+        _bitVector1024A = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720).Set(960);
+        _bitVector1024B = BitVector<Bit1024>.Empty.Set(240).Set(480);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public bool Int64_ContainsAll() => (_int64A & _int64B) == _int64B;
+
+    [Benchmark]
     public bool Bit64_ContainsAll() => _bit64A.ContainsAll(_bit64B);
 
-    [Benchmark]
-    public bool BitArray64_ContainsAll() => _bitArray64A.ContainsAll(_bitArray64B);
-
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public bool Bit256_ContainsAll() => _bit256A.ContainsAll(_bit256B);
 
     [Benchmark]
-    public bool BitArray256_ContainsAll() => _bitArray256A.ContainsAll(_bitArray256B);
+    public bool BitVector256_ContainsAll() => _bitVector256A.ContainsAll(in _bitVector256B);
 
     [Benchmark]
     public bool Bit1024_ContainsAll() => _bit1024A.ContainsAll(_bit1024B);
 
     [Benchmark]
-    public bool BitArray1024_ContainsAll() => _bitArray1024A.ContainsAll(_bitArray1024B);
+    public bool BitVector1024_ContainsAll() => _bitVector1024A.ContainsAll(in _bitVector1024B);
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetContainsAnyBenchmarks
 {
+    private long _int64A, _int64B;
     private ImmutableBitSet<Bit64> _bit64A, _bit64B;
     private ImmutableBitSet<Bit256> _bit256A, _bit256B;
     private ImmutableBitSet<Bit1024> _bit1024A, _bit1024B;
-
-    private BitArray _bitArray64A = null!, _bitArray64B = null!;
-    private BitArray _bitArray256A = null!, _bitArray256B = null!;
-    private BitArray _bitArray1024A = null!, _bitArray1024B = null!;
+    private BitVector<Bit256> _bitVector256A, _bitVector256B;
+    private BitVector<Bit1024> _bitVector1024A, _bitVector1024B;
 
     [GlobalSetup]
     public void Setup()
     {
         // A and B have some overlapping bits
-        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30);
-        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(20).Set(40).Set(50);
+        _int64A = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50);
+        _int64B = (1L << 20) | (1L << 45) | (1L << 63);
+
+        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50);
+        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(20).Set(45).Set(63);
 
         _bit256A = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit256B = ImmutableBitSet<Bit256>.Empty.Set(120).Set(200).Set(240);
@@ -650,59 +618,53 @@ public class BitSetContainsAnyBenchmarks
         _bit1024A = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
         _bit1024B = ImmutableBitSet<Bit1024>.Empty.Set(480).Set(800).Set(960);
 
-        _bitArray64A = new BitArray(64);
-        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true);
-        _bitArray64B = new BitArray(64);
-        _bitArray64B.Set(20, true); _bitArray64B.Set(40, true); _bitArray64B.Set(50, true);
+        _bitVector256A = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
+        _bitVector256B = BitVector<Bit256>.Empty.Set(120).Set(200).Set(240);
 
-        _bitArray256A = new BitArray(256);
-        _bitArray256A.Set(0, true); _bitArray256A.Set(60, true); _bitArray256A.Set(120, true); _bitArray256A.Set(180, true);
-        _bitArray256B = new BitArray(256);
-        _bitArray256B.Set(120, true); _bitArray256B.Set(200, true); _bitArray256B.Set(240, true);
-
-        _bitArray1024A = new BitArray(1024);
-        _bitArray1024A.Set(0, true); _bitArray1024A.Set(240, true); _bitArray1024A.Set(480, true); _bitArray1024A.Set(720, true);
-        _bitArray1024B = new BitArray(1024);
-        _bitArray1024B.Set(480, true); _bitArray1024B.Set(800, true); _bitArray1024B.Set(960, true);
+        _bitVector1024A = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
+        _bitVector1024B = BitVector<Bit1024>.Empty.Set(480).Set(800).Set(960);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public bool Int64_ContainsAny() => (_int64A & _int64B) != 0;
+
+    [Benchmark]
     public bool Bit64_ContainsAny() => _bit64A.ContainsAny(_bit64B);
 
-    [Benchmark]
-    public bool BitArray64_ContainsAny() => _bitArray64A.ContainsAny(_bitArray64B);
-
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public bool Bit256_ContainsAny() => _bit256A.ContainsAny(_bit256B);
 
     [Benchmark]
-    public bool BitArray256_ContainsAny() => _bitArray256A.ContainsAny(_bitArray256B);
+    public bool BitVector256_ContainsAny() => _bitVector256A.ContainsAny(in _bitVector256B);
 
     [Benchmark]
     public bool Bit1024_ContainsAny() => _bit1024A.ContainsAny(_bit1024B);
 
     [Benchmark]
-    public bool BitArray1024_ContainsAny() => _bitArray1024A.ContainsAny(_bitArray1024B);
+    public bool BitVector1024_ContainsAny() => _bitVector1024A.ContainsAny(in _bitVector1024B);
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetContainsNoneBenchmarks
 {
+    private long _int64A, _int64B;
     private ImmutableBitSet<Bit64> _bit64A, _bit64B;
     private ImmutableBitSet<Bit256> _bit256A, _bit256B;
     private ImmutableBitSet<Bit1024> _bit1024A, _bit1024B;
-
-    private BitArray _bitArray64A = null!, _bitArray64B = null!;
-    private BitArray _bitArray256A = null!, _bitArray256B = null!;
-    private BitArray _bitArray1024A = null!, _bitArray1024B = null!;
+    private BitVector<Bit256> _bitVector256A, _bitVector256B;
+    private BitVector<Bit1024> _bitVector1024A, _bitVector1024B;
 
     [GlobalSetup]
     public void Setup()
     {
         // A and B have no overlapping bits
-        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30);
-        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(5).Set(15).Set(25);
+        _int64A = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50);
+        _int64B = (1L << 5) | (1L << 15) | (1L << 25) | (1L << 35) | (1L << 45) | (1L << 55);
+
+        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50);
+        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(5).Set(15).Set(25).Set(35).Set(45).Set(55);
 
         _bit256A = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit256B = ImmutableBitSet<Bit256>.Empty.Set(30).Set(90).Set(150).Set(210);
@@ -710,219 +672,189 @@ public class BitSetContainsNoneBenchmarks
         _bit1024A = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
         _bit1024B = ImmutableBitSet<Bit1024>.Empty.Set(120).Set(360).Set(600).Set(840);
 
-        _bitArray64A = new BitArray(64);
-        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true);
-        _bitArray64B = new BitArray(64);
-        _bitArray64B.Set(5, true); _bitArray64B.Set(15, true); _bitArray64B.Set(25, true);
+        _bitVector256A = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
+        _bitVector256B = BitVector<Bit256>.Empty.Set(30).Set(90).Set(150).Set(210);
 
-        _bitArray256A = new BitArray(256);
-        _bitArray256A.Set(0, true); _bitArray256A.Set(60, true); _bitArray256A.Set(120, true); _bitArray256A.Set(180, true);
-        _bitArray256B = new BitArray(256);
-        _bitArray256B.Set(30, true); _bitArray256B.Set(90, true); _bitArray256B.Set(150, true); _bitArray256B.Set(210, true);
-
-        _bitArray1024A = new BitArray(1024);
-        _bitArray1024A.Set(0, true); _bitArray1024A.Set(240, true); _bitArray1024A.Set(480, true); _bitArray1024A.Set(720, true);
-        _bitArray1024B = new BitArray(1024);
-        _bitArray1024B.Set(120, true); _bitArray1024B.Set(360, true); _bitArray1024B.Set(600, true); _bitArray1024B.Set(840, true);
+        _bitVector1024A = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
+        _bitVector1024B = BitVector<Bit1024>.Empty.Set(120).Set(360).Set(600).Set(840);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public bool Int64_ContainsNone() => (_int64A & _int64B) == 0;
+
+    [Benchmark]
     public bool Bit64_ContainsNone() => _bit64A.ContainsNone(_bit64B);
 
-    [Benchmark]
-    public bool BitArray64_ContainsNone() => _bitArray64A.ContainsNone(_bitArray64B);
-
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public bool Bit256_ContainsNone() => _bit256A.ContainsNone(_bit256B);
 
     [Benchmark]
-    public bool BitArray256_ContainsNone() => _bitArray256A.ContainsNone(_bitArray256B);
+    public bool BitVector256_ContainsNone() => _bitVector256A.ContainsNone(in _bitVector256B);
 
     [Benchmark]
     public bool Bit1024_ContainsNone() => _bit1024A.ContainsNone(_bit1024B);
 
     [Benchmark]
-    public bool BitArray1024_ContainsNone() => _bitArray1024A.ContainsNone(_bitArray1024B);
+    public bool BitVector1024_ContainsNone() => _bitVector1024A.ContainsNone(in _bitVector1024B);
 }
 
 // ============================================================================
 // Counting/Finding Benchmarks (PopCount, FirstSetBit, LastSetBit, IsEmpty)
 // ============================================================================
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetPopCountBenchmarks
 {
+    private long _int64;
     private ImmutableBitSet<Bit64> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit1024> _bit1024;
-
-    private BitArray _bitArray64 = null!;
-    private BitArray _bitArray256 = null!;
-    private BitArray _bitArray1024 = null!;
+    private BitVector<Bit256> _bitVector256;
+    private BitVector<Bit1024> _bitVector1024;
 
     [GlobalSetup]
     public void Setup()
     {
         // Set multiple bits spread across the range
+        _int64 = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50) | (1L << 60);
         _bit64 = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50).Set(60);
         _bit256 = ImmutableBitSet<Bit256>.Empty.Set(0).Set(30).Set(60).Set(90).Set(120).Set(150).Set(180).Set(210).Set(240);
         _bit1024 = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(100).Set(200).Set(300).Set(400).Set(500).Set(600).Set(700).Set(800).Set(900).Set(1000);
-
-        _bitArray64 = new BitArray(64);
-        _bitArray64.Set(0, true); _bitArray64.Set(10, true); _bitArray64.Set(20, true);
-        _bitArray64.Set(30, true); _bitArray64.Set(40, true); _bitArray64.Set(50, true); _bitArray64.Set(60, true);
-
-        _bitArray256 = new BitArray(256);
-        _bitArray256.Set(0, true); _bitArray256.Set(30, true); _bitArray256.Set(60, true);
-        _bitArray256.Set(90, true); _bitArray256.Set(120, true); _bitArray256.Set(150, true);
-        _bitArray256.Set(180, true); _bitArray256.Set(210, true); _bitArray256.Set(240, true);
-
-        _bitArray1024 = new BitArray(1024);
-        _bitArray1024.Set(0, true); _bitArray1024.Set(100, true); _bitArray1024.Set(200, true);
-        _bitArray1024.Set(300, true); _bitArray1024.Set(400, true); _bitArray1024.Set(500, true);
-        _bitArray1024.Set(600, true); _bitArray1024.Set(700, true); _bitArray1024.Set(800, true);
-        _bitArray1024.Set(900, true); _bitArray1024.Set(1000, true);
+        _bitVector256 = BitVector<Bit256>.Empty.Set(0).Set(30).Set(60).Set(90).Set(120).Set(150).Set(180).Set(210).Set(240);
+        _bitVector1024 = BitVector<Bit1024>.Empty.Set(0).Set(100).Set(200).Set(300).Set(400).Set(500).Set(600).Set(700).Set(800).Set(900).Set(1000);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public int Int64_PopCount() => BitOperations.PopCount((ulong)_int64);
+
+    [Benchmark]
     public int Bit64_PopCount() => _bit64.PopCount();
 
-    [Benchmark]
-    public int BitArray64_PopCount() => _bitArray64.PopCount();
-
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public int Bit256_PopCount() => _bit256.PopCount();
 
     [Benchmark]
-    public int BitArray256_PopCount() => _bitArray256.PopCount();
+    public int BitVector256_PopCount() => _bitVector256.PopCount();
 
     [Benchmark]
     public int Bit1024_PopCount() => _bit1024.PopCount();
 
     [Benchmark]
-    public int BitArray1024_PopCount() => _bitArray1024.PopCount();
+    public int BitVector1024_PopCount() => _bitVector1024.PopCount();
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetFirstSetBitBenchmarks
 {
+    private long _int64;
     private ImmutableBitSet<Bit64> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit1024> _bit1024;
-
-    private BitArray _bitArray64 = null!;
-    private BitArray _bitArray256 = null!;
-    private BitArray _bitArray1024 = null!;
+    private BitVector<Bit256> _bitVector256;
+    private BitVector<Bit1024> _bitVector1024;
 
     [GlobalSetup]
     public void Setup()
     {
         // First bit is somewhere in the middle to test search
+        _int64 = (1L << 25) | (1L << 40) | (1L << 50);
         _bit64 = ImmutableBitSet<Bit64>.Empty.Set(25).Set(40).Set(50);
         _bit256 = ImmutableBitSet<Bit256>.Empty.Set(100).Set(150).Set(200);
         _bit1024 = ImmutableBitSet<Bit1024>.Empty.Set(400).Set(600).Set(800);
-
-        _bitArray64 = new BitArray(64);
-        _bitArray64.Set(25, true); _bitArray64.Set(40, true); _bitArray64.Set(50, true);
-
-        _bitArray256 = new BitArray(256);
-        _bitArray256.Set(100, true); _bitArray256.Set(150, true); _bitArray256.Set(200, true);
-
-        _bitArray1024 = new BitArray(1024);
-        _bitArray1024.Set(400, true); _bitArray1024.Set(600, true); _bitArray1024.Set(800, true);
+        _bitVector256 = BitVector<Bit256>.Empty.Set(100).Set(150).Set(200);
+        _bitVector1024 = BitVector<Bit1024>.Empty.Set(400).Set(600).Set(800);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public int Int64_FirstSetBit() => BitOperations.TrailingZeroCount(_int64);
+
+    [Benchmark]
     public int Bit64_FirstSetBit() => _bit64.FirstSetBit();
 
-    [Benchmark]
-    public int BitArray64_FirstSetBit() => _bitArray64.FirstSetBit();
-
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public int Bit256_FirstSetBit() => _bit256.FirstSetBit();
 
     [Benchmark]
-    public int BitArray256_FirstSetBit() => _bitArray256.FirstSetBit();
+    public int BitVector256_FirstSetBit() => _bitVector256.FirstSetBit();
 
     [Benchmark]
     public int Bit1024_FirstSetBit() => _bit1024.FirstSetBit();
 
     [Benchmark]
-    public int BitArray1024_FirstSetBit() => _bitArray1024.FirstSetBit();
+    public int BitVector1024_FirstSetBit() => _bitVector1024.FirstSetBit();
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetLastSetBitBenchmarks
 {
+    private long _int64;
     private ImmutableBitSet<Bit64> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit1024> _bit1024;
-
-    private BitArray _bitArray64 = null!;
-    private BitArray _bitArray256 = null!;
-    private BitArray _bitArray1024 = null!;
+    private BitVector<Bit256> _bitVector256;
+    private BitVector<Bit1024> _bitVector1024;
 
     [GlobalSetup]
     public void Setup()
     {
         // Last bit is somewhere in the middle to test search
+        _int64 = (1L << 10) | (1L << 25) | (1L << 40);
         _bit64 = ImmutableBitSet<Bit64>.Empty.Set(10).Set(25).Set(40);
         _bit256 = ImmutableBitSet<Bit256>.Empty.Set(50).Set(100).Set(150);
         _bit1024 = ImmutableBitSet<Bit1024>.Empty.Set(200).Set(400).Set(600);
-
-        _bitArray64 = new BitArray(64);
-        _bitArray64.Set(10, true); _bitArray64.Set(25, true); _bitArray64.Set(40, true);
-
-        _bitArray256 = new BitArray(256);
-        _bitArray256.Set(50, true); _bitArray256.Set(100, true); _bitArray256.Set(150, true);
-
-        _bitArray1024 = new BitArray(1024);
-        _bitArray1024.Set(200, true); _bitArray1024.Set(400, true); _bitArray1024.Set(600, true);
+        _bitVector256 = BitVector<Bit256>.Empty.Set(50).Set(100).Set(150);
+        _bitVector1024 = BitVector<Bit1024>.Empty.Set(200).Set(400).Set(600);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public int Int64_LastSetBit() => 63 - BitOperations.LeadingZeroCount((ulong)_int64);
+
+    [Benchmark]
     public int Bit64_LastSetBit() => _bit64.LastSetBit();
 
-    [Benchmark]
-    public int BitArray64_LastSetBit() => _bitArray64.LastSetBit();
-
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public int Bit256_LastSetBit() => _bit256.LastSetBit();
 
     [Benchmark]
-    public int BitArray256_LastSetBit() => _bitArray256.LastSetBit();
+    public int BitVector256_LastSetBit() => _bitVector256.LastSetBit();
 
     [Benchmark]
     public int Bit1024_LastSetBit() => _bit1024.LastSetBit();
 
     [Benchmark]
-    public int BitArray1024_LastSetBit() => _bitArray1024.LastSetBit();
+    public int BitVector1024_LastSetBit() => _bitVector1024.LastSetBit();
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetIsEmptyBenchmarks
 {
+    private long _int64Empty;
+    private long _int64NonEmpty;
     private ImmutableBitSet<Bit64> _bit64Empty;
     private ImmutableBitSet<Bit64> _bit64NonEmpty;
     private ImmutableBitSet<Bit256> _bit256Empty;
     private ImmutableBitSet<Bit256> _bit256NonEmpty;
     private ImmutableBitSet<Bit1024> _bit1024Empty;
     private ImmutableBitSet<Bit1024> _bit1024NonEmpty;
-
-    private BitArray _bitArray64Empty = null!;
-    private BitArray _bitArray64NonEmpty = null!;
-    private BitArray _bitArray256Empty = null!;
-    private BitArray _bitArray256NonEmpty = null!;
-    private BitArray _bitArray1024Empty = null!;
-    private BitArray _bitArray1024NonEmpty = null!;
+    private BitVector<Bit256> _bitVector256Empty;
+    private BitVector<Bit256> _bitVector256NonEmpty;
+    private BitVector<Bit1024> _bitVector1024Empty;
+    private BitVector<Bit1024> _bitVector1024NonEmpty;
 
     [GlobalSetup]
     public void Setup()
     {
+        _int64Empty = 0L;
+        _int64NonEmpty = 1L << 63;
+
         _bit64Empty = ImmutableBitSet<Bit64>.Empty;
         _bit64NonEmpty = ImmutableBitSet<Bit64>.Empty.Set(63);  // Last bit
 
@@ -932,65 +864,74 @@ public class BitSetIsEmptyBenchmarks
         _bit1024Empty = ImmutableBitSet<Bit1024>.Empty;
         _bit1024NonEmpty = ImmutableBitSet<Bit1024>.Empty.Set(1023);  // Last bit
 
-        _bitArray64Empty = new BitArray(64);
-        _bitArray64NonEmpty = new BitArray(64);
-        _bitArray64NonEmpty.Set(63, true);
+        _bitVector256Empty = BitVector<Bit256>.Empty;
+        _bitVector256NonEmpty = BitVector<Bit256>.Empty.Set(255);  // Last bit
 
-        _bitArray256Empty = new BitArray(256);
-        _bitArray256NonEmpty = new BitArray(256);
-        _bitArray256NonEmpty.Set(255, true);
-
-        _bitArray1024Empty = new BitArray(1024);
-        _bitArray1024NonEmpty = new BitArray(1024);
-        _bitArray1024NonEmpty.Set(1023, true);
+        _bitVector1024Empty = BitVector<Bit1024>.Empty;
+        _bitVector1024NonEmpty = BitVector<Bit1024>.Empty.Set(1023);  // Last bit
     }
 
-    [Benchmark(Baseline = true)]
-    public bool Bit64_IsEmpty_Empty() => _bit64Empty.IsEmpty;
+    [Benchmark]
+    public bool Int64_IsEmpty_Empty() => _int64Empty == 0L;
 
     [Benchmark]
-    public bool BitArray64_IsEmpty_Empty() => _bitArray64Empty.IsEmpty();
+    public bool Int64_IsEmpty_NonEmpty() => _int64NonEmpty == 0L;
+
+    [Benchmark]
+    public bool Bit64_IsEmpty_Empty() => _bit64Empty.IsEmpty;
 
     [Benchmark]
     public bool Bit64_IsEmpty_NonEmpty() => _bit64NonEmpty.IsEmpty;
 
+    [Benchmark(Baseline = true)]
+    public bool Bit256_IsEmpty_Empty() => _bit256Empty.IsEmpty;
+
     [Benchmark]
-    public bool BitArray64_IsEmpty_NonEmpty() => _bitArray64NonEmpty.IsEmpty();
+    public bool Bit256_IsEmpty_NonEmpty() => _bit256NonEmpty.IsEmpty;
+
+    [Benchmark]
+    public bool BitVector256_IsEmpty_Empty() => _bitVector256Empty.IsEmpty;
+
+    [Benchmark]
+    public bool BitVector256_IsEmpty_NonEmpty() => _bitVector256NonEmpty.IsEmpty;
 
     [Benchmark]
     public bool Bit1024_IsEmpty_Empty() => _bit1024Empty.IsEmpty;
 
     [Benchmark]
-    public bool BitArray1024_IsEmpty_Empty() => _bitArray1024Empty.IsEmpty();
-
-    [Benchmark]
     public bool Bit1024_IsEmpty_NonEmpty() => _bit1024NonEmpty.IsEmpty;
 
     [Benchmark]
-    public bool BitArray1024_IsEmpty_NonEmpty() => _bitArray1024NonEmpty.IsEmpty();
+    public bool BitVector1024_IsEmpty_Empty() => _bitVector1024Empty.IsEmpty;
+
+    [Benchmark]
+    public bool BitVector1024_IsEmpty_NonEmpty() => _bitVector1024NonEmpty.IsEmpty;
 }
 
 // ============================================================================
 // Equality/Hashing Benchmarks
 // ============================================================================
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetEqualsBenchmarks
 {
+    private long _int64A, _int64B;
     private ImmutableBitSet<Bit64> _bit64A, _bit64B;
     private ImmutableBitSet<Bit256> _bit256A, _bit256B;
     private ImmutableBitSet<Bit1024> _bit1024A, _bit1024B;
-
-    private BitArray _bitArray64A = null!, _bitArray64B = null!;
-    private BitArray _bitArray256A = null!, _bitArray256B = null!;
-    private BitArray _bitArray1024A = null!, _bitArray1024B = null!;
+    private BitVector<Bit256> _bitVector256A, _bitVector256B;
+    private BitVector<Bit1024> _bitVector1024A, _bitVector1024B;
 
     [GlobalSetup]
     public void Setup()
     {
-        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30);
-        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30);
+        _int64A = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50) | (1L << 63);
+        _int64B = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50) | (1L << 63);
+
+        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50).Set(63);
+        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50).Set(63);
 
         _bit256A = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit256B = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
@@ -998,130 +939,117 @@ public class BitSetEqualsBenchmarks
         _bit1024A = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
         _bit1024B = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
 
-        _bitArray64A = new BitArray(64);
-        _bitArray64A.Set(0, true); _bitArray64A.Set(10, true); _bitArray64A.Set(20, true); _bitArray64A.Set(30, true);
-        _bitArray64B = new BitArray(64);
-        _bitArray64B.Set(0, true); _bitArray64B.Set(10, true); _bitArray64B.Set(20, true); _bitArray64B.Set(30, true);
+        _bitVector256A = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
+        _bitVector256B = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
 
-        _bitArray256A = new BitArray(256);
-        _bitArray256A.Set(0, true); _bitArray256A.Set(60, true); _bitArray256A.Set(120, true); _bitArray256A.Set(180, true);
-        _bitArray256B = new BitArray(256);
-        _bitArray256B.Set(0, true); _bitArray256B.Set(60, true); _bitArray256B.Set(120, true); _bitArray256B.Set(180, true);
-
-        _bitArray1024A = new BitArray(1024);
-        _bitArray1024A.Set(0, true); _bitArray1024A.Set(240, true); _bitArray1024A.Set(480, true); _bitArray1024A.Set(720, true);
-        _bitArray1024B = new BitArray(1024);
-        _bitArray1024B.Set(0, true); _bitArray1024B.Set(240, true); _bitArray1024B.Set(480, true); _bitArray1024B.Set(720, true);
+        _bitVector1024A = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
+        _bitVector1024B = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public bool Int64_Equals() => _int64A == _int64B;
+
+    [Benchmark]
     public bool Bit64_Equals() => _bit64A.Equals(_bit64B);
 
-    [Benchmark]
-    public bool BitArray64_Equals() => _bitArray64A.BitArrayEquals(_bitArray64B);
-
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public bool Bit256_Equals() => _bit256A.Equals(_bit256B);
 
     [Benchmark]
-    public bool BitArray256_Equals() => _bitArray256A.BitArrayEquals(_bitArray256B);
+    public bool BitVector256_Equals() => _bitVector256A.Equals(in _bitVector256B);
 
     [Benchmark]
     public bool Bit1024_Equals() => _bit1024A.Equals(_bit1024B);
 
     [Benchmark]
-    public bool BitArray1024_Equals() => _bitArray1024A.BitArrayEquals(_bitArray1024B);
+    public bool BitVector1024_Equals() => _bitVector1024A.Equals(in _bitVector1024B);
 }
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetGetHashCodeBenchmarks
 {
+    private long _int64;
     private ImmutableBitSet<Bit64> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit1024> _bit1024;
-
-    private BitArray _bitArray64 = null!;
-    private BitArray _bitArray256 = null!;
-    private BitArray _bitArray1024 = null!;
+    private BitVector<Bit256> _bitVector256;
+    private BitVector<Bit1024> _bitVector1024;
 
     [GlobalSetup]
     public void Setup()
     {
-        _bit64 = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30);
+        _int64 = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50) | (1L << 63);
+        _bit64 = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50).Set(63);
         _bit256 = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit1024 = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
-
-        _bitArray64 = new BitArray(64);
-        _bitArray64.Set(0, true); _bitArray64.Set(10, true); _bitArray64.Set(20, true); _bitArray64.Set(30, true);
-
-        _bitArray256 = new BitArray(256);
-        _bitArray256.Set(0, true); _bitArray256.Set(60, true); _bitArray256.Set(120, true); _bitArray256.Set(180, true);
-
-        _bitArray1024 = new BitArray(1024);
-        _bitArray1024.Set(0, true); _bitArray1024.Set(240, true); _bitArray1024.Set(480, true); _bitArray1024.Set(720, true);
+        _bitVector256 = BitVector<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
+        _bitVector1024 = BitVector<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public int Int64_GetHashCode() => _int64.GetHashCode();
+
+    [Benchmark]
     public int Bit64_GetHashCode() => _bit64.GetHashCode();
 
-    [Benchmark]
-    public int BitArray64_GetHashCode() => _bitArray64.BitArrayGetHashCode();
-
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public int Bit256_GetHashCode() => _bit256.GetHashCode();
 
     [Benchmark]
-    public int BitArray256_GetHashCode() => _bitArray256.BitArrayGetHashCode();
+    public int BitVector256_GetHashCode() => _bitVector256.GetHashCode();
 
     [Benchmark]
     public int Bit1024_GetHashCode() => _bit1024.GetHashCode();
 
     [Benchmark]
-    public int BitArray1024_GetHashCode() => _bitArray1024.BitArrayGetHashCode();
+    public int BitVector1024_GetHashCode() => _bitVector1024.GetHashCode();
 }
 
 // ============================================================================
 // Enumeration Benchmarks
 // ============================================================================
 
+[Config(typeof(NativeAotConfig))]
 [MemoryDiagnoser]
 [ShortRunJob]
 public class BitSetEnumerationBenchmarks
 {
+    private long _int64;
     private ImmutableBitSet<Bit64> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit1024> _bit1024;
-
-    private BitArray _bitArray64 = null!;
-    private BitArray _bitArray256 = null!;
-    private BitArray _bitArray1024 = null!;
+    private BitVector<Bit256> _bitVector256;
+    private BitVector<Bit1024> _bitVector1024;
 
     [GlobalSetup]
     public void Setup()
     {
         // Set multiple bits spread across the range
+        _int64 = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50) | (1L << 60);
         _bit64 = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50).Set(60);
         _bit256 = ImmutableBitSet<Bit256>.Empty.Set(0).Set(30).Set(60).Set(90).Set(120).Set(150).Set(180).Set(210).Set(240);
         _bit1024 = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(100).Set(200).Set(300).Set(400).Set(500).Set(600).Set(700).Set(800).Set(900).Set(1000);
-
-        _bitArray64 = new BitArray(64);
-        _bitArray64.Set(0, true); _bitArray64.Set(10, true); _bitArray64.Set(20, true);
-        _bitArray64.Set(30, true); _bitArray64.Set(40, true); _bitArray64.Set(50, true); _bitArray64.Set(60, true);
-
-        _bitArray256 = new BitArray(256);
-        _bitArray256.Set(0, true); _bitArray256.Set(30, true); _bitArray256.Set(60, true);
-        _bitArray256.Set(90, true); _bitArray256.Set(120, true); _bitArray256.Set(150, true);
-        _bitArray256.Set(180, true); _bitArray256.Set(210, true); _bitArray256.Set(240, true);
-
-        _bitArray1024 = new BitArray(1024);
-        _bitArray1024.Set(0, true); _bitArray1024.Set(100, true); _bitArray1024.Set(200, true);
-        _bitArray1024.Set(300, true); _bitArray1024.Set(400, true); _bitArray1024.Set(500, true);
-        _bitArray1024.Set(600, true); _bitArray1024.Set(700, true); _bitArray1024.Set(800, true);
-        _bitArray1024.Set(900, true); _bitArray1024.Set(1000, true);
+        _bitVector256 = BitVector<Bit256>.Empty.Set(0).Set(30).Set(60).Set(90).Set(120).Set(150).Set(180).Set(210).Set(240);
+        _bitVector1024 = BitVector<Bit1024>.Empty.Set(0).Set(100).Set(200).Set(300).Set(400).Set(500).Set(600).Set(700).Set(800).Set(900).Set(1000);
     }
 
-    [Benchmark(Baseline = true)]
+    [Benchmark]
+    public int Int64_Enumerate()
+    {
+        int sum = 0;
+        long bits = _int64;
+        while (bits != 0)
+        {
+            int bit = BitOperations.TrailingZeroCount(bits);
+            sum += bit;
+            bits &= bits - 1;  // Clear lowest set bit
+        }
+        return sum;
+    }
+
+    [Benchmark]
     public int Bit64_Enumerate()
     {
         int sum = 0;
@@ -1130,16 +1058,7 @@ public class BitSetEnumerationBenchmarks
         return sum;
     }
 
-    [Benchmark]
-    public int BitArray64_Enumerate()
-    {
-        int sum = 0;
-        foreach (var bit in _bitArray64.EnumerateSetBits())
-            sum += bit;
-        return sum;
-    }
-
-    [Benchmark]
+    [Benchmark(Baseline = true)]
     public int Bit256_Enumerate()
     {
         int sum = 0;
@@ -1149,10 +1068,10 @@ public class BitSetEnumerationBenchmarks
     }
 
     [Benchmark]
-    public int BitArray256_Enumerate()
+    public int BitVector256_Enumerate()
     {
         int sum = 0;
-        foreach (var bit in _bitArray256.EnumerateSetBits())
+        foreach (var bit in _bitVector256)
             sum += bit;
         return sum;
     }
@@ -1167,10 +1086,10 @@ public class BitSetEnumerationBenchmarks
     }
 
     [Benchmark]
-    public int BitArray1024_Enumerate()
+    public int BitVector1024_Enumerate()
     {
         int sum = 0;
-        foreach (var bit in _bitArray1024.EnumerateSetBits())
+        foreach (var bit in _bitVector1024)
             sum += bit;
         return sum;
     }
