@@ -10,7 +10,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
-public sealed class ArchetypeStore<TBits, TRegistry>
+public sealed class Archetype<TBits, TRegistry>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
@@ -49,7 +49,7 @@ public sealed class ArchetypeStore<TBits, TRegistry>
     /// <param name="id">The unique archetype ID.</param>
     /// <param name="layout">The component layout for this archetype.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public ArchetypeStore(int id, ImmutableArchetypeLayout<TBits, TRegistry> layout, ChunkManager chunkManager)
+    public Archetype(int id, ImmutableArchetypeLayout<TBits, TRegistry> layout, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(chunkManager);

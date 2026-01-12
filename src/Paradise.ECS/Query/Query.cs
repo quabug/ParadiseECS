@@ -12,7 +12,7 @@ public sealed class Query<TBits, TRegistry>
 {
     private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
     private readonly ImmutableQueryDescription<TBits> _description;
-    private readonly List<ArchetypeStore<TBits, TRegistry>> _matchingArchetypes = new(32);
+    private readonly List<Archetype<TBits, TRegistry>> _matchingArchetypes = new(32);
     private int _lastCheckedCount;
 
     /// <summary>
