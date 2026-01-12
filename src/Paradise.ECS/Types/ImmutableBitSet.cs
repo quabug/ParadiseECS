@@ -86,8 +86,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     {
         var span = GetReadOnlySpan();
         var hash = new HashCode();
-        for (int i = 0; i < ULongCount; i++)
-            hash.Add(span[i]);
+        hash.AddBytes(MemoryMarshal.AsBytes(span));
         return hash.ToHashCode();
     }
 

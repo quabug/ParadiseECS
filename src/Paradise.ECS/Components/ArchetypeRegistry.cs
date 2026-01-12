@@ -12,7 +12,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
-    private readonly ConcurrentDictionary<ImmutableBitSet<TBits>, int> _maskToArchetypeId = new();
+    private readonly ConcurrentDictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
     private readonly List<ArchetypeStore<TBits, TRegistry>> _archetypes = [];
     private readonly List<ImmutableArchetypeLayout<TBits, TRegistry>> _layouts = [];
     private readonly Lock _createLock = new();
