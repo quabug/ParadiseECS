@@ -5,15 +5,18 @@ using System.Runtime.Intrinsics;
 namespace Paradise.ECS.Benchmarks;
 
 /// <summary>
-/// A mutable SIMD-optimized bit vector for benchmarking comparison.
+/// A SIMD-optimized immutable bit vector for benchmarking comparison.
 /// Uses Vector256 operations when available for maximum throughput.
 /// </summary>
-public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
+public readonly struct ImmutableBitVector<TStorage> : IEquatable<ImmutableBitVector<TStorage>>, IBitSet<ImmutableBitVector<TStorage>>
     where TStorage : unmanaged, IStorage
 {
-    private TStorage _storage;
+    private readonly TStorage _storage;
 
-    static BitVector()
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ImmutableBitVector(TStorage storage) => _storage = storage;
+
+    static ImmutableBitVector()
     {
         if (Unsafe.SizeOf<TStorage>() % sizeof(ulong) != 0)
 #pragma warning disable CA1065 // Intentional: validate storage alignment at type initialization
@@ -22,7 +25,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
 #pragma warning restore CA1065
     }
 
-    public static BitVector<TStorage> Empty => default;
+    public static ImmutableBitVector<TStorage> Empty => default;
 
     public static int Capacity => ByteCount * 8;
     private static int ByteCount => Unsafe.SizeOf<TStorage>();
@@ -32,32 +35,14 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
     private static int Vector256Count => ByteCount / 32;
     private static int Vector512Count => ByteCount / 64;
 
+    // Alignment checks - these become compile-time constants per generic instantiation
     private static bool UseVector512 => Vector512.IsHardwareAccelerated && ByteCount % 64 == 0;
     private static bool UseVector256 => Vector256.IsHardwareAccelerated && ByteCount % 32 == 0;
     private static bool UseVector128 => Vector128.IsHardwareAccelerated && ByteCount % 16 == 0;
     private static bool UseVector64 => Vector64.IsHardwareAccelerated && ByteCount % 8 == 0;
 
-    /// <summary>
-    /// Creates a mutable copy from an immutable bit vector.
-    /// </summary>
-    /// <param name="immutable">The immutable bit vector to copy from.</param>
-    public BitVector(in ImmutableBitVector<TStorage> immutable)
-    {
-        _storage = Unsafe.As<ImmutableBitVector<TStorage>, TStorage>(ref Unsafe.AsRef(in immutable));
-    }
-
-    /// <summary>
-    /// Converts this mutable bit vector to an immutable one.
-    /// </summary>
-    /// <returns>An immutable copy of this bit vector.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly ImmutableBitVector<TStorage> ToImmutable()
-    {
-        return Unsafe.As<TStorage, ImmutableBitVector<TStorage>>(ref Unsafe.AsRef(in _storage));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool Get(int index)
+    public bool Get(int index)
     {
         ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
         int wordIndex = index >> 6;
@@ -66,214 +51,245 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Set(int index)
+    public ImmutableBitVector<TStorage> Set(int index)
     {
-        ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref _storage);
+        var storage = _storage;
+        ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref storage);
         int wordIndex = index >> 6;
         int bitIndex = index & 63;
         Unsafe.Add(ref ulongs, wordIndex) |= 1UL << bitIndex;
+        return new ImmutableBitVector<TStorage>(storage);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Clear(int index)
+    public ImmutableBitVector<TStorage> Clear(int index)
     {
-        ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref _storage);
+        var storage = _storage;
+        ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref storage);
         int wordIndex = index >> 6;
         int bitIndex = index & 63;
         Unsafe.Add(ref ulongs, wordIndex) &= ~(1UL << bitIndex);
-    }
-
-    /// <summary>
-    /// Clears all bits in this bit vector.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ClearAll()
-    {
-        _storage = default;
+        return new ImmutableBitVector<TStorage>(storage);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void And(in BitVector<TStorage> other)
+    public ImmutableBitVector<TStorage> And(in ImmutableBitVector<TStorage> other)
     {
+        var storage = default(TStorage);
+
         if (UseVector512)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector512<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector512<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector512<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector512<ulong>>(ref storage);
 
             for (int i = 0; i < Vector512Count; i++)
-                Unsafe.Add(ref a, i) &= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & Unsafe.Add(ref b, i);
         }
         else if (UseVector256)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref storage);
 
             for (int i = 0; i < Vector256Count; i++)
-                Unsafe.Add(ref a, i) &= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & Unsafe.Add(ref b, i);
         }
         else if (UseVector128)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref storage);
 
             for (int i = 0; i < Vector128Count; i++)
-                Unsafe.Add(ref a, i) &= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & Unsafe.Add(ref b, i);
         }
         else if (UseVector64)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector64<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector64<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector64<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector64<ulong>>(ref storage);
 
             for (int i = 0; i < Vector64Count; i++)
-                Unsafe.Add(ref a, i) &= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & Unsafe.Add(ref b, i);
         }
         else
         {
-            ref var a = ref Unsafe.As<TStorage, ulong>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, ulong>(ref storage);
 
             for (int i = 0; i < ULongCount; i++)
-                Unsafe.Add(ref a, i) &= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & Unsafe.Add(ref b, i);
         }
+
+        return new ImmutableBitVector<TStorage>(storage);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Or(in BitVector<TStorage> other)
+    public ImmutableBitVector<TStorage> Or(in ImmutableBitVector<TStorage> other)
     {
+        var storage = default(TStorage);
+
         if (UseVector512)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector512<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector512<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector512<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector512<ulong>>(ref storage);
 
             for (int i = 0; i < Vector512Count; i++)
-                Unsafe.Add(ref a, i) |= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) | Unsafe.Add(ref b, i);
         }
         else if (UseVector256)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref storage);
 
             for (int i = 0; i < Vector256Count; i++)
-                Unsafe.Add(ref a, i) |= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) | Unsafe.Add(ref b, i);
         }
         else if (UseVector128)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref storage);
 
             for (int i = 0; i < Vector128Count; i++)
-                Unsafe.Add(ref a, i) |= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) | Unsafe.Add(ref b, i);
         }
         else if (UseVector64)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector64<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector64<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector64<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector64<ulong>>(ref storage);
 
             for (int i = 0; i < Vector64Count; i++)
-                Unsafe.Add(ref a, i) |= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) | Unsafe.Add(ref b, i);
         }
         else
         {
-            ref var a = ref Unsafe.As<TStorage, ulong>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, ulong>(ref storage);
 
             for (int i = 0; i < ULongCount; i++)
-                Unsafe.Add(ref a, i) |= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) | Unsafe.Add(ref b, i);
         }
+
+        return new ImmutableBitVector<TStorage>(storage);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Xor(in BitVector<TStorage> other)
+    public ImmutableBitVector<TStorage> Xor(in ImmutableBitVector<TStorage> other)
     {
+        var storage = default(TStorage);
+
         if (UseVector512)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector512<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector512<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector512<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector512<ulong>>(ref storage);
 
             for (int i = 0; i < Vector512Count; i++)
-                Unsafe.Add(ref a, i) ^= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) ^ Unsafe.Add(ref b, i);
         }
         else if (UseVector256)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref storage);
 
             for (int i = 0; i < Vector256Count; i++)
-                Unsafe.Add(ref a, i) ^= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) ^ Unsafe.Add(ref b, i);
         }
         else if (UseVector128)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref storage);
 
             for (int i = 0; i < Vector128Count; i++)
-                Unsafe.Add(ref a, i) ^= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) ^ Unsafe.Add(ref b, i);
         }
         else if (UseVector64)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector64<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector64<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector64<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector64<ulong>>(ref storage);
 
             for (int i = 0; i < Vector64Count; i++)
-                Unsafe.Add(ref a, i) ^= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) ^ Unsafe.Add(ref b, i);
         }
         else
         {
-            ref var a = ref Unsafe.As<TStorage, ulong>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, ulong>(ref storage);
 
             for (int i = 0; i < ULongCount; i++)
-                Unsafe.Add(ref a, i) ^= Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) ^ Unsafe.Add(ref b, i);
         }
+
+        return new ImmutableBitVector<TStorage>(storage);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void AndNot(in BitVector<TStorage> other)
+    public ImmutableBitVector<TStorage> AndNot(in ImmutableBitVector<TStorage> other)
     {
+        var storage = default(TStorage);
+
         if (UseVector512)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector512<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector512<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector512<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector512<ulong>>(ref storage);
 
             for (int i = 0; i < Vector512Count; i++)
-                Unsafe.Add(ref a, i) &= ~Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & ~Unsafe.Add(ref b, i);
         }
         else if (UseVector256)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector256<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector256<ulong>>(ref storage);
 
             for (int i = 0; i < Vector256Count; i++)
-                Unsafe.Add(ref a, i) &= ~Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & ~Unsafe.Add(ref b, i);
         }
         else if (UseVector128)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector128<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector128<ulong>>(ref storage);
 
             for (int i = 0; i < Vector128Count; i++)
-                Unsafe.Add(ref a, i) &= ~Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & ~Unsafe.Add(ref b, i);
         }
         else if (UseVector64)
         {
-            ref var a = ref Unsafe.As<TStorage, Vector64<ulong>>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, Vector64<ulong>>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, Vector64<ulong>>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, Vector64<ulong>>(ref storage);
 
             for (int i = 0; i < Vector64Count; i++)
-                Unsafe.Add(ref a, i) &= ~Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & ~Unsafe.Add(ref b, i);
         }
         else
         {
-            ref var a = ref Unsafe.As<TStorage, ulong>(ref _storage);
+            ref var a = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
             ref var b = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in other._storage));
+            ref var r = ref Unsafe.As<TStorage, ulong>(ref storage);
 
             for (int i = 0; i < ULongCount; i++)
-                Unsafe.Add(ref a, i) &= ~Unsafe.Add(ref b, i);
+                Unsafe.Add(ref r, i) = Unsafe.Add(ref a, i) & ~Unsafe.Add(ref b, i);
         }
+
+        return new ImmutableBitVector<TStorage>(storage);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool ContainsAll(in BitVector<TStorage> other)
+    public bool ContainsAll(in ImmutableBitVector<TStorage> other)
     {
         if (UseVector512)
         {
@@ -346,7 +362,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool ContainsAny(in BitVector<TStorage> other)
+    public bool ContainsAny(in ImmutableBitVector<TStorage> other)
     {
         if (UseVector512)
         {
@@ -409,10 +425,10 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool ContainsNone(in BitVector<TStorage> other) => !ContainsAny(in other);
+    public bool ContainsNone(in ImmutableBitVector<TStorage> other) => !ContainsAny(in other);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly int PopCount()
+    public int PopCount()
     {
         ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
         int count = 0;
@@ -424,7 +440,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly int FirstSetBit()
+    public int FirstSetBit()
     {
         ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
         for (int i = 0; i < ULongCount; i++)
@@ -437,7 +453,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly int LastSetBit()
+    public int LastSetBit()
     {
         ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
         for (int i = ULongCount - 1; i >= 0; i--)
@@ -449,7 +465,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         return -1;
     }
 
-    public readonly bool IsEmpty
+    public bool IsEmpty
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
@@ -510,7 +526,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool Equals(in BitVector<TStorage> other)
+    public bool Equals(in ImmutableBitVector<TStorage> other)
     {
         if (UseVector512)
         {
@@ -572,11 +588,11 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         return true;
     }
 
-    public readonly bool Equals(BitVector<TStorage> other) => Equals(in other);
+    public bool Equals(ImmutableBitVector<TStorage> other) => Equals(in other);
 
-    public override readonly bool Equals(object? obj) => obj is BitVector<TStorage> other && Equals(in other);
+    public override bool Equals(object? obj) => obj is ImmutableBitVector<TStorage> other && Equals(in other);
 
-    public override readonly int GetHashCode()
+    public override int GetHashCode()
     {
         ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
         var hash = new HashCode();
@@ -587,37 +603,23 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
         return hash.ToHashCode();
     }
 
-    public static bool operator ==(in BitVector<TStorage> left, in BitVector<TStorage> right) => left.Equals(in right);
-
-    public static bool operator !=(in BitVector<TStorage> left, in BitVector<TStorage> right) => !left.Equals(in right);
-
-    /// <summary>
-    /// Implicit conversion from mutable to immutable bit vector.
-    /// </summary>
-    public static implicit operator ImmutableBitVector<TStorage>(in BitVector<TStorage> bitVector) => bitVector.ToImmutable();
-
-    /// <summary>
-    /// Explicit conversion from immutable to mutable bit vector.
-    /// </summary>
-    public static explicit operator BitVector<TStorage>(in ImmutableBitVector<TStorage> immutable) => new(in immutable);
-
-    public readonly Enumerator GetEnumerator() => new(this);
+    public Enumerator GetEnumerator() => new(this);
 
     public ref struct Enumerator
     {
-        private readonly BitVector<TStorage> _bitVector;
+        private readonly ImmutableBitVector<TStorage> _immutableBitVector;
         private int _wordIndex;
         private ulong _currentWord;
         private int _current;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Enumerator(BitVector<TStorage> bitVector)
+        internal Enumerator(ImmutableBitVector<TStorage> immutableBitVector)
         {
-            _bitVector = bitVector;
+            _immutableBitVector = immutableBitVector;
             _wordIndex = 0;
             _current = -1;
 
-            ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _bitVector._storage));
+            ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _immutableBitVector._storage));
             _currentWord = Unsafe.Add(ref ulongs, 0);
         }
 
@@ -632,7 +634,7 @@ public struct BitVector<TStorage> : IEquatable<BitVector<TStorage>>
                 if (_wordIndex >= ULongCount)
                     return false;
 
-                ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _bitVector._storage));
+                ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _immutableBitVector._storage));
                 _currentWord = Unsafe.Add(ref ulongs, _wordIndex);
             }
 

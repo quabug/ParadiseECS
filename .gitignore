@@ -58,5 +58,7 @@ assets/shaders/*.wgsl
 TestResults/
 coverage/
 coverage.cobertura.xml
+BenchmarkDotNet.Artifacts/
 
 *.binlog
+tmpclaude-*

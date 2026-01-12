@@ -22,7 +22,9 @@ public class NativeAotConfig : ManualConfig
 
         var job = Job.ShortRun
             .WithToolchain(toolchain)
-            .WithIterationCount(100)
+            .WithIterationCount(10)
+            .WithWarmupCount(3)
+            .WithEvaluateOverhead(true)
             .WithId("NativeAOT");
 
         AddJob(job);
