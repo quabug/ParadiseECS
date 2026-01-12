@@ -1,5 +1,3 @@
-using System.Collections;
-
 namespace Paradise.ECS;
 
 /// <summary>
@@ -14,7 +12,7 @@ public sealed class Query<TBits, TRegistry>
 {
     private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
     private readonly ImmutableQueryDescription<TBits> _description;
-    private readonly List<ArchetypeStore<TBits, TRegistry>> _matchingArchetypes = [];
+    private readonly List<ArchetypeStore<TBits, TRegistry>> _matchingArchetypes = new(32);
     private int _lastCheckedCount;
 
     /// <summary>
@@ -28,23 +26,6 @@ public sealed class Query<TBits, TRegistry>
 
         _archetypeRegistry = archetypeRegistry;
         _description = description;
-    }
-
-    /// <summary>
-    /// Gets the query description.
-    /// </summary>
-    public ImmutableQueryDescription<TBits> Description => _description;
-
-    /// <summary>
-    /// Gets the matching archetypes, updating the cache if new archetypes have been added.
-    /// </summary>
-    public MatchingArchetypesEnumerable MatchingArchetypes
-    {
-        get
-        {
-            UpdateCache();
-            return new(_matchingArchetypes);
-        }
     }
 
     /// <summary>
@@ -67,19 +48,7 @@ public sealed class Query<TBits, TRegistry>
     /// <summary>
     /// Gets whether this query has any matching entities.
     /// </summary>
-    public bool IsEmpty
-    {
-        get
-        {
-            UpdateCache();
-            foreach (var archetype in _matchingArchetypes)
-            {
-                if (archetype.EntityCount > 0)
-                    return false;
-            }
-            return true;
-        }
-    }
+    public bool IsEmpty => EntityCount == 0;
 
     /// <summary>
     /// Gets the number of matching archetypes.
@@ -104,25 +73,5 @@ public sealed class Query<TBits, TRegistry>
             _archetypeRegistry.GetMatching(_description, _matchingArchetypes, _lastCheckedCount);
             _lastCheckedCount = currentCount;
         }
-    }
-
-    /// <summary>
-    /// Enumerable that iterates cached matching archetypes without allocation.
-    /// </summary>
-    public readonly struct MatchingArchetypesEnumerable : IEnumerable<ArchetypeStore<TBits, TRegistry>>
-    {
-        private readonly List<ArchetypeStore<TBits, TRegistry>> _archetypes;
-
-        internal MatchingArchetypesEnumerable(List<ArchetypeStore<TBits, TRegistry>> archetypes)
-        {
-            _archetypes = archetypes;
-        }
-
-        public List<ArchetypeStore<TBits, TRegistry>>.Enumerator GetEnumerator() => _archetypes.GetEnumerator();
-
-        IEnumerator<ArchetypeStore<TBits, TRegistry>> IEnumerable<ArchetypeStore<TBits, TRegistry>>.GetEnumerator()
-            => _archetypes.GetEnumerator();
-
-        IEnumerator IEnumerable.GetEnumerator() => _archetypes.GetEnumerator();
     }
 }

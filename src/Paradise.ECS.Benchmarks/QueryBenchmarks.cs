@@ -1,6 +1,4 @@
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Configs;
-using Paradise.ECS;
 
 namespace Paradise.ECS.Benchmarks;
 
@@ -96,28 +94,6 @@ public class QueryBenchmarks
     {
         _registry?.Dispose();
         _chunkManager?.Dispose();
-    }
-
-    [Benchmark(Baseline = true)]
-    public int SimpleQuery_IterateArchetypes()
-    {
-        int count = 0;
-        foreach (var archetype in _simpleQuery.MatchingArchetypes)
-        {
-            count++;
-        }
-        return count;
-    }
-
-    [Benchmark]
-    public int ComplexQuery_IterateArchetypes()
-    {
-        int count = 0;
-        foreach (var archetype in _complexQuery.MatchingArchetypes)
-        {
-            count++;
-        }
-        return count;
     }
 
     [Benchmark]
