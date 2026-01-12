@@ -3,8 +3,9 @@ using System.Runtime.CompilerServices;
 namespace Paradise.ECS;
 
 /// <summary>
-/// Immutable builder for creating query descriptions.
-/// Each method returns a new builder instance, allowing safe branching.
+/// A fluent, immutable builder for creating query descriptions.
+/// This is a <c>ref struct</c> to ensure stack allocation and avoid heap allocations during query construction.
+/// Each method returns a new builder instance, allowing for safe and efficient branching of query definitions.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>

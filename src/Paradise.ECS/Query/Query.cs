@@ -1,8 +1,9 @@
 namespace Paradise.ECS;
 
 /// <summary>
-/// A lightweight view over matching archetypes.
-/// The underlying list is owned and updated by the archetype registry.
+/// A lightweight, read-only view over a collection of archetypes that match specific component criteria.
+/// The underlying list of archetypes is managed by the <see cref="ArchetypeRegistry{TBits, TRegistry}"/>
+/// and is updated automatically as new matching archetypes are created.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
@@ -40,7 +41,17 @@ public readonly struct Query<TBits, TRegistry>
     /// <summary>
     /// Gets whether this query has any matching entities.
     /// </summary>
-    public bool IsEmpty => EntityCount == 0;
+    public bool IsEmpty
+    {
+        get
+        {
+            foreach (var archetype in _matchingArchetypes)
+            {
+                if (archetype.EntityCount > 0) return false;
+            }
+            return true;
+        }
+    }
 
     /// <summary>
     /// Gets the number of matching archetypes.

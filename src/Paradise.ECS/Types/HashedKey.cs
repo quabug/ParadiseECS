@@ -69,7 +69,7 @@ public readonly struct HashedKey<T> : IEquatable<HashedKey<T>> where T : IEquata
     public static bool operator !=(HashedKey<T> left, HashedKey<T> right) => !left.Equals(right);
 
     /// <summary>
-    /// Implicit conversion from <typeparamref name="T"/> to <see cref="HashedKey{T}"/>.
+    /// Explicit conversion from <typeparamref name="T"/> to <see cref="HashedKey{T}"/>.
     /// </summary>
     /// <param name="value">The value to convert.</param>
     public static explicit operator HashedKey<T>(T value) => new(value);
