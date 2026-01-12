@@ -1,8 +1,8 @@
 namespace Paradise.ECS;
 
 /// <summary>
-/// A query that iterates matching archetypes with incremental caching.
-/// Caches matching archetypes and updates incrementally when new archetypes are added.
+/// A query that iterates matching archetypes.
+/// Cache is automatically updated by the archetype registry when new archetypes are created.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
@@ -10,10 +10,8 @@ public sealed class Query<TBits, TRegistry>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
-    private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
     private readonly ImmutableQueryDescription<TBits> _description;
     private readonly List<Archetype<TBits, TRegistry>> _matchingArchetypes = new(32);
-    private int _lastCheckedCount;
 
     /// <summary>
     /// Creates a new query with the specified description.
@@ -24,9 +22,14 @@ public sealed class Query<TBits, TRegistry>
     {
         ArgumentNullException.ThrowIfNull(archetypeRegistry);
 
-        _archetypeRegistry = archetypeRegistry;
         _description = description;
+        archetypeRegistry.RegisterQuery(this);
     }
+
+    /// <summary>
+    /// Gets the query description defining matching criteria.
+    /// </summary>
+    internal ImmutableQueryDescription<TBits> Description => _description;
 
     /// <summary>
     /// Gets the total number of entities matching this query across all archetypes.
@@ -35,7 +38,6 @@ public sealed class Query<TBits, TRegistry>
     {
         get
         {
-            UpdateCache();
             int count = 0;
             foreach (var archetype in _matchingArchetypes)
             {
@@ -53,25 +55,15 @@ public sealed class Query<TBits, TRegistry>
     /// <summary>
     /// Gets the number of matching archetypes.
     /// </summary>
-    public int ArchetypeCount
-    {
-        get
-        {
-            UpdateCache();
-            return _matchingArchetypes.Count;
-        }
-    }
+    public int ArchetypeCount => _matchingArchetypes.Count;
 
     /// <summary>
-    /// Updates the cache with any new archetypes added since the last check.
+    /// Adds an archetype to the matching list.
+    /// Called by the archetype registry when a matching archetype is created.
     /// </summary>
-    private void UpdateCache()
+    /// <param name="archetype">The archetype to add.</param>
+    internal void AddMatchingArchetype(Archetype<TBits, TRegistry> archetype)
     {
-        int currentCount = _archetypeRegistry.Count;
-        if (currentCount > _lastCheckedCount)
-        {
-            _archetypeRegistry.GetMatching(_description, _matchingArchetypes, _lastCheckedCount);
-            _lastCheckedCount = currentCount;
-        }
+        _matchingArchetypes.Add(archetype);
     }
 }

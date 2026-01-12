@@ -15,6 +15,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     private readonly ConcurrentDictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
     private readonly List<Archetype<TBits, TRegistry>> _archetypes = [];
     private readonly List<ImmutableArchetypeLayout<TBits, TRegistry>> _layouts = [];
+    private readonly List<Query<TBits, TRegistry>> _queries = [];
     private readonly Lock _createLock = new();
     private readonly ChunkManager _chunkManager;
 
@@ -39,6 +40,32 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     {
         ArgumentNullException.ThrowIfNull(chunkManager);
         _chunkManager = chunkManager;
+    }
+
+    /// <summary>
+    /// Registers a query with this registry. The query's cache will be populated with
+    /// existing matching archetypes and updated when new archetypes are created.
+    /// </summary>
+    /// <param name="query">The query to register.</param>
+    internal void RegisterQuery(Query<TBits, TRegistry> query)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        using var _ = BeginOperation();
+
+        using var lockScope = _createLock.EnterScope();
+
+        // Populate with existing matching archetypes
+        var description = query.Description;
+
+        foreach (var archetype in _archetypes)
+        {
+            if (description.Matches(archetype.Layout.ComponentMask))
+            {
+                query.AddMatchingArchetype(archetype);
+            }
+        }
+
+        _queries.Add(query);
     }
 
     /// <summary>
@@ -78,7 +105,27 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         _archetypes.Add(store);
         _maskToArchetypeId[mask] = newId;
 
+        // Notify all registered queries about the new archetype
+        NotifyQueries(store);
+
         return store;
+    }
+
+    /// <summary>
+    /// Notifies all registered queries about a newly created archetype.
+    /// </summary>
+    /// <param name="archetype">The newly created archetype.</param>
+    private void NotifyQueries(Archetype<TBits, TRegistry> archetype)
+    {
+        var mask = archetype.Layout.ComponentMask;
+
+        foreach (var query in _queries)
+        {
+            if (query.Description.Matches(mask))
+            {
+                query.AddMatchingArchetype(archetype);
+            }
+        }
     }
 
     /// <summary>
@@ -115,43 +162,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
 
         store = null;
         return false;
-    }
-
-    /// <summary>
-    /// Iterates all archetypes matching the given query description.
-    /// </summary>
-    /// <typeparam name="T">The collection type to store matching archetypes.</typeparam>
-    /// <param name="description">The query description defining matching criteria.</param>
-    /// <param name="output">The collection to receive matching archetype stores.</param>
-    /// <param name="startIndex">The archetype index to start matching from (inclusive).</param>
-    /// <returns>The number of matching archetypes added to the output collection.</returns>
-    public int GetMatching<T>(
-        ImmutableQueryDescription<TBits> description,
-        T output,
-        int startIndex = 0
-    ) where T : IList<Archetype<TBits, TRegistry>>
-    {
-        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        using var _ = BeginOperation();
-
-        int count = 0;
-        bool hasAnyConstraint = !description.Any.IsEmpty;
-        using var lockScope = _createLock.EnterScope();
-
-        for (int i = startIndex; i < _archetypes.Count; i++)
-        {
-            var store = _archetypes[i];
-            var mask = store.Layout.ComponentMask;
-
-            if (mask.ContainsAll(description.All) &&
-                mask.ContainsNone(description.None) &&
-                (!hasAnyConstraint || mask.ContainsAny(description.Any)))
-            {
-                output.Add(store);
-                count++;
-            }
-        }
-        return count;
     }
 
     /// <summary>
@@ -245,5 +255,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         _archetypes.Clear();
         _maskToArchetypeId.Clear();
         _edges.Clear();
+        _queries.Clear();
     }
 }

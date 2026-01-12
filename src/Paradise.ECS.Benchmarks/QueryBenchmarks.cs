@@ -73,7 +73,7 @@ public class QueryBenchmarks
                 mask = mask.Set(Position.TypeId);
             }
 
-            _registry.GetOrCreate(mask);
+            _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)mask);
         }
 
         // Simple query: just Position
