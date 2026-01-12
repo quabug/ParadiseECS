@@ -9,8 +9,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 [StructLayout(LayoutKind.Sequential)]
-public struct ArchetypeLayoutHeader<TBits>
-    where TBits : unmanaged, IStorage
+public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
 {
     /// <summary>Maximum entities that fit in a single chunk for this archetype.</summary>
     public int EntitiesPerChunk;

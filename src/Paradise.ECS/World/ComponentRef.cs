@@ -29,7 +29,7 @@ public readonly ref struct ComponentRef<T> where T : unmanaged, IComponent
     public ref T Value
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => ref _chunk.GetSpan<T>(_offset, 1)[0];
+        get => ref _chunk.GetRef<T>(_offset);
     }
 
     /// <summary>

@@ -188,9 +188,7 @@ public sealed class EntityManager : IDisposable
             return;
 
         // Wait for all in-flight operations to complete
-        var spinWait = new SpinWait();
-        while (Volatile.Read(ref _operationCount) > 0)
-            spinWait.SpinOnce();
+        OperationGuard.WaitForCompletion(ref _operationCount);
 
         _freeSlots.Clear();
         _metas = [];

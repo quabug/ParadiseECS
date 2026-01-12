@@ -281,9 +281,7 @@ public sealed unsafe class ChunkManager : IDisposable
             return;
 
         // Wait for all in-flight operations to complete
-        var sw = new SpinWait();
-        while (Volatile.Read(ref _activeOperations) > 0)
-            sw.SpinOnce();
+        OperationGuard.WaitForCompletion(ref _activeOperations);
 
         // Free all data chunks and meta blocks
         for (int blockIndex = 0; blockIndex < MaxMetaBlocks; blockIndex++)

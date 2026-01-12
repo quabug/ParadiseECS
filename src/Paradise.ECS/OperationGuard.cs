@@ -19,4 +19,15 @@ internal readonly ref struct OperationGuard : IDisposable
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Dispose() => Interlocked.Decrement(ref _counter);
+
+    /// <summary>
+    /// Waits for all in-flight operations to complete.
+    /// </summary>
+    /// <param name="counter">The operation counter to wait on.</param>
+    public static void WaitForCompletion(ref int counter)
+    {
+        var spinWait = new SpinWait();
+        while (Volatile.Read(ref counter) > 0)
+            spinWait.SpinOnce();
+    }
 }

@@ -148,5 +148,22 @@ public static class ComponentsBuilderExtensions
         {
             return world.CreateEntity(builder);
         }
+
+        /// <summary>
+        /// Sets up components for an existing entity in the specified world.
+        /// The entity must already exist and be alive.
+        /// Used for deserialization or network synchronization.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <param name="entity">The existing entity handle.</param>
+        /// <param name="world">The world containing the entity.</param>
+        /// <returns>The entity.</returns>
+        public Entity BuildAt<TBits, TRegistry>(Entity entity, World<TBits, TRegistry> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+        {
+            return world.SetupEntity(entity, builder);
+        }
     }
 }
