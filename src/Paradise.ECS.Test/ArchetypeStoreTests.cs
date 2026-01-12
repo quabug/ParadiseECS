@@ -45,7 +45,7 @@ public class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        store.AllocateEntity(out var chunkHandle, out int indexInChunk);
+        var (chunkHandle, indexInChunk) = store.AllocateEntity();
 
         await Assert.That(chunkHandle.IsValid).IsTrue();
         await Assert.That(indexInChunk).IsEqualTo(0);
@@ -58,9 +58,9 @@ public class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        store.AllocateEntity(out var chunk1, out int idx1);
-        store.AllocateEntity(out var chunk2, out int idx2);
-        store.AllocateEntity(out var chunk3, out int idx3);
+        var (chunk1, idx1) = store.AllocateEntity();
+        var (chunk2, idx2) = store.AllocateEntity();
+        var (chunk3, idx3) = store.AllocateEntity();
 
         await Assert.That(idx1).IsEqualTo(0);
         await Assert.That(idx2).IsEqualTo(1);
@@ -83,13 +83,13 @@ public class ArchetypeStoreTests : IDisposable
         // Fill first chunk
         for (int i = 0; i < entitiesPerChunk; i++)
         {
-            store.AllocateEntity(out _, out _);
+            _ = store.AllocateEntity();
         }
 
         await Assert.That(store.ChunkCount).IsEqualTo(1);
 
         // Allocate one more - should trigger new chunk
-        store.AllocateEntity(out _, out int newIndex);
+        var (_, newIndex) = store.AllocateEntity();
 
         await Assert.That(store.ChunkCount).IsEqualTo(2);
         await Assert.That(newIndex).IsEqualTo(0); // First in new chunk
@@ -100,8 +100,8 @@ public class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        store.AllocateEntity(out _, out _);
-        store.AllocateEntity(out _, out _);
+        _ = store.AllocateEntity();
+        _ = store.AllocateEntity();
 
         bool moved = store.RemoveEntity(1);
 
@@ -114,9 +114,9 @@ public class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        store.AllocateEntity(out _, out _); // index 0
-        store.AllocateEntity(out _, out _); // index 1
-        store.AllocateEntity(out _, out _); // index 2
+        _ = store.AllocateEntity(); // index 0
+        _ = store.AllocateEntity(); // index 1
+        _ = store.AllocateEntity(); // index 2
 
         // Remove middle entity (index 1) - should swap with last (index 2)
         bool moved = store.RemoveEntity(1);
@@ -130,7 +130,7 @@ public class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        store.AllocateEntity(out _, out _);
+        _ = store.AllocateEntity();
 
         bool moved = store.RemoveEntity(99);
 
@@ -142,7 +142,7 @@ public class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        store.AllocateEntity(out _, out _);
+        _ = store.AllocateEntity();
 
         bool moved = store.RemoveEntity(-1);
 
@@ -160,7 +160,7 @@ public class ArchetypeStoreTests : IDisposable
         // Fill one chunk plus one entity in second chunk
         for (int i = 0; i <= entitiesPerChunk; i++)
         {
-            store.AllocateEntity(out _, out _);
+            _ = store.AllocateEntity();
         }
 
         await Assert.That(store.ChunkCount).IsEqualTo(2);
@@ -176,7 +176,7 @@ public class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        store.AllocateEntity(out var allocatedChunk, out _);
+        var (allocatedChunk, _) = store.AllocateEntity();
 
         var retrievedChunk = store.GetChunk(0);
 

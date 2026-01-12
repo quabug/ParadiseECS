@@ -64,9 +64,8 @@ public sealed class Archetype<TBits, TRegistry>
     /// Returns the chunk handle and index where the entity should be stored.
     /// Thread-safe: Uses lock for synchronization.
     /// </summary>
-    /// <param name="chunkHandle">The chunk handle where the entity is allocated.</param>
-    /// <param name="indexInChunk">The index within the chunk.</param>
-    public void AllocateEntity(out ChunkHandle chunkHandle, out int indexInChunk)
+    /// <returns>A tuple containing the chunk handle and index within the chunk.</returns>
+    public (ChunkHandle ChunkHandle, int IndexInChunk) AllocateEntity()
     {
         using var _ = _lock.EnterScope();
 
@@ -97,9 +96,11 @@ public sealed class Archetype<TBits, TRegistry>
 
         // Find the chunk and index for the new entity
         int chunkIndex = currentCount / entitiesPerChunk;
-        indexInChunk = currentCount % entitiesPerChunk;
-        chunkHandle = Volatile.Read(ref _chunks)[chunkIndex];
+        int indexInChunk = currentCount % entitiesPerChunk;
+        var chunkHandle = Volatile.Read(ref _chunks)[chunkIndex];
         Volatile.Write(ref _entityCount, currentCount + 1);
+
+        return (chunkHandle, indexInChunk);
     }
 
     /// <summary>

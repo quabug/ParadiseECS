@@ -62,14 +62,6 @@ public readonly struct EntityBuilder : IComponentsBuilder
     {
         // No components to write
     }
-
-    /// <inheritdoc/>
-    public Entity Build<TBits, TRegistry>(World<TBits, TRegistry> world)
-        where TBits : unmanaged, IStorage
-        where TRegistry : IComponentRegistry
-    {
-        return world.CreateEntity(this);
-    }
 }
 
 /// <summary>
@@ -115,8 +107,7 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
         // Write this component
         int offset = layout.GetEntityComponentOffset<TComponent>(indexInChunk);
         using var chunk = chunkManager.Get(chunkHandle);
-        var span = chunk.GetSpan<TComponent>(offset, 1);
-        span[0] = Value;
+        chunk.GetRef<TComponent>(offset) = Value;
     }
 }
 
