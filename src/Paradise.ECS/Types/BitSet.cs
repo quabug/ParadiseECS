@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 namespace Paradise.ECS;
 
 /// <summary>
-/// A fixed-size bitset for component masks, generic over the backing storage.
+/// A mutable fixed-size bitset for component masks, generic over the backing storage.
 /// Uses InlineArray for efficient, stack-allocated storage.
 /// </summary>
 /// <typeparam name="TBits">An InlineArray of ulongs (e.g., Bits128, Bits256).</typeparam>
-public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<TBits>>
+public struct BitSet<TBits> : IEquatable<BitSet<TBits>>
     where TBits : unmanaged, IStorage
 {
     private static int ValidateAndGetULongCount()
@@ -23,7 +23,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
         return size / sizeof(ulong);
     }
 
-    private readonly TBits _bits;
+    private TBits _bits;
 
     private static int ULongCount
     {
@@ -43,12 +43,12 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// <summary>
     /// Gets an empty bitset with all bits cleared.
     /// </summary>
-    public static ImmutableBitSet<TBits> Empty => default;
+    public static BitSet<TBits> Empty => default;
 
     /// <summary>
     /// Gets a value indicating whether all bits in this bitset are cleared.
     /// </summary>
-    public bool IsEmpty
+    public readonly bool IsEmpty
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
@@ -62,7 +62,30 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
         }
     }
 
-    private ImmutableBitSet(TBits bits) => _bits = bits;
+    /// <summary>
+    /// Creates a new bitset from the specified bits.
+    /// </summary>
+    /// <param name="bits">The backing storage.</param>
+    public BitSet(TBits bits) => _bits = bits;
+
+    /// <summary>
+    /// Creates a mutable copy from an immutable bitset.
+    /// </summary>
+    /// <param name="immutable">The immutable bitset to copy from.</param>
+    public BitSet(in ImmutableBitSet<TBits> immutable)
+    {
+        _bits = Unsafe.As<ImmutableBitSet<TBits>, TBits>(ref Unsafe.AsRef(in immutable));
+    }
+
+    /// <summary>
+    /// Converts this mutable bitset to an immutable one.
+    /// </summary>
+    /// <returns>An immutable copy of this bitset.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly ImmutableBitSet<TBits> ToImmutable()
+    {
+        return Unsafe.As<TBits, ImmutableBitSet<TBits>>(ref Unsafe.AsRef(in _bits));
+    }
 
     /// <summary>
     /// Determines whether the specified bitset is equal to this bitset.
@@ -70,7 +93,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// <param name="other">The bitset to compare with this bitset.</param>
     /// <returns><c>true</c> if all bits match; otherwise, <c>false</c>.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Equals(ImmutableBitSet<TBits> other)
+    public readonly bool Equals(BitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
@@ -82,16 +105,20 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     /// <inheritdoc/>
-    public override int GetHashCode()
+    public override readonly bool Equals(object? obj) => obj is BitSet<TBits> other && Equals(other);
+
+    /// <inheritdoc/>
+    public override readonly int GetHashCode()
     {
         var span = GetReadOnlySpan();
         var hash = new HashCode();
-        hash.AddBytes(MemoryMarshal.AsBytes(span));
+        for (int i = 0; i < ULongCount; i++)
+            hash.Add(span[i]);
         return hash.ToHashCode();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ReadOnlySpan<ulong> GetReadOnlySpan()
+    private readonly ReadOnlySpan<ulong> GetReadOnlySpan()
     {
         return MemoryMarshal.CreateReadOnlySpan(
             ref Unsafe.As<TBits, ulong>(ref Unsafe.AsRef(in _bits)),
@@ -99,10 +126,10 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Span<ulong> GetSpan(ref TBits bits)
+    private Span<ulong> GetSpan()
     {
         return MemoryMarshal.CreateSpan(
-            ref Unsafe.As<TBits, ulong>(ref bits),
+            ref Unsafe.As<TBits, ulong>(ref _bits),
             ULongCount);
     }
 
@@ -113,7 +140,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// <returns><c>true</c> if the bit is set; otherwise, <c>false</c>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="index"/> is negative or greater than or equal to <see cref="Capacity"/>.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool Get(int index)
+    public readonly bool Get(int index)
     {
         if ((uint)index >= (uint)Capacity)
             throw new ArgumentOutOfRangeException(nameof(index), index, $"Index must be between 0 and {Capacity - 1}.");
@@ -122,113 +149,96 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     /// <summary>
-    /// Returns a new bitset with the bit at the specified index set to 1.
+    /// Sets the bit at the specified index to 1.
     /// </summary>
     /// <param name="index">The zero-based index of the bit to set.</param>
-    /// <returns>A new bitset with the specified bit set.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="index"/> is negative or greater than or equal to <see cref="Capacity"/>.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableBitSet<TBits> Set(int index)
+    public void Set(int index)
     {
         if ((uint)index >= (uint)Capacity)
             throw new ArgumentOutOfRangeException(nameof(index), index, $"Index must be between 0 and {Capacity - 1}.");
-        var newBits = _bits;
-        var span = GetSpan(ref newBits);
+        var span = GetSpan();
         span[index >> 6] |= 1UL << (index & 63);
-        return new ImmutableBitSet<TBits>(newBits);
     }
 
     /// <summary>
-    /// Returns a new bitset with the bit at the specified index cleared to 0.
+    /// Clears the bit at the specified index to 0.
     /// </summary>
     /// <param name="index">The zero-based index of the bit to clear.</param>
-    /// <returns>A new bitset with the specified bit cleared.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="index"/> is negative or greater than or equal to <see cref="Capacity"/>.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableBitSet<TBits> Clear(int index)
+    public void Clear(int index)
     {
         if ((uint)index >= (uint)Capacity)
             throw new ArgumentOutOfRangeException(nameof(index), index, $"Index must be between 0 and {Capacity - 1}.");
-        var newBits = _bits;
-        var span = GetSpan(ref newBits);
+        var span = GetSpan();
         span[index >> 6] &= ~(1UL << (index & 63));
-        return new ImmutableBitSet<TBits>(newBits);
     }
 
     /// <summary>
-    /// Performs a bitwise AND operation with another bitset.
+    /// Clears all bits in this bitset.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ClearAll()
+    {
+        _bits = default;
+    }
+
+    /// <summary>
+    /// Performs a bitwise AND operation with another bitset, modifying this instance.
     /// </summary>
     /// <param name="other">The bitset to AND with.</param>
-    /// <returns>A new bitset containing the result of the AND operation.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableBitSet<TBits> And(in ImmutableBitSet<TBits> other)
+    public void And(in BitSet<TBits> other)
     {
-        var result = default(TBits);
-        var a = GetReadOnlySpan();
+        var a = GetSpan();
         var b = other.GetReadOnlySpan();
-        var r = GetSpan(ref result);
 
         for (int i = 0; i < ULongCount; i++)
-            r[i] = a[i] & b[i];
-
-        return new ImmutableBitSet<TBits>(result);
+            a[i] &= b[i];
     }
 
     /// <summary>
-    /// Performs a bitwise OR operation with another bitset.
+    /// Performs a bitwise OR operation with another bitset, modifying this instance.
     /// </summary>
     /// <param name="other">The bitset to OR with.</param>
-    /// <returns>A new bitset containing the result of the OR operation.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableBitSet<TBits> Or(in ImmutableBitSet<TBits> other)
+    public void Or(in BitSet<TBits> other)
     {
-        var result = default(TBits);
-        var a = GetReadOnlySpan();
+        var a = GetSpan();
         var b = other.GetReadOnlySpan();
-        var r = GetSpan(ref result);
 
         for (int i = 0; i < ULongCount; i++)
-            r[i] = a[i] | b[i];
-
-        return new ImmutableBitSet<TBits>(result);
+            a[i] |= b[i];
     }
 
     /// <summary>
-    /// Performs a bitwise AND-NOT operation (this AND NOT other).
+    /// Performs a bitwise AND-NOT operation (this AND NOT other), modifying this instance.
     /// </summary>
     /// <param name="other">The bitset to AND-NOT with.</param>
-    /// <returns>A new bitset containing bits that are set in this bitset but not in the other.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableBitSet<TBits> AndNot(in ImmutableBitSet<TBits> other)
+    public void AndNot(in BitSet<TBits> other)
     {
-        var result = default(TBits);
-        var a = GetReadOnlySpan();
+        var a = GetSpan();
         var b = other.GetReadOnlySpan();
-        var r = GetSpan(ref result);
 
         for (int i = 0; i < ULongCount; i++)
-            r[i] = a[i] & ~b[i];
-
-        return new ImmutableBitSet<TBits>(result);
+            a[i] &= ~b[i];
     }
 
     /// <summary>
-    /// Performs a bitwise XOR operation with another bitset.
+    /// Performs a bitwise XOR operation with another bitset, modifying this instance.
     /// </summary>
     /// <param name="other">The bitset to XOR with.</param>
-    /// <returns>A new bitset containing the result of the XOR operation.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableBitSet<TBits> Xor(in ImmutableBitSet<TBits> other)
+    public void Xor(in BitSet<TBits> other)
     {
-        var result = default(TBits);
-        var a = GetReadOnlySpan();
+        var a = GetSpan();
         var b = other.GetReadOnlySpan();
-        var r = GetSpan(ref result);
 
         for (int i = 0; i < ULongCount; i++)
-            r[i] = a[i] ^ b[i];
-
-        return new ImmutableBitSet<TBits>(result);
+            a[i] ^= b[i];
     }
 
     /// <summary>
@@ -237,7 +247,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// <param name="other">The bitset to check against.</param>
     /// <returns><c>true</c> if this bitset is a superset of the other; otherwise, <c>false</c>.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsAll(in ImmutableBitSet<TBits> other)
+    public readonly bool ContainsAll(in BitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
@@ -255,7 +265,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// <param name="other">The bitset to check against.</param>
     /// <returns><c>true</c> if the bitsets have any overlapping bits; otherwise, <c>false</c>.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsAny(in ImmutableBitSet<TBits> other)
+    public readonly bool ContainsAny(in BitSet<TBits> other)
     {
         var a = GetReadOnlySpan();
         var b = other.GetReadOnlySpan();
@@ -273,14 +283,14 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// <param name="other">The bitset to check against.</param>
     /// <returns><c>true</c> if the bitsets have no overlapping bits; otherwise, <c>false</c>.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool ContainsNone(in ImmutableBitSet<TBits> other) => !ContainsAny(other);
+    public readonly bool ContainsNone(in BitSet<TBits> other) => !ContainsAny(other);
 
     /// <summary>
     /// Returns the number of bits that are set in this bitset.
     /// </summary>
     /// <returns>The population count (number of 1 bits).</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int PopCount()
+    public readonly int PopCount()
     {
         var span = GetReadOnlySpan();
         int count = 0;
@@ -294,7 +304,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// </summary>
     /// <returns>The zero-based index of the first set bit, or -1 if no bits are set.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int FirstSetBit()
+    public readonly int FirstSetBit()
     {
         var span = GetReadOnlySpan();
         for (int i = 0; i < ULongCount; i++)
@@ -313,7 +323,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// </summary>
     /// <returns>The zero-based index of the last set bit, or -1 if no bits are set.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int LastSetBit()
+    public readonly int LastSetBit()
     {
         var span = GetReadOnlySpan();
         for (int i = ULongCount - 1; i >= 0; i--)
@@ -334,8 +344,12 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// <param name="right">The second bitset.</param>
     /// <returns>A new bitset containing the result of the AND operation.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ImmutableBitSet<TBits> operator &(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
-        => left.And(right);
+    public static BitSet<TBits> operator &(in BitSet<TBits> left, in BitSet<TBits> right)
+    {
+        var result = left;
+        result.And(right);
+        return result;
+    }
 
     /// <summary>
     /// Performs a bitwise OR operation between two bitsets.
@@ -344,8 +358,12 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// <param name="right">The second bitset.</param>
     /// <returns>A new bitset containing the result of the OR operation.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ImmutableBitSet<TBits> operator |(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
-        => left.Or(right);
+    public static BitSet<TBits> operator |(in BitSet<TBits> left, in BitSet<TBits> right)
+    {
+        var result = left;
+        result.Or(right);
+        return result;
+    }
 
     /// <summary>
     /// Performs a bitwise XOR operation between two bitsets.
@@ -354,38 +372,61 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     /// <param name="right">The second bitset.</param>
     /// <returns>A new bitset containing the result of the XOR operation.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ImmutableBitSet<TBits> operator ^(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
-        => left.Xor(right);
+    public static BitSet<TBits> operator ^(in BitSet<TBits> left, in BitSet<TBits> right)
+    {
+        var result = left;
+        result.Xor(right);
+        return result;
+    }
+
+    /// <summary>
+    /// Equality operator.
+    /// </summary>
+    public static bool operator ==(in BitSet<TBits> left, in BitSet<TBits> right) => left.Equals(right);
+
+    /// <summary>
+    /// Inequality operator.
+    /// </summary>
+    public static bool operator !=(in BitSet<TBits> left, in BitSet<TBits> right) => !left.Equals(right);
+
+    /// <summary>
+    /// Implicit conversion from mutable to immutable bitset.
+    /// </summary>
+    public static implicit operator ImmutableBitSet<TBits>(in BitSet<TBits> bitSet) => bitSet.ToImmutable();
+
+    /// <summary>
+    /// Explicit conversion from immutable to mutable bitset.
+    /// </summary>
+    public static explicit operator BitSet<TBits>(in ImmutableBitSet<TBits> immutable) => new(in immutable);
 
     /// <summary>
     /// Returns an enumerator that iterates through the indices of all set bits.
     /// </summary>
     /// <returns>An enumerator for the set bit indices.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public SetBitEnumerator GetEnumerator() => new(this);
+    public readonly SetBitEnumerator GetEnumerator() => new(this);
 
     /// <inheritdoc/>
-    public override string ToString() => $"ImmutableBitSet<{typeof(TBits).Name}>({PopCount()} bits set)";
+    public override readonly string ToString() => $"BitSet<{typeof(TBits).Name}>({PopCount()} bits set)";
 
     /// <summary>
-    /// Enumerator for iterating through set bit indices in an <see cref="ImmutableBitSet{TBits}"/>.
+    /// Enumerator for iterating through set bit indices in a <see cref="BitSet{TBits}"/>.
     /// </summary>
     public ref struct SetBitEnumerator
     {
-        private readonly ImmutableBitSet<TBits> _bitset;
+        private readonly BitSet<TBits> _bitset;
         private int _bucketIndex;
         private ulong _currentBucket;
         private int _current;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal SetBitEnumerator(ImmutableBitSet<TBits> bitset)
+        internal SetBitEnumerator(BitSet<TBits> bitset)
         {
             _bitset = bitset;
             _bucketIndex = 0;
             _currentBucket = 0;
             _current = -1;
 
-            // Load first non-empty bucket
             var span = bitset.GetReadOnlySpan();
             while (_bucketIndex < ULongCount && span[_bucketIndex] == 0)
             {
@@ -401,7 +442,7 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
         /// <summary>
         /// Gets the current set bit index.
         /// </summary>
-        public int Current
+        public readonly int Current
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => _current;
@@ -418,16 +459,13 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
             {
                 if (_currentBucket != 0)
                 {
-                    // Find the lowest set bit in current bucket
                     int bitPos = BitOperations.TrailingZeroCount(_currentBucket);
                     _current = _bucketIndex * 64 + bitPos;
 
-                    // Clear this bit for next iteration
                     _currentBucket &= _currentBucket - 1;
                     return true;
                 }
 
-                // Move to next bucket
                 _bucketIndex++;
                 if (_bucketIndex < ULongCount)
                 {

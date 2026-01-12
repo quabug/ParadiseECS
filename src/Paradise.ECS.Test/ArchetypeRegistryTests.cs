@@ -1,5 +1,23 @@
 namespace Paradise.ECS.Test;
 
+public static class ArchetypeRegistryExtension
+{
+    extension<TBits, TRegistry>(ArchetypeRegistry<TBits, TRegistry> registry)
+        where TBits : unmanaged, IStorage
+        where TRegistry : IComponentRegistry
+    {
+        public Archetype<TBits, TRegistry> GetOrCreate(ImmutableBitSet<TBits> mask)
+        {
+            return registry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
+        }
+
+        public bool TryGet(ImmutableBitSet<TBits> mask, out Archetype<TBits, TRegistry>? store)
+        {
+            return registry.TryGet((HashedKey<ImmutableBitSet<TBits>>)mask, out store);
+        }
+    }
+}
+
 public class ArchetypeRegistryTests : IDisposable
 {
     private readonly ChunkManager _chunkManager;
@@ -109,93 +127,6 @@ public class ArchetypeRegistryTests : IDisposable
 
         await Assert.That(found).IsFalse();
         await Assert.That(store).IsNull();
-    }
-
-    [Test]
-    public async Task GetMatching_WithAll_FiltersCorrectly()
-    {
-        // Create archetypes: {Position}, {Velocity}, {Position, Velocity}
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var velOnly = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
-        var posVel = posOnly.Set(TestVelocity.TypeId);
-
-        _registry.GetOrCreate(posOnly);
-        _registry.GetOrCreate(velOnly);
-        _registry.GetOrCreate(posVel);
-
-        // Query for archetypes with Position
-        var all = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var none = ImmutableBitSet<Bit64>.Empty;
-        var any = ImmutableBitSet<Bit64>.Empty;
-
-        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
-        int count = _registry.GetMatching(all, none, any, matches);
-
-        await Assert.That(count).IsEqualTo(2); // posOnly and posVel
-        await Assert.That(matches.Count).IsEqualTo(2);
-    }
-
-    [Test]
-    public async Task GetMatching_WithNone_FiltersCorrectly()
-    {
-        // Create archetypes: {Position}, {Position, Velocity}
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var posVel = posOnly.Set(TestVelocity.TypeId);
-
-        _registry.GetOrCreate(posOnly);
-        _registry.GetOrCreate(posVel);
-
-        // Query for archetypes with Position but NOT Velocity
-        var all = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var none = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
-        var any = ImmutableBitSet<Bit64>.Empty;
-
-        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
-        int count = _registry.GetMatching(all, none, any, matches);
-
-        await Assert.That(count).IsEqualTo(1); // Only posOnly
-    }
-
-    [Test]
-    public async Task GetMatching_WithAny_FiltersCorrectly()
-    {
-        // Create archetypes: {Position}, {Velocity}, {Health}
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var velOnly = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
-        var healthOnly = ImmutableBitSet<Bit64>.Empty.Set(TestHealth.TypeId);
-
-        _registry.GetOrCreate(posOnly);
-        _registry.GetOrCreate(velOnly);
-        _registry.GetOrCreate(healthOnly);
-
-        // Query for archetypes with Position OR Velocity
-        var all = ImmutableBitSet<Bit64>.Empty;
-        var none = ImmutableBitSet<Bit64>.Empty;
-        var any = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
-
-        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
-        int count = _registry.GetMatching(all, none, any, matches);
-
-        await Assert.That(count).IsEqualTo(2); // posOnly and velOnly
-    }
-
-    [Test]
-    public async Task GetMatching_EmptyFilters_ReturnsAll()
-    {
-        var mask1 = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var mask2 = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
-
-        _registry.GetOrCreate(mask1);
-        _registry.GetOrCreate(mask2);
-
-        var all = ImmutableBitSet<Bit64>.Empty;
-        var none = ImmutableBitSet<Bit64>.Empty;
-        var any = ImmutableBitSet<Bit64>.Empty;
-
-        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
-        int count = _registry.GetMatching(all, none, any, matches);
-
-        await Assert.That(count).IsEqualTo(2);
     }
 
     [Test]
@@ -373,7 +304,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
 
-        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[10];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreate(mask));
@@ -394,7 +325,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreate_DifferentMasks_CreatesMultipleArchetypes()
     {
-        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[TestComponentCount];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int bitIndex = i;
@@ -419,7 +350,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
-        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[10];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId));
@@ -443,7 +374,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var empty = ImmutableBitSet<Bit64>.Empty;
         var source = _registry.GetOrCreate(empty);
 
-        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[TestComponentCount];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int componentId = i;

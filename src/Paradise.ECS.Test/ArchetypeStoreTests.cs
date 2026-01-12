@@ -19,7 +19,7 @@ public class ArchetypeStoreTests : IDisposable
         _chunkManager?.Dispose();
     }
 
-    private ArchetypeStore<Bit64, ComponentRegistry> CreateStore(params ComponentTypeInfo[] components)
+    private Archetype<Bit64, ComponentRegistry> CreateStore(params ComponentTypeInfo[] components)
     {
         var mask = ImmutableBitSet<Bit64>.Empty;
         foreach (var comp in components)
@@ -28,7 +28,7 @@ public class ArchetypeStoreTests : IDisposable
         }
         var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(mask);
         _layouts.Add(layout);
-        return new ArchetypeStore<Bit64, ComponentRegistry>(_layouts.Count - 1, layout, _chunkManager);
+        return new Archetype<Bit64, ComponentRegistry>(_layouts.Count - 1, layout, _chunkManager);
     }
 
     [Test]

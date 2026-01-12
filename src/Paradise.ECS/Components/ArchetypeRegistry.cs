@@ -12,9 +12,10 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
-    private readonly ConcurrentDictionary<ImmutableBitSet<TBits>, int> _maskToArchetypeId = new();
-    private readonly List<ArchetypeStore<TBits, TRegistry>> _archetypes = [];
+    private readonly ConcurrentDictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
+    private readonly List<Archetype<TBits, TRegistry>> _archetypes = [];
     private readonly List<ImmutableArchetypeLayout<TBits, TRegistry>> _layouts = [];
+    private readonly Dictionary<HashedKey<ImmutableQueryDescription<TBits>>, List<Archetype<TBits, TRegistry>>> _queryCache = new();
     private readonly Lock _createLock = new();
     private readonly ChunkManager _chunkManager;
 
@@ -42,11 +43,45 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     }
 
     /// <summary>
+    /// Gets or creates a query for the given description.
+    /// Queries are cached and reused for the same description.
+    /// </summary>
+    /// <param name="description">The query description defining matching criteria.</param>
+    /// <returns>The query for this description.</returns>
+    public Query<TBits, TRegistry> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        using var _ = BeginOperation();
+
+        using var lockScope = _createLock.EnterScope();
+
+        // Fast path: query already exists
+        if (_queryCache.TryGetValue(description, out var existingList))
+        {
+            return new Query<TBits, TRegistry>(existingList);
+        }
+
+        // Create new list and populate with existing matching archetypes
+        var archetypes = new List<Archetype<TBits, TRegistry>>(32);
+
+        foreach (var archetype in _archetypes)
+        {
+            if (description.Value.Matches(archetype.Layout.ComponentMask))
+            {
+                archetypes.Add(archetype);
+            }
+        }
+
+        _queryCache[description] = archetypes;
+        return new Query<TBits, TRegistry>(archetypes);
+    }
+
+    /// <summary>
     /// Gets or creates an archetype for the given component mask.
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>
     /// <returns>The archetype store for this mask.</returns>
-    public ArchetypeStore<TBits, TRegistry> GetOrCreate(ImmutableBitSet<TBits> mask)
+    public Archetype<TBits, TRegistry> GetOrCreate(HashedKey<ImmutableBitSet<TBits>> mask)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = BeginOperation();
@@ -72,13 +107,33 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
             throw new InvalidOperationException($"Archetype count exceeded maximum of {EcsLimits.MaxArchetypeId}.");
 
         var layout = new ImmutableArchetypeLayout<TBits, TRegistry>(mask);
-        var store = new ArchetypeStore<TBits, TRegistry>(newId, layout, _chunkManager);
+        var store = new Archetype<TBits, TRegistry>(newId, layout, _chunkManager);
 
         _layouts.Add(layout);
         _archetypes.Add(store);
         _maskToArchetypeId[mask] = newId;
 
+        // Notify all registered queries about the new archetype
+        NotifyQueries(store);
+
         return store;
+    }
+
+    /// <summary>
+    /// Notifies all registered queries about a newly created archetype.
+    /// </summary>
+    /// <param name="archetype">The newly created archetype.</param>
+    private void NotifyQueries(Archetype<TBits, TRegistry> archetype)
+    {
+        var mask = archetype.Layout.ComponentMask;
+
+        foreach (var (description, archetypes) in _queryCache)
+        {
+            if (description.Value.Matches(mask))
+            {
+                archetypes.Add(archetype);
+            }
+        }
     }
 
     /// <summary>
@@ -86,7 +141,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// </summary>
     /// <param name="archetypeId">The archetype ID.</param>
     /// <returns>The archetype store, or null if not found.</returns>
-    public ArchetypeStore<TBits, TRegistry>? GetById(int archetypeId)
+    public Archetype<TBits, TRegistry>? GetById(int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = BeginOperation();
@@ -102,7 +157,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <param name="mask">The component mask.</param>
     /// <param name="store">The archetype store if found.</param>
     /// <returns>True if found.</returns>
-    public bool TryGet(ImmutableBitSet<TBits> mask, out ArchetypeStore<TBits, TRegistry>? store)
+    public bool TryGet(HashedKey<ImmutableBitSet<TBits>> mask, out Archetype<TBits, TRegistry>? store)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = BeginOperation();
@@ -118,54 +173,14 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     }
 
     /// <summary>
-    /// Iterates all archetypes matching the given filter.
-    /// </summary>
-    /// <typeparam name="T">The collection type to store matching archetypes.</typeparam>
-    /// <param name="all">Components that must all be present.</param>
-    /// <param name="none">Components that must not be present.</param>
-    /// <param name="any">At least one of these components must be present. Pass empty for no constraint.</param>
-    /// <param name="output">The collection to receive matching archetype stores.</param>
-    /// <returns>The number of matching archetypes added to the output collection.</returns>
-    public int GetMatching<T>(
-        ImmutableBitSet<TBits> all,
-        ImmutableBitSet<TBits> none,
-        ImmutableBitSet<TBits> any,
-        T output
-    ) where T : IList<ArchetypeStore<TBits, TRegistry>>
-    {
-        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        using var _ = BeginOperation();
-
-        int count = 0;
-        bool hasAnyConstraint = !any.IsEmpty;
-        using var lockScope = _createLock.EnterScope();
-        foreach (var store in _archetypes)
-        {
-            // Get the mask from the store's component IDs
-            var layout = store.Layout;
-            var mask = layout.ComponentMask;
-
-            // Check if archetype matches the filter
-            if (mask.ContainsAll(all) &&
-                mask.ContainsNone(none) &&
-                (!hasAnyConstraint || mask.ContainsAny(any)))
-            {
-                output.Add(store);
-                count++;
-            }
-        }
-        return count;
-    }
-
-    /// <summary>
     /// Gets or creates the archetype resulting from adding a component to the source archetype.
     /// Uses cached graph edges for O(1) lookup on subsequent calls.
     /// </summary>
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to add.</param>
     /// <returns>The target archetype with the component added.</returns>
-    public ArchetypeStore<TBits, TRegistry> GetOrCreateWithAdd(
-        ArchetypeStore<TBits, TRegistry> source,
+    public Archetype<TBits, TRegistry> GetOrCreateWithAdd(
+        Archetype<TBits, TRegistry> source,
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
@@ -182,7 +197,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         }
 
         // Slow path: compute mask and get/create archetype
-        var newMask = source.Layout.ComponentMask.Set(componentId);
+        var newMask = (HashedKey<ImmutableBitSet<TBits>>)source.Layout.ComponentMask.Set(componentId);
         var target = GetOrCreate(newMask);
 
         // Cache bidirectional edges
@@ -200,8 +215,8 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to remove.</param>
     /// <returns>The target archetype with the component removed.</returns>
-    public ArchetypeStore<TBits, TRegistry> GetOrCreateWithRemove(
-        ArchetypeStore<TBits, TRegistry> source,
+    public Archetype<TBits, TRegistry> GetOrCreateWithRemove(
+        Archetype<TBits, TRegistry> source,
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
@@ -218,7 +233,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         }
 
         // Slow path: compute mask and get/create archetype
-        var newMask = source.Layout.ComponentMask.Clear(componentId);
+        var newMask = (HashedKey<ImmutableBitSet<TBits>>)source.Layout.ComponentMask.Clear(componentId);
         var target = GetOrCreate(newMask);
 
         // Cache bidirectional edges
@@ -248,5 +263,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         _archetypes.Clear();
         _maskToArchetypeId.Clear();
         _edges.Clear();
+        _queryCache.Clear();
     }
 }
