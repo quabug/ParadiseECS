@@ -61,6 +61,10 @@ public class HashedKeyBenchmarks
     private FrozenDictionary<ExpensiveKey, int> _expensiveDictFrozen = null!;
     private FrozenDictionary<BitSetKey, int> _bitSetDictFrozen = null!;
 
+    private FrozenDictionary<HashedKey<SimpleKey>, int> _simpleDictHashedFrozen = null!;
+    private FrozenDictionary<HashedKey<ExpensiveKey>, int> _expensiveDictHashedFrozen = null!;
+    private FrozenDictionary<HashedKey<BitSetKey>, int> _bitSetDictHashedFrozen = null!;
+
     [GlobalSetup]
     public void Setup()
     {
@@ -101,6 +105,10 @@ public class HashedKeyBenchmarks
         _simpleDictFrozen = _simpleDictRaw.ToFrozenDictionary();
         _expensiveDictFrozen = _expensiveDictRaw.ToFrozenDictionary();
         _bitSetDictFrozen = _bitSetDictRaw.ToFrozenDictionary();
+
+        _simpleDictHashedFrozen = _simpleDictHashed.ToFrozenDictionary();
+        _expensiveDictHashedFrozen = _expensiveDictHashed.ToFrozenDictionary();
+        _bitSetDictHashedFrozen = _bitSetDictHashed.ToFrozenDictionary();
     }
 
     // ============================================================================
@@ -236,6 +244,46 @@ public class HashedKeyBenchmarks
         for (int i = 0; i < N; i++)
         {
             if (_bitSetDictFrozen.TryGetValue(_bitSetKeys[i], out var val))
+                sum += val;
+        }
+        return sum;
+    }
+
+    // ============================================================================
+    // FrozenDictionary with HashedKey (combining both optimizations)
+    // ============================================================================
+
+    [Benchmark]
+    public int SimpleKey_HashedKey_FrozenDictLookup()
+    {
+        int sum = 0;
+        for (int i = 0; i < N; i++)
+        {
+            if (_simpleDictHashedFrozen.TryGetValue(_hashedSimpleKeys[i], out var val))
+                sum += val;
+        }
+        return sum;
+    }
+
+    [Benchmark]
+    public int ExpensiveKey_HashedKey_FrozenDictLookup()
+    {
+        int sum = 0;
+        for (int i = 0; i < N; i++)
+        {
+            if (_expensiveDictHashedFrozen.TryGetValue(_hashedExpensiveKeys[i], out var val))
+                sum += val;
+        }
+        return sum;
+    }
+
+    [Benchmark]
+    public int BitSetKey_HashedKey_FrozenDictLookup()
+    {
+        int sum = 0;
+        for (int i = 0; i < N; i++)
+        {
+            if (_bitSetDictHashedFrozen.TryGetValue(_hashedBitSetKeys[i], out var val))
                 sum += val;
         }
         return sum;
