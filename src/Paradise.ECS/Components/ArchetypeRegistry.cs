@@ -13,7 +13,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     where TRegistry : IComponentRegistry
 {
     private readonly ConcurrentDictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
-    private readonly List<ArchetypeStore<TBits, TRegistry>> _archetypes = [];
+    private readonly List<Archetype<TBits, TRegistry>> _archetypes = [];
     private readonly List<ImmutableArchetypeLayout<TBits, TRegistry>> _layouts = [];
     private readonly Lock _createLock = new();
     private readonly ChunkManager _chunkManager;
@@ -46,7 +46,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>
     /// <returns>The archetype store for this mask.</returns>
-    public ArchetypeStore<TBits, TRegistry> GetOrCreate(ImmutableBitSet<TBits> mask)
+    public Archetype<TBits, TRegistry> GetOrCreate(HashedKey<ImmutableBitSet<TBits>> mask)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = BeginOperation();
@@ -72,7 +72,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
             throw new InvalidOperationException($"Archetype count exceeded maximum of {EcsLimits.MaxArchetypeId}.");
 
         var layout = new ImmutableArchetypeLayout<TBits, TRegistry>(mask);
-        var store = new ArchetypeStore<TBits, TRegistry>(newId, layout, _chunkManager);
+        var store = new Archetype<TBits, TRegistry>(newId, layout, _chunkManager);
 
         _layouts.Add(layout);
         _archetypes.Add(store);
@@ -86,7 +86,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// </summary>
     /// <param name="archetypeId">The archetype ID.</param>
     /// <returns>The archetype store, or null if not found.</returns>
-    public ArchetypeStore<TBits, TRegistry>? GetById(int archetypeId)
+    public Archetype<TBits, TRegistry>? GetById(int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = BeginOperation();
@@ -102,7 +102,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <param name="mask">The component mask.</param>
     /// <param name="store">The archetype store if found.</param>
     /// <returns>True if found.</returns>
-    public bool TryGet(ImmutableBitSet<TBits> mask, out ArchetypeStore<TBits, TRegistry>? store)
+    public bool TryGet(HashedKey<ImmutableBitSet<TBits>> mask, out Archetype<TBits, TRegistry>? store)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = BeginOperation();
@@ -129,7 +129,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         ImmutableQueryDescription<TBits> description,
         T output,
         int startIndex = 0
-    ) where T : IList<ArchetypeStore<TBits, TRegistry>>
+    ) where T : IList<Archetype<TBits, TRegistry>>
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = BeginOperation();
@@ -161,8 +161,8 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to add.</param>
     /// <returns>The target archetype with the component added.</returns>
-    public ArchetypeStore<TBits, TRegistry> GetOrCreateWithAdd(
-        ArchetypeStore<TBits, TRegistry> source,
+    public Archetype<TBits, TRegistry> GetOrCreateWithAdd(
+        Archetype<TBits, TRegistry> source,
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
@@ -179,7 +179,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         }
 
         // Slow path: compute mask and get/create archetype
-        var newMask = source.Layout.ComponentMask.Set(componentId);
+        var newMask = (HashedKey<ImmutableBitSet<TBits>>)source.Layout.ComponentMask.Set(componentId);
         var target = GetOrCreate(newMask);
 
         // Cache bidirectional edges
@@ -197,8 +197,8 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to remove.</param>
     /// <returns>The target archetype with the component removed.</returns>
-    public ArchetypeStore<TBits, TRegistry> GetOrCreateWithRemove(
-        ArchetypeStore<TBits, TRegistry> source,
+    public Archetype<TBits, TRegistry> GetOrCreateWithRemove(
+        Archetype<TBits, TRegistry> source,
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
@@ -215,7 +215,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         }
 
         // Slow path: compute mask and get/create archetype
-        var newMask = source.Layout.ComponentMask.Clear(componentId);
+        var newMask = (HashedKey<ImmutableBitSet<TBits>>)source.Layout.ComponentMask.Clear(componentId);
         var target = GetOrCreate(newMask);
 
         // Cache bidirectional edges

@@ -72,7 +72,7 @@ public readonly struct HashedKey<T> : IEquatable<HashedKey<T>> where T : IEquata
     /// Implicit conversion from <typeparamref name="T"/> to <see cref="HashedKey{T}"/>.
     /// </summary>
     /// <param name="value">The value to convert.</param>
-    public static implicit operator HashedKey<T>(T value) => new(value);
+    public static explicit operator HashedKey<T>(T value) => new(value);
 
     /// <summary>
     /// Implicit conversion from <see cref="HashedKey{T}"/> to <typeparamref name="T"/>.

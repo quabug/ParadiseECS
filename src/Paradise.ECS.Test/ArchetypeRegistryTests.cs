@@ -1,5 +1,23 @@
 namespace Paradise.ECS.Test;
 
+public static class ArchetypeRegistryExtension
+{
+    extension<TBits, TRegistry>(ArchetypeRegistry<TBits, TRegistry> registry)
+        where TBits : unmanaged, IStorage
+        where TRegistry : IComponentRegistry
+    {
+        public Archetype<TBits, TRegistry> GetOrCreate(ImmutableBitSet<TBits> mask)
+        {
+            return registry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
+        }
+
+        public bool TryGet(ImmutableBitSet<TBits> mask, out Archetype<TBits, TRegistry>? store)
+        {
+            return registry.TryGet((HashedKey<ImmutableBitSet<TBits>>)mask, out store);
+        }
+    }
+}
+
 public class ArchetypeRegistryTests : IDisposable
 {
     private readonly ChunkManager _chunkManager;
@@ -129,7 +147,7 @@ public class ArchetypeRegistryTests : IDisposable
             None: ImmutableBitSet<Bit64>.Empty,
             Any: ImmutableBitSet<Bit64>.Empty);
 
-        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
+        var matches = new List<Archetype<Bit64, ComponentRegistry>>();
         int count = _registry.GetMatching(description, matches);
 
         await Assert.That(count).IsEqualTo(2); // posOnly and posVel
@@ -152,7 +170,7 @@ public class ArchetypeRegistryTests : IDisposable
             None: ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId),
             Any: ImmutableBitSet<Bit64>.Empty);
 
-        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
+        var matches = new List<Archetype<Bit64, ComponentRegistry>>();
         int count = _registry.GetMatching(description, matches);
 
         await Assert.That(count).IsEqualTo(1); // Only posOnly
@@ -176,7 +194,7 @@ public class ArchetypeRegistryTests : IDisposable
             None: ImmutableBitSet<Bit64>.Empty,
             Any: ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId));
 
-        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
+        var matches = new List<Archetype<Bit64, ComponentRegistry>>();
         int count = _registry.GetMatching(description, matches);
 
         await Assert.That(count).IsEqualTo(2); // posOnly and velOnly
@@ -193,7 +211,7 @@ public class ArchetypeRegistryTests : IDisposable
 
         var description = ImmutableQueryDescription<Bit64>.Empty;
 
-        var matches = new List<ArchetypeStore<Bit64, ComponentRegistry>>();
+        var matches = new List<Archetype<Bit64, ComponentRegistry>>();
         int count = _registry.GetMatching(description, matches);
 
         await Assert.That(count).IsEqualTo(2);
@@ -374,7 +392,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
 
-        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[10];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreate(mask));
@@ -395,7 +413,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreate_DifferentMasks_CreatesMultipleArchetypes()
     {
-        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[TestComponentCount];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int bitIndex = i;
@@ -420,7 +438,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
-        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[10];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId));
@@ -444,7 +462,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var empty = ImmutableBitSet<Bit64>.Empty;
         var source = _registry.GetOrCreate(empty);
 
-        var tasks = new Task<ArchetypeStore<Bit64, ComponentRegistry>>[TestComponentCount];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int componentId = i;
