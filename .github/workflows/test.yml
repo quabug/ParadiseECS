@@ -39,11 +39,17 @@ jobs:
             --coverage \
             --coverage-output-format cobertura \
             --coverage-output coverage.cobertura.xml \
+            --coverage-settings ${{ github.workspace }}/src/Paradise.ECS.Test/coverage.settings.xml \
             --results-directory TestResults
 
-      - name: Test Paradise.ECS.Generators
+      - name: Test Paradise.ECS.Generators (with coverage)
         run: |
-          dotnet test --project src/Paradise.ECS.Generators.Test/Paradise.ECS.Generators.Test.csproj -p:PublishAot=false
+          dotnet test --project src/Paradise.ECS.Generators.Test/Paradise.ECS.Generators.Test.csproj -p:PublishAot=false -- \
+            --coverage \
+            --coverage-output-format cobertura \
+            --coverage-output coverage.cobertura.xml \
+            --coverage-settings ${{ github.workspace }}/src/Paradise.ECS.Generators.Test/coverage.settings.xml \
+            --results-directory TestResults
 
       - name: List generated coverage files
         run: |
