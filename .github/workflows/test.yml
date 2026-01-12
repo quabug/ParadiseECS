@@ -33,13 +33,17 @@ jobs:
           dotnet-version: '10.0.x'
           dotnet-quality: 'preview'
 
-      - name: Test
+      - name: Test Paradise.ECS (with coverage)
         run: |
-          dotnet test -p:PublishAot=false -- \
+          dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -p:PublishAot=false -- \
             --coverage \
             --coverage-output-format cobertura \
             --coverage-output coverage.cobertura.xml \
             --results-directory TestResults
+
+      - name: Test Paradise.ECS.Generators
+        run: |
+          dotnet test --project src/Paradise.ECS.Generators.Test/Paradise.ECS.Generators.Test.csproj -p:PublishAot=false
 
       - name: List generated coverage files
         run: |
