@@ -141,10 +141,10 @@ public readonly ref struct QueryBuilder<TBits, TRegistry>
     /// Builds a query from this description.
     /// </summary>
     /// <param name="archetypeRegistry">The archetype registry to query.</param>
-    /// <returns>A new query that matches archetypes based on this description.</returns>
+    /// <returns>A cached query that matches archetypes based on this description.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Query<TBits, TRegistry> Build(ArchetypeRegistry<TBits, TRegistry> archetypeRegistry)
-        => new(archetypeRegistry, _description);
+        => archetypeRegistry.GetOrCreateQuery((HashedKey<ImmutableQueryDescription<TBits>>)_description);
 
     /// <summary>
     /// Implicit conversion to immutable query description.

@@ -1,35 +1,25 @@
 namespace Paradise.ECS;
 
 /// <summary>
-/// A query that iterates matching archetypes.
-/// Cache is automatically updated by the archetype registry when new archetypes are created.
+/// A lightweight view over matching archetypes.
+/// The underlying list is owned and updated by the archetype registry.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
-public sealed class Query<TBits, TRegistry>
+public readonly struct Query<TBits, TRegistry>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
-    private readonly ImmutableQueryDescription<TBits> _description;
-    private readonly List<Archetype<TBits, TRegistry>> _matchingArchetypes = new(32);
+    private readonly List<Archetype<TBits, TRegistry>> _matchingArchetypes;
 
     /// <summary>
-    /// Creates a new query with the specified description.
+    /// Creates a new query wrapping the specified archetype list.
     /// </summary>
-    /// <param name="archetypeRegistry">The archetype registry to query.</param>
-    /// <param name="description">The query description defining matching criteria.</param>
-    internal Query(ArchetypeRegistry<TBits, TRegistry> archetypeRegistry, ImmutableQueryDescription<TBits> description)
+    /// <param name="matchingArchetypes">The list of matching archetypes, owned by the registry.</param>
+    internal Query(List<Archetype<TBits, TRegistry>> matchingArchetypes)
     {
-        ArgumentNullException.ThrowIfNull(archetypeRegistry);
-
-        _description = description;
-        archetypeRegistry.RegisterQuery(this);
+        _matchingArchetypes = matchingArchetypes;
     }
-
-    /// <summary>
-    /// Gets the query description defining matching criteria.
-    /// </summary>
-    internal ImmutableQueryDescription<TBits> Description => _description;
 
     /// <summary>
     /// Gets the total number of entities matching this query across all archetypes.
@@ -56,14 +46,4 @@ public sealed class Query<TBits, TRegistry>
     /// Gets the number of matching archetypes.
     /// </summary>
     public int ArchetypeCount => _matchingArchetypes.Count;
-
-    /// <summary>
-    /// Adds an archetype to the matching list.
-    /// Called by the archetype registry when a matching archetype is created.
-    /// </summary>
-    /// <param name="archetype">The archetype to add.</param>
-    internal void AddMatchingArchetype(Archetype<TBits, TRegistry> archetype)
-    {
-        _matchingArchetypes.Add(archetype);
-    }
 }

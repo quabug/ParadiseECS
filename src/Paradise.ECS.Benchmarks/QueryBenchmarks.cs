@@ -39,8 +39,8 @@ public class QueryBenchmarks
 {
     private ChunkManager _chunkManager = null!;
     private ArchetypeRegistry<Bit64, ComponentRegistry> _registry = null!;
-    private Query<Bit64, ComponentRegistry> _simpleQuery = null!;
-    private Query<Bit64, ComponentRegistry> _complexQuery = null!;
+    private Query<Bit64, ComponentRegistry> _simpleQuery;
+    private Query<Bit64, ComponentRegistry> _complexQuery;
 
     [Params(10, 50, 100)]
     public int ArchetypeCount { get; set; }
