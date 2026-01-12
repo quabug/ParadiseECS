@@ -57,4 +57,11 @@ public readonly struct Query<TBits, TRegistry>
     /// Gets the number of matching archetypes.
     /// </summary>
     public int ArchetypeCount => _matchingArchetypes.Count;
+
+    /// <summary>
+    /// Returns an enumerator that iterates through the matching archetypes.
+    /// </summary>
+    /// <returns>A struct enumerator for the matching archetypes.</returns>
+    public List<Archetype<TBits, TRegistry>>.Enumerator GetEnumerator()
+        => _matchingArchetypes.GetEnumerator();
 }
