@@ -73,6 +73,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
 
     /// <summary>
     /// Creates a new entity with no components.
+    /// Location is lazily initialized when components are first added.
     /// </summary>
     /// <returns>The created entity handle.</returns>
     public Entity Spawn()
@@ -80,20 +81,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         using var _ = BeginOperation();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
-        var entity = _entityManager.Create();
-        EnsureEntityLocationCapacity(entity.Id);
-
-        // Initialize location as invalid (no archetype yet)
-        ref var location = ref _entityLocations[entity.Id];
-        location = new EntityLocation
-        {
-            Version = entity.Version,
-            ArchetypeId = -1,
-            ChunkHandle = ChunkHandle.Invalid,
-            IndexInChunk = -1
-        };
-
-        return entity;
+        return _entityManager.Create();
     }
 
     /// <summary>
@@ -114,15 +102,15 @@ public sealed class World<TBits, TRegistry> : IDisposable
 
         // Create entity
         var entity = _entityManager.Create();
-        EnsureEntityLocationCapacity(entity.Id);
-
-        ref var location = ref _entityLocations[entity.Id];
 
         if (mask.IsEmpty)
         {
-            location = CreateInvalidLocation(entity.Version);
+            // No components - location will be lazily initialized if needed
             return entity;
         }
+
+        EnsureEntityLocationCapacity(entity.Id);
+        ref var location = ref _entityLocations[entity.Id];
 
         var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
         PlaceEntityWithComponents(entity, ref location, archetype, builder);
@@ -274,20 +262,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
     }
 
     /// <summary>
-    /// Creates an invalid entity location for entities with no components.
-    /// </summary>
-    private static EntityLocation CreateInvalidLocation(uint version)
-    {
-        return new EntityLocation
-        {
-            Version = version,
-            ArchetypeId = -1,
-            ChunkHandle = ChunkHandle.Invalid,
-            IndexInChunk = -1
-        };
-    }
-
-    /// <summary>
     /// Destroys an entity and removes it from its archetype.
     /// </summary>
     /// <param name="entity">The entity to destroy.</param>
@@ -300,18 +274,22 @@ public sealed class World<TBits, TRegistry> : IDisposable
         using var _ = BeginOperation();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
-        if (entity.Id >= _entityLocations.Length)
+        if (!_entityManager.IsAlive(entity))
             return false;
 
         using var lockScope = _structuralChangeLock.EnterScope();
 
-        ref var location = ref _entityLocations[entity.Id];
-        if (!location.MatchesEntity(entity))
-            return false;
+        // Handle lazy initialization - location may not exist yet
+        if (entity.Id < _entityLocations.Length)
+        {
+            ref var location = ref _entityLocations[entity.Id];
+            if (location.MatchesEntity(entity))
+            {
+                RemoveFromCurrentArchetype(ref location);
+            }
+            location = EntityLocation.Invalid;
+        }
 
-        RemoveFromCurrentArchetype(ref location);
-
-        location = EntityLocation.Invalid;
         _entityManager.Destroy(entity);
 
         return true;
@@ -495,7 +473,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         {
             // Removing the last component - remove from archetype entirely
             RemoveFromCurrentArchetype(ref location);
-            location = CreateInvalidLocation(location.Version);
+            location = EntityLocation.Invalid with { Version = location.Version };
             return;
         }
 
@@ -591,12 +569,21 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (!_entityManager.IsAlive(entity))
             throw new InvalidOperationException($"Entity {entity} is not alive.");
 
-        if (entity.Id >= _entityLocations.Length)
-            throw new InvalidOperationException($"Entity {entity} ID out of range.");
+        // Ensure location array has capacity (lazy initialization)
+        EnsureEntityLocationCapacity(entity.Id);
 
         ref var location = ref _entityLocations[entity.Id];
-        if (!location.MatchesEntity(entity))
+
+        // Initialize location if it was never set or was from a previous entity at this ID
+        if (location.Version == 0)
+        {
+            // Never initialized or was despawned - initialize with current entity's version
+            location = EntityLocation.Invalid with { Version = entity.Version };
+        }
+        else if (!location.MatchesEntity(entity))
+        {
             throw new InvalidOperationException($"Entity {entity} location version mismatch (stale handle).");
+        }
 
         return ref location;
     }
