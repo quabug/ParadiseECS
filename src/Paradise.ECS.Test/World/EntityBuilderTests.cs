@@ -3,7 +3,7 @@ namespace Paradise.ECS.Test;
 /// <summary>
 /// Tests for EntityBuilder fluent API.
 /// </summary>
-public class EntityBuilderTests : IDisposable
+public sealed class EntityBuilderTests : IDisposable
 {
     private readonly World<Bit64, ComponentRegistry> _world;
 

@@ -3,7 +3,7 @@ namespace Paradise.ECS.Test;
 /// <summary>
 /// Tests for World lifecycle and basic operations.
 /// </summary>
-public class WorldTests
+public sealed class WorldTests
 {
     [Test]
     public async Task Constructor_Default_CreatesValidWorld()
@@ -37,17 +37,17 @@ public class WorldTests
     public async Task Constructor_NullChunkManager_Throws()
     {
         await Assert.That(() => new World<Bit64, ComponentRegistry>(null!))
-            .Throws<ArgumentNullException>();
+            .ThrowsExactly<ArgumentNullException>();
     }
 
     [Test]
     public async Task Constructor_InvalidCapacity_Throws()
     {
         await Assert.That(() => new World<Bit64, ComponentRegistry>(initialEntityCapacity: 0))
-            .Throws<ArgumentOutOfRangeException>();
+            .ThrowsExactly<ArgumentOutOfRangeException>();
 
         await Assert.That(() => new World<Bit64, ComponentRegistry>(initialEntityCapacity: -1))
-            .Throws<ArgumentOutOfRangeException>();
+            .ThrowsExactly<ArgumentOutOfRangeException>();
     }
 
     [Test]

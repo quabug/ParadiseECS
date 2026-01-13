@@ -3,7 +3,7 @@ namespace Paradise.ECS.Test;
 /// <summary>
 /// Tests for World entity lifecycle operations.
 /// </summary>
-public class WorldEntityTests : IDisposable
+public sealed class WorldEntityTests : IDisposable
 {
     private readonly World<Bit64, ComponentRegistry> _world;
 

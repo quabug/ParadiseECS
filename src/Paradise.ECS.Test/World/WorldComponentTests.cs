@@ -3,7 +3,7 @@ namespace Paradise.ECS.Test;
 /// <summary>
 /// Tests for World component operations.
 /// </summary>
-public class WorldComponentTests : IDisposable
+public sealed class WorldComponentTests : IDisposable
 {
     private readonly World<Bit64, ComponentRegistry> _world;
 
@@ -86,7 +86,7 @@ public class WorldComponentTests : IDisposable
         _world.AddComponent(entity, new TestPosition { X = 10 });
 
         await Assert.That(() => _world.AddComponent(entity, new TestPosition { X = 20 }))
-            .Throws<InvalidOperationException>();
+            .ThrowsExactly<InvalidOperationException>();
     }
 
     [Test]
@@ -96,7 +96,7 @@ public class WorldComponentTests : IDisposable
         _world.Despawn(entity);
 
         await Assert.That(() => _world.AddComponent(entity, new TestPosition { X = 10 }))
-            .Throws<InvalidOperationException>();
+            .ThrowsExactly<InvalidOperationException>();
     }
 
     [Test]
@@ -139,7 +139,7 @@ public class WorldComponentTests : IDisposable
         var entity = _world.Spawn();
 
         await Assert.That(() => _world.RemoveComponent<TestPosition>(entity))
-            .Throws<InvalidOperationException>();
+            .ThrowsExactly<InvalidOperationException>();
     }
 
     [Test]
@@ -257,7 +257,7 @@ public class WorldComponentTests : IDisposable
         var entity = _world.Spawn();
 
         await Assert.That(() => _world.SetComponent(entity, new TestPosition { X = 10 }))
-            .Throws<InvalidOperationException>();
+            .ThrowsExactly<InvalidOperationException>();
     }
 
     #endregion
