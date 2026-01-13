@@ -104,6 +104,12 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
         // Write inner components first
         InnerBuilder.WriteComponents(chunkManager, layout, chunkHandle, indexInChunk);
 
+        // Skip writes for zero-size tag components to avoid corrupting memory at offset 0.
+        // Empty structs have sizeof=1 in C#, so writing default(TagComponent) would write
+        // 1 byte at offset 0 (since GetEntityComponentOffset returns 0 for size-0 components).
+        if (TRegistry.TypeInfos[TComponent.TypeId].Size == 0)
+            return;
+
         // Write this component
         int offset = layout.GetEntityComponentOffset<TComponent>(indexInChunk);
         using var chunk = chunkManager.Get(chunkHandle);
