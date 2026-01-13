@@ -53,6 +53,19 @@ public readonly unsafe ref struct Chunk : IDisposable
     }
 
     /// <summary>
+    /// Gets a reference to a value at the specified byte offset from chunk start.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged type.</typeparam>
+    /// <param name="byteOffset">The offset from the start of the chunk data.</param>
+    /// <returns>A reference to the value.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRef<T>(int byteOffset) where T : unmanaged
+    {
+        ThrowHelper.ValidateChunkRange(byteOffset, 1, sizeof(T));
+        return ref Unsafe.AsRef<T>((byte*)_memory + byteOffset);
+    }
+
+    /// <summary>
     /// Gets the raw bytes of the entire data area.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

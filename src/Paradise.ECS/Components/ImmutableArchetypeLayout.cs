@@ -9,8 +9,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 [StructLayout(LayoutKind.Sequential)]
-public struct ArchetypeLayoutHeader<TBits>
-    where TBits : unmanaged, IStorage
+public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
 {
     /// <summary>Maximum entities that fit in a single chunk for this archetype.</summary>
     public int EntitiesPerChunk;
@@ -44,9 +43,10 @@ public struct ArchetypeLayoutHeader<TBits>
 /// <remarks>
 /// Memory layout example for 100 entities with Position(12B), Velocity(12B), Health(8B):
 /// <code>
-/// Chunk: [Position×100][Velocity×100][Health×100]
-///        |--1200B----|---1200B-----|---800B---|
+/// Chunk: [EntityIds×100][Position×100][Velocity×100][Health×100]
+///        |----400B-----|---1200B----|---1200B-----|---800B---|
 /// </code>
+/// Entity IDs (4 bytes each) are stored at the beginning of each chunk.
 /// Each ArchetypeLayout owns its own native memory block containing:
 /// <code>
 /// [ArchetypeLayoutHeader&lt;TBits&gt;][BaseOffsets (short[])]
@@ -59,6 +59,12 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
+    /// <summary>
+    /// Size in bytes of an entity ID stored in chunk memory.
+    /// Only the <see cref="Entity.Id"/> (int) is stored, not the full Entity struct.
+    /// </summary>
+    public const int EntityIdSize = sizeof(int);
+
     private readonly IAllocator _allocator;
     private byte* _data;
 
@@ -185,25 +191,27 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
         int componentSlots = header.MaxComponentId - minId + 1;
         var baseOffsets = new Span<short>((short*)(_data + header.BaseOffsetsOffset), componentSlots);
 
+        // Empty archetype still needs entity ID storage
         if (componentMask.IsEmpty)
         {
-            header.EntitiesPerChunk = Chunk.ChunkSize;
+            header.EntitiesPerChunk = Chunk.ChunkSize / EntityIdSize;
             return;
         }
 
         var typeInfos = TRegistry.TypeInfos;
 
-        // Calculate total size per entity (without alignment)
-        int totalSizePerEntity = 0;
+        // Calculate total size per entity (entity ID + components, without alignment)
+        int totalSizePerEntity = EntityIdSize;
         foreach (int componentId in componentMask)
         {
             totalSizePerEntity += typeInfos[componentId].Size;
         }
 
-        if (totalSizePerEntity == 0)
+        // Tag-only archetype: only entity IDs
+        if (totalSizePerEntity == EntityIdSize)
         {
-            header.EntitiesPerChunk = Chunk.ChunkSize;
-            // Mark all tag components as present (offset 0)
+            header.EntitiesPerChunk = Chunk.ChunkSize / EntityIdSize;
+            // Mark all tag components as present (offset after entity IDs, but size 0)
             foreach (int componentId in componentMask)
             {
                 baseOffsets[componentId - minId] = 0;
@@ -241,7 +249,9 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
         int minId,
         int entitiesPerChunk)
     {
-        int currentOffset = 0;
+        // Start after entity ID array (aligned to 4 bytes, which entity IDs naturally are)
+        int currentOffset = entitiesPerChunk * EntityIdSize;
+
         foreach (int componentId in componentMask)
         {
             var comp = typeInfos[componentId];
@@ -377,6 +387,18 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     public int GetEntityComponentOffset<T>(int entityIndex) where T : unmanaged, IComponent
     {
         return GetEntityComponentOffset(entityIndex, T.TypeId);
+    }
+
+    /// <summary>
+    /// Calculates the byte offset for a specific entity's ID within the chunk.
+    /// Entity IDs are stored at the beginning of the chunk.
+    /// </summary>
+    /// <param name="entityIndex">The entity's index within the chunk.</param>
+    /// <returns>The byte offset from chunk start for this entity's ID.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int GetEntityIdOffset(int entityIndex)
+    {
+        return entityIndex * EntityIdSize;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

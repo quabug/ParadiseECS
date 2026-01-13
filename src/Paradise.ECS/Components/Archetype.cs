@@ -64,9 +64,9 @@ public sealed class Archetype<TBits, TRegistry>
     /// Returns the chunk handle and index where the entity should be stored.
     /// Thread-safe: Uses lock for synchronization.
     /// </summary>
-    /// <param name="chunkHandle">The chunk handle where the entity is allocated.</param>
-    /// <param name="indexInChunk">The index within the chunk.</param>
-    public void AllocateEntity(out ChunkHandle chunkHandle, out int indexInChunk)
+    /// <param name="entity">The entity to allocate space for.</param>
+    /// <returns>A tuple containing the chunk handle and index within the chunk.</returns>
+    public (ChunkHandle ChunkHandle, int IndexInChunk) AllocateEntity(Entity entity)
     {
         using var _ = _lock.EnterScope();
 
@@ -97,9 +97,15 @@ public sealed class Archetype<TBits, TRegistry>
 
         // Find the chunk and index for the new entity
         int chunkIndex = currentCount / entitiesPerChunk;
-        indexInChunk = currentCount % entitiesPerChunk;
-        chunkHandle = Volatile.Read(ref _chunks)[chunkIndex];
+        int indexInChunk = currentCount % entitiesPerChunk;
+        var chunkHandle = Volatile.Read(ref _chunks)[chunkIndex];
+
+        // Write entity ID to chunk
+        GetEntityIdRef(chunkHandle, indexInChunk) = entity.Id;
+
         Volatile.Write(ref _entityCount, currentCount + 1);
+
+        return (chunkHandle, indexInChunk);
     }
 
     /// <summary>
@@ -108,26 +114,19 @@ public sealed class Archetype<TBits, TRegistry>
     /// Thread-safe: Uses lock for synchronization.
     /// </summary>
     /// <param name="indexToRemove">The global entity index to remove.</param>
-    /// <returns>True if an entity was moved to fill the gap (caller must update entity location).</returns>
-    public bool RemoveEntity(int indexToRemove)
+    /// <returns>The entity ID that was moved to fill the gap, or -1 if no swap occurred.</returns>
+    public int RemoveEntity(int indexToRemove)
     {
         using var _ = _lock.EnterScope();
 
         int currentCount = _entityCount;
         if (indexToRemove < 0 || indexToRemove >= currentCount)
-            return false;
+            return -1;
 
         int lastIndex = currentCount - 1;
         Volatile.Write(ref _entityCount, lastIndex);
 
-        // If removing the last entity, no swap needed
-        if (indexToRemove == lastIndex)
-        {
-            TrimEmptyChunksLocked();
-            return false;
-        }
-
-        // Swap-remove: copy last entity's components to the removed slot
+        // Swap-remove: copy last entity's data to the removed slot
         int entitiesPerChunk = _layout.EntitiesPerChunk;
 
         int srcChunkIdx = lastIndex / entitiesPerChunk;
@@ -136,13 +135,30 @@ public sealed class Archetype<TBits, TRegistry>
         int dstChunkIdx = indexToRemove / entitiesPerChunk;
         int dstIndexInChunk = indexToRemove % entitiesPerChunk;
 
+        // If removing the last entity, no swap needed
+        if (indexToRemove == lastIndex)
+        {
+            TrimEmptyChunksLocked();
+            return -1;
+        }
+
         var chunks = _chunks;
         var srcChunkHandle = chunks[srcChunkIdx];
         var dstChunkHandle = chunks[dstChunkIdx];
 
-        // With SoA, copy each component separately
+        // Read the entity ID being moved from the source chunk
+        int movedEntityId = GetEntityIdRef(srcChunkHandle, srcIndexInChunk);
+
+        // With SoA, copy each component separately (including entity ID)
         using var srcChunk = _chunkManager.Get(srcChunkHandle);
         using var dstChunk = _chunkManager.Get(dstChunkHandle);
+
+        // Copy entity ID
+        int srcEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(srcIndexInChunk);
+        int dstEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(dstIndexInChunk);
+        var srcEntityIdData = srcChunk.GetBytesAt(srcEntityIdOffset, sizeof(int));
+        var dstEntityIdData = dstChunk.GetBytesAt(dstEntityIdOffset, sizeof(int));
+        srcEntityIdData.CopyTo(dstEntityIdData);
 
         // Iterate from min to max component ID in this archetype's layout
         int minId = _layout.MinComponentId;
@@ -168,9 +184,7 @@ public sealed class Archetype<TBits, TRegistry>
 
         TrimEmptyChunksLocked();
 
-        // Note: The caller needs to look up which entity was at lastIndex
-        // and update its EntityLocation. We return true to signal this.
-        return true;
+        return movedEntityId;
     }
 
     /// <summary>
@@ -236,5 +250,16 @@ public sealed class Archetype<TBits, TRegistry>
             chunks[chunkCount] = default;
         }
         Volatile.Write(ref _chunkCount, chunkCount);
+    }
+
+    /// <summary>
+    /// Reads an entity ID from a chunk at the specified index.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ref int GetEntityIdRef(ChunkHandle chunkHandle, int indexInChunk)
+    {
+        using var chunk = _chunkManager.Get(chunkHandle);
+        int offset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(indexInChunk);
+        return ref chunk.GetRef<int>(offset);
     }
 }

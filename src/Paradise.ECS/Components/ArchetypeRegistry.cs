@@ -250,9 +250,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
             return;
 
         // Wait for all in-flight operations to complete
-        var sw = new SpinWait();
-        while (Volatile.Read(ref _activeOperations) > 0)
-            sw.SpinOnce();
+        OperationGuard.WaitForCompletion(ref _activeOperations);
 
         foreach (var layout in _layouts)
         {
