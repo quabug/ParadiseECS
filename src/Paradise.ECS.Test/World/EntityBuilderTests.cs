@@ -270,6 +270,33 @@ public sealed class EntityBuilderTests : IDisposable
     }
 
     [Test]
+    public async Task Overwrite_EmptyBuilder_ClearsExistingComponents()
+    {
+        // Regression test: Overwrite with empty builder should clear existing components.
+        // Bug: When mask is empty, OverwriteEntity returned early without removing from
+        // current archetype, leaving stale components on the entity.
+
+        // Create entity with components
+        var entity = EntityBuilder.Create()
+            .Add(new TestPosition { X = 100, Y = 200, Z = 300 })
+            .Add(new TestVelocity { X = 1, Y = 2, Z = 3 })
+            .Build(_world);
+
+        // Overwrite with empty builder - should clear all components
+        EntityBuilder.Create()
+            .Overwrite(entity, _world);
+
+        var isAlive = _world.IsAlive(entity);
+        var hasPos = _world.HasComponent<TestPosition>(entity);
+        var hasVel = _world.HasComponent<TestVelocity>(entity);
+
+        await Assert.That(isAlive).IsTrue();
+        // Bug: These would still be true if components weren't cleared
+        await Assert.That(hasPos).IsFalse();
+        await Assert.That(hasVel).IsFalse();
+    }
+
+    [Test]
     public async Task Overwrite_DeadEntity_ThrowsInvalidOperationException()
     {
         var entity = _world.Spawn();

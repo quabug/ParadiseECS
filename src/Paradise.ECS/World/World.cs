@@ -140,11 +140,15 @@ public sealed class World<TBits, TRegistry> : IDisposable
         var mask = ImmutableBitSet<TBits>.Empty;
         builder.CollectTypes(ref mask);
 
-        if (mask.IsEmpty)
-            return entity;
-
         // Remove from old archetype if it had one
         RemoveFromCurrentArchetype(ref location);
+
+        if (mask.IsEmpty)
+        {
+            // No components - entity is now componentless
+            location = EntityLocation.Invalid;
+            return entity;
+        }
 
         var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
         PlaceEntityWithComponents(entity, ref location, archetype, builder);
