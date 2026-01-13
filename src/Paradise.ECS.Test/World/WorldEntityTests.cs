@@ -137,4 +137,59 @@ public sealed class WorldEntityTests : IDisposable
             await Assert.That(world.IsAlive(entity)).IsTrue();
         }
     }
+
+    [Test]
+    public async Task Despawn_SwapRemove_UpdatesMovedEntityLocation()
+    {
+        // BUG REPRODUCTION: When despawning an entity that is not last in its archetype,
+        // the swap-remove operation moves another entity into the removed slot,
+        // but the moved entity's location is not updated.
+
+        // Create 3 entities in the same archetype
+        var entityA = _world.Spawn();
+        _world.AddComponent(entityA, new TestPosition { X = 100 });
+
+        var entityB = _world.Spawn();
+        _world.AddComponent(entityB, new TestPosition { X = 200 });
+
+        var entityC = _world.Spawn();
+        _world.AddComponent(entityC, new TestPosition { X = 300 });
+
+        // Despawn entityA (index 0) - entityC should be swapped to index 0
+        _world.Despawn(entityA);
+
+        // Add a new entity that will take the old slot (index 2) that entityC used to occupy
+        // This overwrites the stale data, exposing the location bug
+        var entityD = _world.Spawn();
+        _world.AddComponent(entityD, new TestPosition { X = 400 });
+
+        // entityB, entityC, and entityD should all be alive
+        var isBAlive = _world.IsAlive(entityB);
+        var isCAlive = _world.IsAlive(entityC);
+        var isDAlive = _world.IsAlive(entityD);
+
+        await Assert.That(isBAlive).IsTrue();
+        await Assert.That(isCAlive).IsTrue();
+        await Assert.That(isDAlive).IsTrue();
+
+        // The critical test: entityC's location should be updated after swap-remove
+        // Without the fix, entityC's stale location points to index 2, which now has entityD's data (400)
+        float posB, posC, posD;
+        using (var refB = _world.GetComponent<TestPosition>(entityB))
+        {
+            posB = refB.Value.X;
+        }
+        using (var refC = _world.GetComponent<TestPosition>(entityC))
+        {
+            posC = refC.Value.X;
+        }
+        using (var refD = _world.GetComponent<TestPosition>(entityD))
+        {
+            posD = refD.Value.X;
+        }
+
+        await Assert.That(posB).IsEqualTo(200f);
+        await Assert.That(posC).IsEqualTo(300f); // Will fail: reads 400 due to stale location
+        await Assert.That(posD).IsEqualTo(400f);
+    }
 }

@@ -20,7 +20,8 @@ public class ArchetypeLayoutTests
     {
         using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(ImmutableBitSet<Bit64>.Empty);
 
-        await Assert.That(layout.EntitiesPerChunk).IsEqualTo(Chunk.ChunkSize);
+        // Even empty archetypes need entity ID storage (4 bytes per entity)
+        await Assert.That(layout.EntitiesPerChunk).IsEqualTo(Chunk.ChunkSize / sizeof(int));
         await Assert.That(layout.ComponentCount).IsEqualTo(0);
     }
 
@@ -30,7 +31,9 @@ public class ArchetypeLayoutTests
         using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value));
 
         await Assert.That(layout.ComponentCount).IsEqualTo(1);
-        await Assert.That(layout.GetBaseOffset<TestPosition>()).IsEqualTo(0);
+        // Base offset is after entity IDs (entitiesPerChunk * 4 bytes)
+        int expectedBaseOffset = layout.EntitiesPerChunk * sizeof(int);
+        await Assert.That(layout.GetBaseOffset<TestPosition>()).IsEqualTo(expectedBaseOffset);
     }
 
     [Test]
@@ -123,8 +126,9 @@ public class ArchetypeLayoutTests
     {
         using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value));
 
-        // With SoA: entities_per_chunk = ChunkSize / sum(component_sizes)
-        int expected = Chunk.ChunkSize / TestPosition.Size;
+        // With SoA + entity IDs: entities_per_chunk = ChunkSize / (entity_id_size + sum(component_sizes))
+        int totalSizePerEntity = sizeof(int) + TestPosition.Size;
+        int expected = Chunk.ChunkSize / totalSizePerEntity;
         await Assert.That(layout.EntitiesPerChunk).IsEqualTo(expected);
     }
 
@@ -133,9 +137,9 @@ public class ArchetypeLayoutTests
     {
         using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value, TestHealth.TypeId.Value));
 
-        // With SoA: entities_per_chunk = ChunkSize / sum(component_sizes)
-        int totalSize = TestPosition.Size + TestHealth.Size;
-        int expected = Chunk.ChunkSize / totalSize;
+        // With SoA + entity IDs: entities_per_chunk = ChunkSize / (entity_id_size + sum(component_sizes))
+        int totalSizePerEntity = sizeof(int) + TestPosition.Size + TestHealth.Size;
+        int expected = Chunk.ChunkSize / totalSizePerEntity;
         await Assert.That(layout.EntitiesPerChunk).IsEqualTo(expected);
     }
 

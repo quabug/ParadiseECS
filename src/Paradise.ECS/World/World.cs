@@ -198,7 +198,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         var targetArchetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)targetMask);
 
         // Allocate in target archetype
-        var (newChunkHandle, newIndexInChunk) = targetArchetype.AllocateEntity();
+        var (newChunkHandle, newIndexInChunk) = targetArchetype.AllocateEntity(entity);
 
         // Copy existing components and remove from source
         if (location.IsValid)
@@ -233,7 +233,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
-        var (chunkHandle, indexInChunk) = archetype.AllocateEntity();
+        var (chunkHandle, indexInChunk) = archetype.AllocateEntity(entity);
 
         location = new EntityLocation
         {
@@ -248,6 +248,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
 
     /// <summary>
     /// Removes an entity from its current archetype if it has one.
+    /// Updates the moved entity's location if a swap-remove occurred.
     /// </summary>
     private void RemoveFromCurrentArchetype(ref EntityLocation location)
     {
@@ -258,7 +259,15 @@ public sealed class World<TBits, TRegistry> : IDisposable
         int globalIndex = archetype.GetGlobalIndex(
             GetChunkIndex(archetype, location.ChunkHandle),
             location.IndexInChunk);
-        archetype.RemoveEntity(globalIndex);
+        int movedEntityId = archetype.RemoveEntity(globalIndex);
+
+        // If an entity was moved during swap-remove, update its location
+        if (movedEntityId >= 0)
+        {
+            ref var movedLocation = ref _entityLocations[movedEntityId];
+            movedLocation.ChunkHandle = location.ChunkHandle;
+            movedLocation.IndexInChunk = location.IndexInChunk;
+        }
     }
 
     /// <summary>
@@ -409,7 +418,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
             var mask = ImmutableBitSet<TBits>.Empty.Set(T.TypeId);
             var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
 
-            var (chunkHandle, indexInChunk) = archetype.AllocateEntity();
+            var (chunkHandle, indexInChunk) = archetype.AllocateEntity(entity);
 
             location.ArchetypeId = archetype.Id;
             location.ChunkHandle = chunkHandle;
@@ -433,7 +442,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         var targetArchetype = _archetypeRegistry.GetOrCreateWithAdd(sourceArchetype, T.TypeId);
 
         // Move entity to target archetype
-        MoveEntity(ref location, sourceArchetype, targetArchetype);
+        MoveEntity(entity, ref location, sourceArchetype, targetArchetype);
 
         // Write the new component value
         int newOffset = targetArchetype.Layout.GetEntityComponentOffset<T>(location.IndexInChunk);
@@ -478,7 +487,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         }
 
         // Move entity to target archetype
-        MoveEntity(ref location, sourceArchetype, targetArchetype);
+        MoveEntity(entity, ref location, sourceArchetype, targetArchetype);
     }
 
     /// <summary>
@@ -491,25 +500,36 @@ public sealed class World<TBits, TRegistry> : IDisposable
     }
 
     private void MoveEntity(
+        Entity entity,
         ref EntityLocation location,
         Archetype<TBits, TRegistry> source,
         Archetype<TBits, TRegistry> target)
     {
-        // Remember old location
+        // Remember old location for swap-remove handling
+        var oldChunkHandle = location.ChunkHandle;
+        var oldIndexInChunk = location.IndexInChunk;
         int oldGlobalIndex = source.GetGlobalIndex(
-            GetChunkIndex(source, location.ChunkHandle),
-            location.IndexInChunk);
+            GetChunkIndex(source, oldChunkHandle),
+            oldIndexInChunk);
 
         // Allocate in target archetype
-        var (newChunkHandle, newIndexInChunk) = target.AllocateEntity();
+        var (newChunkHandle, newIndexInChunk) = target.AllocateEntity(entity);
 
         // Copy shared component data
-        CopySharedComponents(source, target, location.ChunkHandle, location.IndexInChunk, newChunkHandle, newIndexInChunk);
+        CopySharedComponents(source, target, oldChunkHandle, oldIndexInChunk, newChunkHandle, newIndexInChunk);
 
         // Remove from source archetype (swap-remove)
-        source.RemoveEntity(oldGlobalIndex);
+        int movedEntityId = source.RemoveEntity(oldGlobalIndex);
 
-        // Update the moved entity's location
+        // If an entity was moved during swap-remove, update its location
+        if (movedEntityId >= 0)
+        {
+            ref var movedLocation = ref _entityLocations[movedEntityId];
+            movedLocation.ChunkHandle = oldChunkHandle;
+            movedLocation.IndexInChunk = oldIndexInChunk;
+        }
+
+        // Update the entity's location to the new archetype
         location.ArchetypeId = target.Id;
         location.ChunkHandle = newChunkHandle;
         location.IndexInChunk = newIndexInChunk;
