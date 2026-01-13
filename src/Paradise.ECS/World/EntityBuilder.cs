@@ -150,8 +150,8 @@ public static class ComponentsBuilderExtensions
         }
 
         /// <summary>
-        /// Sets up components for an existing entity in the specified world.
-        /// The entity must already exist and be alive.
+        /// Overwrites all components on an existing entity with the builder's components.
+        /// Any existing components are discarded. The entity must already exist and be alive.
         /// Used for deserialization or network synchronization.
         /// </summary>
         /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
@@ -159,11 +159,11 @@ public static class ComponentsBuilderExtensions
         /// <param name="entity">The existing entity handle.</param>
         /// <param name="world">The world containing the entity.</param>
         /// <returns>The entity.</returns>
-        public Entity BuildAt<TBits, TRegistry>(Entity entity, World<TBits, TRegistry> world)
+        public Entity Overwrite<TBits, TRegistry>(Entity entity, World<TBits, TRegistry> world)
             where TBits : unmanaged, IStorage
             where TRegistry : IComponentRegistry
         {
-            return world.SetupEntity(entity, builder);
+            return world.OverwriteEntity(entity, builder);
         }
     }
 }

@@ -153,14 +153,14 @@ public sealed class World<TBits, TRegistry> : IDisposable
     }
 
     /// <summary>
-    /// Sets up components for an existing entity using the provided builder.
-    /// The entity must already exist in this world.
+    /// Overwrites all components on an existing entity with the builder's components.
+    /// Any existing components are discarded. The entity must already exist in this world.
     /// </summary>
     /// <typeparam name="TBuilder">The builder type.</typeparam>
     /// <param name="entity">The existing entity handle.</param>
-    /// <param name="builder">The component builder with initial components.</param>
+    /// <param name="builder">The component builder with components to set.</param>
     /// <returns>The entity handle.</returns>
-    internal Entity SetupEntity<TBuilder>(Entity entity, TBuilder builder)
+    internal Entity OverwriteEntity<TBuilder>(Entity entity, TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
         using var _ = BeginOperation();
