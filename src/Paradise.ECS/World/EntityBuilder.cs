@@ -165,5 +165,22 @@ public static class ComponentsBuilderExtensions
         {
             return world.OverwriteEntity(entity, builder);
         }
+
+        /// <summary>
+        /// Adds the builder's components to an existing entity, preserving its current components.
+        /// This is a structural change that moves the entity to a new archetype.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <param name="entity">The existing entity handle.</param>
+        /// <param name="world">The world containing the entity.</param>
+        /// <returns>The entity.</returns>
+        /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
+        public Entity AddTo<TBits, TRegistry>(Entity entity, World<TBits, TRegistry> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+        {
+            return world.AddComponents(entity, builder);
+        }
     }
 }

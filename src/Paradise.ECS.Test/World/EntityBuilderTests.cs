@@ -270,7 +270,7 @@ public class EntityBuilderTests : IDisposable
     }
 
     [Test]
-    public async Task Overwrite_DeadEntity_ThrowsArgumentException()
+    public async Task Overwrite_DeadEntity_ThrowsInvalidOperationException()
     {
         var entity = _world.Spawn();
         _world.Despawn(entity);
@@ -279,7 +279,7 @@ public class EntityBuilderTests : IDisposable
             .Add(new TestPosition { X = 10 })
             .Overwrite(entity, _world);
 
-        await Assert.That(action).ThrowsExactly<ArgumentException>();
+        await Assert.That(action).ThrowsExactly<InvalidOperationException>();
     }
 
     [Test]
@@ -371,5 +371,143 @@ public class EntityBuilderTests : IDisposable
         await Assert.That(vel.X).IsEqualTo(1f);
         await Assert.That(vel.Y).IsEqualTo(2f);
         await Assert.That(vel.Z).IsEqualTo(3f);
+    }
+
+    [Test]
+    public async Task AddTo_SpawnedEntity_AddsComponents()
+    {
+        var entity = _world.Spawn();
+
+        EntityBuilder.Create()
+            .Add(new TestPosition { X = 10, Y = 20, Z = 30 })
+            .AddTo(entity, _world);
+
+        var hasPos = _world.HasComponent<TestPosition>(entity);
+
+        TestPosition pos;
+        using (var posRef = _world.GetComponent<TestPosition>(entity))
+        {
+            pos = posRef.Value;
+        }
+
+        await Assert.That(hasPos).IsTrue();
+        await Assert.That(pos.X).IsEqualTo(10f);
+        await Assert.That(pos.Y).IsEqualTo(20f);
+        await Assert.That(pos.Z).IsEqualTo(30f);
+    }
+
+    [Test]
+    public async Task AddTo_EntityWithExistingComponents_PreservesAndAdds()
+    {
+        // Create entity with Position
+        var entity = EntityBuilder.Create()
+            .Add(new TestPosition { X = 100, Y = 200, Z = 300 })
+            .Build(_world);
+
+        // Add Velocity - should preserve Position
+        EntityBuilder.Create()
+            .Add(new TestVelocity { X = 1, Y = 2, Z = 3 })
+            .AddTo(entity, _world);
+
+        var hasPos = _world.HasComponent<TestPosition>(entity);
+        var hasVel = _world.HasComponent<TestVelocity>(entity);
+
+        TestPosition pos;
+        TestVelocity vel;
+        using (var posRef = _world.GetComponent<TestPosition>(entity))
+        {
+            pos = posRef.Value;
+        }
+        using (var velRef = _world.GetComponent<TestVelocity>(entity))
+        {
+            vel = velRef.Value;
+        }
+
+        await Assert.That(hasPos).IsTrue();
+        await Assert.That(hasVel).IsTrue();
+        await Assert.That(pos.X).IsEqualTo(100f);
+        await Assert.That(pos.Y).IsEqualTo(200f);
+        await Assert.That(pos.Z).IsEqualTo(300f);
+        await Assert.That(vel.X).IsEqualTo(1f);
+        await Assert.That(vel.Y).IsEqualTo(2f);
+        await Assert.That(vel.Z).IsEqualTo(3f);
+    }
+
+    [Test]
+    public async Task AddTo_MultipleComponentsAtOnce_AddsAll()
+    {
+        var entity = _world.Spawn();
+
+        EntityBuilder.Create()
+            .Add(new TestPosition { X = 10 })
+            .Add(new TestVelocity { X = 20 })
+            .AddTo(entity, _world);
+
+        var hasPos = _world.HasComponent<TestPosition>(entity);
+        var hasVel = _world.HasComponent<TestVelocity>(entity);
+
+        float posX, velX;
+        using (var posRef = _world.GetComponent<TestPosition>(entity))
+        {
+            posX = posRef.Value.X;
+        }
+        using (var velRef = _world.GetComponent<TestVelocity>(entity))
+        {
+            velX = velRef.Value.X;
+        }
+
+        await Assert.That(hasPos).IsTrue();
+        await Assert.That(hasVel).IsTrue();
+        await Assert.That(posX).IsEqualTo(10f);
+        await Assert.That(velX).IsEqualTo(20f);
+    }
+
+    [Test]
+    public async Task AddTo_DuplicateComponent_ThrowsInvalidOperationException()
+    {
+        var entity = EntityBuilder.Create()
+            .Add(new TestPosition { X = 100 })
+            .Build(_world);
+
+        var action = () => EntityBuilder.Create()
+            .Add(new TestPosition { X = 200 })
+            .AddTo(entity, _world);
+
+        await Assert.That(action).ThrowsExactly<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task AddTo_EmptyBuilder_NoChange()
+    {
+        var entity = EntityBuilder.Create()
+            .Add(new TestPosition { X = 100 })
+            .Build(_world);
+
+        EntityBuilder.Create()
+            .AddTo(entity, _world);
+
+        var hasPos = _world.HasComponent<TestPosition>(entity);
+
+        float posX;
+        using (var posRef = _world.GetComponent<TestPosition>(entity))
+        {
+            posX = posRef.Value.X;
+        }
+
+        await Assert.That(hasPos).IsTrue();
+        await Assert.That(posX).IsEqualTo(100f);
+    }
+
+    [Test]
+    public async Task AddTo_DeadEntity_ThrowsException()
+    {
+        var entity = _world.Spawn();
+        _world.Despawn(entity);
+
+        var action = () => EntityBuilder.Create()
+            .Add(new TestPosition { X = 10 })
+            .AddTo(entity, _world);
+
+        await Assert.That(action).ThrowsException();
     }
 }
