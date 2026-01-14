@@ -24,10 +24,10 @@ public sealed class EntityManager : IDisposable
     private EntityMeta[] _metas;
     private readonly ConcurrentStack<int> _freeSlots = new();
     private readonly Lock _growLock = new();
+    private readonly OperationGuard _operationGuard = new();
     private int _nextEntityId; // Next fresh entity ID to allocate (atomic)
     private int _disposed; // 0 = not disposed, 1 = disposed
     private int _aliveCount; // Number of currently alive entities (atomic)
-    private int _operationCount; // Number of in-flight operations (atomic)
 
     /// <summary>
     /// Creates a new EntityManager.
@@ -56,7 +56,7 @@ public sealed class EntityManager : IDisposable
     /// <returns>A valid entity handle.</returns>
     public Entity Create()
     {
-        using var _ = new OperationGuard(ref _operationCount);
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if (_freeSlots.TryPop(out int id))
@@ -106,7 +106,7 @@ public sealed class EntityManager : IDisposable
         if (!entity.IsValid)
             return;
 
-        using var _ = new OperationGuard(ref _operationCount);
+        using var _ = _operationGuard.EnterScope();
         if (_disposed != 0) return;
 
         if (entity.Id >= Volatile.Read(ref _nextEntityId))
@@ -188,7 +188,7 @@ public sealed class EntityManager : IDisposable
             return;
 
         // Wait for all in-flight operations to complete
-        OperationGuard.WaitForCompletion(ref _operationCount);
+        _operationGuard.WaitForCompletion();
 
         _freeSlots.Clear();
         _metas = [];

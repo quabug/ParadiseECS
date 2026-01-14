@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -39,20 +38,15 @@ public sealed unsafe class ChunkManager : IDisposable
     private readonly IAllocator _allocator;
     private readonly nint[] _metaBlocks = new nint[MaxMetaBlocks];
     private readonly ConcurrentStack<int> _freeSlots = new();
+    private readonly OperationGuard _operationGuard = new();
     private int _nextSlotId; // Next fresh slot ID to allocate (atomic)
     private int _disposed; // 0 = not disposed, 1 = disposed
-
-    [SuppressMessage("Style", "IDE0044:Add readonly modifier")]
-    private int _activeOperations; // Count of in-flight operations (for safe disposal)
 
     /// <summary>
     /// Begins an operation scope that prevents disposal until complete.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private OperationGuard BeginOperation()
-    {
-        return new OperationGuard(ref _activeOperations);
-    }
+    private OperationGuard.Scope BeginOperation() => _operationGuard.EnterScope();
 
     /// <summary>
     /// Creates a new ChunkManager with the default <see cref="NativeMemoryAllocator"/>.
@@ -281,7 +275,7 @@ public sealed unsafe class ChunkManager : IDisposable
             return;
 
         // Wait for all in-flight operations to complete
-        OperationGuard.WaitForCompletion(ref _activeOperations);
+        _operationGuard.WaitForCompletion();
 
         // Free all data chunks and meta blocks
         for (int blockIndex = 0; blockIndex < MaxMetaBlocks; blockIndex++)

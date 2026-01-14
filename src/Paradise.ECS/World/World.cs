@@ -17,9 +17,9 @@ public sealed class World<TBits, TRegistry> : IDisposable
     private readonly EntityManager _entityManager;
     private readonly Lock _structuralChangeLock = new();
 
+    private readonly OperationGuard _operationGuard = new();
     private EntityLocation[] _entityLocations;
     private int _disposed;
-    private int _activeOperations;
 
     /// <summary>
     /// Gets the chunk manager for memory allocation.
@@ -69,7 +69,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
 
     private readonly bool _ownsChunkManager;
 
-    private OperationGuard BeginOperation() => new(ref _activeOperations);
+    private OperationGuard.Scope BeginOperation() => _operationGuard.EnterScope();
 
     /// <summary>
     /// Creates a new entity with no components.
@@ -641,7 +641,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
             return;
 
         // Wait for all in-flight operations to complete
-        OperationGuard.WaitForCompletion(ref _activeOperations);
+        _operationGuard.WaitForCompletion();
 
         _archetypeRegistry.Dispose();
         _entityManager.Dispose();
