@@ -1,33 +1,51 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 namespace Paradise.ECS;
 
 /// <summary>
-/// RAII guard for tracking active operations. Prevents Dispose from freeing memory
-/// while operations are in-flight.
+/// Tracks active operations to prevent disposal while operations are in-flight.
 /// </summary>
-internal readonly ref struct OperationGuard : IDisposable
+internal sealed class OperationGuard
 {
-    private readonly ref int _counter;
+    [SuppressMessage("Style", "IDE0044:Add readonly modifier")]
+    private int _counter;
 
+    /// <summary>
+    /// Enters an operation scope, incrementing the counter.
+    /// </summary>
+    /// <returns>A scope that decrements the counter when disposed.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public OperationGuard(ref int counter)
+    public Scope EnterScope()
     {
-        _counter = ref counter;
-        Interlocked.Increment(ref _counter);
+        return new Scope(ref _counter);
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose() => Interlocked.Decrement(ref _counter);
 
     /// <summary>
     /// Waits for all in-flight operations to complete.
     /// </summary>
-    /// <param name="counter">The operation counter to wait on.</param>
-    public static void WaitForCompletion(ref int counter)
+    public void WaitForCompletion()
     {
         var spinWait = new SpinWait();
-        while (Volatile.Read(ref counter) > 0)
+        while (Volatile.Read(ref _counter) > 0)
             spinWait.SpinOnce();
+    }
+
+    /// <summary>
+    /// RAII scope that decrements the operation counter when disposed.
+    /// </summary>
+    public ref struct Scope : IDisposable
+    {
+        private ref int _counter;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal Scope(ref int counter)
+        {
+            _counter = ref counter;
+            Interlocked.Increment(ref _counter);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Dispose() => Interlocked.Decrement(ref _counter);
     }
 }

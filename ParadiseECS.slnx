@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="src/Paradise.ECS.ConcurrentTest/Paradise.ECS.ConcurrentTest.csproj" />
   <Project Path="src/Paradise.ECS.Benchmarks/Paradise.ECS.Benchmarks.csproj" />
   <Project Path="src/Paradise.ECS.Generators.Test/Paradise.ECS.Generators.Test.csproj" />
   <Project Path="src/Paradise.ECS.Generators/Paradise.ECS.Generators.csproj" />

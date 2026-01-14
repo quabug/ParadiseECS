@@ -21,8 +21,8 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
 
     // Graph edges for O(1) structural changes.
     private readonly ConcurrentDictionary<EdgeKey, int> _edges = new();
+    private readonly OperationGuard _operationGuard = new();
 
-    private int _activeOperations;
     private int _disposed;
 
     /// <summary>
@@ -30,7 +30,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// </summary>
     public int Count => _archetypes.Count;
 
-    private OperationGuard BeginOperation() => new(ref _activeOperations);
+    private OperationGuard.Scope BeginOperation() => _operationGuard.EnterScope();
 
     /// <summary>
     /// Creates a new archetype registry.
@@ -250,7 +250,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
             return;
 
         // Wait for all in-flight operations to complete
-        OperationGuard.WaitForCompletion(ref _activeOperations);
+        _operationGuard.WaitForCompletion();
 
         foreach (var layout in _layouts)
         {
