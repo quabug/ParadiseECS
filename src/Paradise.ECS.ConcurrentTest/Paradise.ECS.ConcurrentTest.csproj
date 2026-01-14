@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Paradise.ECS.ConcurrentTest</RootNamespace>
+    <!-- Allow underscore naming convention in test methods -->
+    <NoWarn>$(NoWarn);CA1707;CA1515</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Coyote.Test" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Paradise.ECS\Paradise.ECS.csproj" />
+  </ItemGroup>
+
+  <!-- Coyote Rewriting: Rewrite binaries after build for systematic testing -->
+  <Target Name="CoyoteRewrite" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <!-- Generate coyote-rewrite.json dynamically with correct paths -->
+    <PropertyGroup>
+      <CoyoteConfig>{ "AssembliesPath": "$(TargetDir.TrimEnd('\/'))", "Assemblies": ["Paradise.ECS.ConcurrentTest.dll", "Paradise.ECS.dll"], "OutputPath": "$(TargetDir.TrimEnd('\/'))" }</CoyoteConfig>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(TargetDir)coyote-rewrite.json" Lines="$(CoyoteConfig)" Overwrite="true" />
+    <Exec Command="coyote rewrite $(TargetDir)coyote-rewrite.json" />
+  </Target>
+
+</Project>

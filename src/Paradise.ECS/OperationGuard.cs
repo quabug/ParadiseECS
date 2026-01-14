@@ -36,7 +36,6 @@ internal sealed class OperationGuard
     /// </summary>
     public ref struct Scope : IDisposable
     {
-        [SuppressMessage("Style", "IDE0044:Add readonly modifier")]
         private ref int _counter;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

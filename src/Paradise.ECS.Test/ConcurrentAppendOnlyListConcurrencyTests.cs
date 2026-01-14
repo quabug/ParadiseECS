@@ -7,7 +7,7 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     [Test]
     public async Task ConcurrentAdd_AllValuesStored()
     {
-        using var list = new ConcurrentAppendOnlyList<int>(initialCapacity: 16);
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 4); // 16 elements per chunk
         const int threadCount = 8;
         const int additionsPerThread = 500;
         var allIndices = new ConcurrentBag<int>();
@@ -50,7 +50,7 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     [Test]
     public async Task ConcurrentAddAndRead_NoDataCorruption()
     {
-        using var list = new ConcurrentAppendOnlyList<int>(initialCapacity: 16);
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 4);
         const int writerCount = 4;
         const int readerCount = 4;
         const int additionsPerWriter = 500;
@@ -107,8 +107,8 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     [Test]
     public async Task ConcurrentAdd_TriggersGrowth_NoDataLoss()
     {
-        // Start with very small capacity to force many growths
-        using var list = new ConcurrentAppendOnlyList<int>(initialCapacity: 4);
+        // Start with small chunk size to force many chunk allocations
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 2); // 4 elements per chunk
         const int threadCount = 8;
         const int additionsPerThread = 1000;
         var exceptions = new ConcurrentBag<Exception>();
@@ -146,7 +146,7 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     [Test]
     public async Task ConcurrentRead_WhileGrowing_ReturnsConsistentValues()
     {
-        using var list = new ConcurrentAppendOnlyList<int>(initialCapacity: 4);
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 2); // 4 elements per chunk
         const int totalAdditions = 5000;
         var exceptions = new ConcurrentBag<Exception>();
         var addComplete = false;
@@ -209,66 +209,11 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     }
 
     [Test]
-    public async Task AsSpan_ConcurrentWithAdd_NoGrowth_ReturnsValidSnapshot()
-    {
-        // Use large initial capacity to avoid growth - AsSpan is unsafe during growth
-        const int addCount = 1000;
-        using var list = new ConcurrentAppendOnlyList<int>(initialCapacity: addCount);
-        var exceptions = new ConcurrentBag<Exception>();
-        var addComplete = false;
-
-        var writer = Task.Run(() =>
-        {
-            try
-            {
-                for (int i = 0; i < addCount; i++)
-                {
-                    list.Add(i);
-                    Thread.SpinWait(10);
-                }
-            }
-            finally
-            {
-                Volatile.Write(ref addComplete, true);
-            }
-        });
-
-        var reader = Task.Run(() =>
-        {
-            try
-            {
-                while (!Volatile.Read(ref addComplete))
-                {
-                    int count = list.Count;
-                    // Verify the list is consistent using indexer
-                    for (int i = 0; i < count; i++)
-                    {
-                        if (list[i] != i)
-                        {
-                            throw new Exception($"List inconsistency at {i}: got {list[i]}");
-                        }
-                    }
-                    Thread.SpinWait(50);
-                }
-            }
-            catch (Exception ex)
-            {
-                exceptions.Add(ex);
-            }
-        });
-
-        await writer.ConfigureAwait(false);
-        await reader.ConfigureAwait(false);
-
-        await Assert.That(exceptions).IsEmpty();
-    }
-
-    [Test]
     public async Task ConcurrentAdd_HighContention_MaintainsOrderedCommit()
     {
         // This tests that sequential commit (via spin-wait) works correctly
         // under high contention where many threads try to commit simultaneously
-        using var list = new ConcurrentAppendOnlyList<int>(initialCapacity: 64);
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 6); // 64 elements per chunk
         const int threadCount = 16;
         const int additionsPerThread = 200;
         var exceptions = new ConcurrentBag<Exception>();
@@ -305,7 +250,7 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     [Test]
     public async Task ConcurrentAdd_WithLargeStruct_NoDataCorruption()
     {
-        using var list = new ConcurrentAppendOnlyList<LargeStruct>(initialCapacity: 8);
+        var list = new ConcurrentAppendOnlyList<LargeStruct>(chunkShift: 3); // 8 elements per chunk
         const int threadCount = 4;
         const int additionsPerThread = 250;
         var exceptions = new ConcurrentBag<Exception>();
@@ -331,6 +276,43 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
                         stored.C != value.C || stored.D != value.D)
                     {
                         throw new Exception($"Data corruption at index {index}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        await Assert.That(exceptions).IsEmpty();
+        await Assert.That(list.Count).IsEqualTo(threadCount * additionsPerThread);
+    }
+
+    [Test]
+    public async Task ConcurrentAdd_WithReferenceType_NoDataCorruption()
+    {
+        var list = new ConcurrentAppendOnlyList<string>(chunkShift: 4);
+        const int threadCount = 4;
+        const int additionsPerThread = 250;
+        var exceptions = new ConcurrentBag<Exception>();
+
+        var tasks = Enumerable.Range(0, threadCount).Select(threadId => Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < additionsPerThread; i++)
+                {
+                    string value = $"thread{threadId}_item{i}";
+                    int index = list.Add(value);
+
+                    // Verify the value was stored correctly
+                    string stored = list[index];
+                    if (stored != value)
+                    {
+                        throw new Exception($"Data corruption at index {index}: expected '{value}', got '{stored}'");
                     }
                 }
             }

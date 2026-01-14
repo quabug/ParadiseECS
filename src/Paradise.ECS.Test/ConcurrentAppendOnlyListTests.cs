@@ -5,7 +5,7 @@ public sealed class ConcurrentAppendOnlyListTests
     [Test]
     public async Task Add_SingleElement_ReturnsCorrectIndex()
     {
-        using var list = new ConcurrentAppendOnlyList<int>();
+        var list = new ConcurrentAppendOnlyList<int>();
 
         var index = list.Add(42);
 
@@ -17,7 +17,7 @@ public sealed class ConcurrentAppendOnlyListTests
     [Test]
     public async Task Add_MultipleElements_ReturnsSequentialIndices()
     {
-        using var list = new ConcurrentAppendOnlyList<int>();
+        var list = new ConcurrentAppendOnlyList<int>();
 
         var i0 = list.Add(10);
         var i1 = list.Add(20);
@@ -32,7 +32,7 @@ public sealed class ConcurrentAppendOnlyListTests
     [Test]
     public async Task Indexer_ValidIndex_ReturnsValue()
     {
-        using var list = new ConcurrentAppendOnlyList<int>();
+        var list = new ConcurrentAppendOnlyList<int>();
         list.Add(100);
         list.Add(200);
         list.Add(300);
@@ -45,7 +45,7 @@ public sealed class ConcurrentAppendOnlyListTests
     [Test]
     public async Task Indexer_NegativeIndex_ThrowsArgumentOutOfRangeException()
     {
-        using var list = new ConcurrentAppendOnlyList<int>();
+        var list = new ConcurrentAppendOnlyList<int>();
         list.Add(42);
 
         await Assert.That(() => _ = list[-1]).ThrowsExactly<ArgumentOutOfRangeException>();
@@ -54,7 +54,7 @@ public sealed class ConcurrentAppendOnlyListTests
     [Test]
     public async Task Indexer_IndexEqualsCount_ThrowsArgumentOutOfRangeException()
     {
-        using var list = new ConcurrentAppendOnlyList<int>();
+        var list = new ConcurrentAppendOnlyList<int>();
         list.Add(42);
 
         await Assert.That(() => _ = list[1]).ThrowsExactly<ArgumentOutOfRangeException>();
@@ -63,16 +63,17 @@ public sealed class ConcurrentAppendOnlyListTests
     [Test]
     public async Task Indexer_IndexGreaterThanCount_ThrowsArgumentOutOfRangeException()
     {
-        using var list = new ConcurrentAppendOnlyList<int>();
+        var list = new ConcurrentAppendOnlyList<int>();
         list.Add(42);
 
         await Assert.That(() => _ = list[100]).ThrowsExactly<ArgumentOutOfRangeException>();
     }
 
     [Test]
-    public async Task Add_BeyondInitialCapacity_GrowsAutomatically()
+    public async Task Add_BeyondInitialChunk_GrowsAutomatically()
     {
-        using var list = new ConcurrentAppendOnlyList<int>(initialCapacity: 4);
+        // chunkShift=2 means chunk size of 4
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 2);
 
         for (int i = 0; i < 100; i++)
         {
@@ -90,38 +91,21 @@ public sealed class ConcurrentAppendOnlyListTests
     }
 
     [Test]
-    public async Task Dispose_SubsequentAddThrows()
+    public async Task Constructor_ChunkShiftBelowMinimum_ThrowsArgumentOutOfRangeException()
     {
-        var list = new ConcurrentAppendOnlyList<int>();
-        list.Add(42);
-        list.Dispose();
-
-        await Assert.That(() => list.Add(100)).ThrowsExactly<ObjectDisposedException>();
+        await Assert.That(() => new ConcurrentAppendOnlyList<int>(1)).ThrowsExactly<ArgumentOutOfRangeException>();
     }
 
     [Test]
-    public async Task Dispose_CalledMultipleTimes_DoesNotThrow()
+    public async Task Constructor_ChunkShiftAboveMaximum_ThrowsArgumentOutOfRangeException()
     {
-        var list = new ConcurrentAppendOnlyList<int>();
-        list.Add(42);
-
-        await Assert.That(() =>
-        {
-            list.Dispose();
-            list.Dispose();
-        }).ThrowsNothing();
-    }
-
-    [Test]
-    public async Task Constructor_CapacityBelowMinimum_ThrowsArgumentOutOfRangeException()
-    {
-        await Assert.That(() => new ConcurrentAppendOnlyList<int>(3)).ThrowsExactly<ArgumentOutOfRangeException>();
+        await Assert.That(() => new ConcurrentAppendOnlyList<int>(21)).ThrowsExactly<ArgumentOutOfRangeException>();
     }
 
     [Test]
     public async Task Count_AfterAdds_ReturnsCorrectValue()
     {
-        using var list = new ConcurrentAppendOnlyList<int>();
+        var list = new ConcurrentAppendOnlyList<int>();
 
         await Assert.That(list.Count).IsEqualTo(0);
 
@@ -136,32 +120,50 @@ public sealed class ConcurrentAppendOnlyListTests
     }
 
     [Test]
-    public async Task Capacity_InitialValue_MatchesConstructor()
+    public async Task Capacity_InitialValue_IsZero()
     {
-        using var list = new ConcurrentAppendOnlyList<int>(32);
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 4);
 
-        await Assert.That(list.Capacity).IsEqualTo(32);
+        // No chunks allocated yet
+        await Assert.That(list.Capacity).IsEqualTo(0);
     }
 
     [Test]
-    public async Task Capacity_AfterGrowth_IsAtLeastDoubled()
+    public async Task Capacity_AfterAdd_MatchesChunkSize()
     {
-        using var list = new ConcurrentAppendOnlyList<int>(4);
-        int initialCapacity = list.Capacity;
+        // chunkShift=4 means chunk size of 16
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 4);
 
-        // Add enough elements to trigger growth
-        for (int i = 0; i < 5; i++)
+        list.Add(1);
+
+        // One chunk allocated
+        await Assert.That(list.Capacity).IsEqualTo(16);
+    }
+
+    [Test]
+    public async Task ChunkCount_AfterGrowth_IncrementsCorrectly()
+    {
+        // chunkShift=2 means chunk size of 4
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 2);
+
+        await Assert.That(list.ChunkCount).IsEqualTo(0);
+
+        // Add 4 elements - should use 1 chunk
+        for (int i = 0; i < 4; i++)
         {
             list.Add(i);
         }
+        await Assert.That(list.ChunkCount).IsEqualTo(1);
 
-        await Assert.That(list.Capacity).IsGreaterThanOrEqualTo(initialCapacity * 2);
+        // Add 1 more - should allocate second chunk
+        list.Add(4);
+        await Assert.That(list.ChunkCount).IsEqualTo(2);
     }
 
     [Test]
     public async Task Add_LargeStruct_StoresCorrectly()
     {
-        using var list = new ConcurrentAppendOnlyList<LargeStruct>(4);
+        var list = new ConcurrentAppendOnlyList<LargeStruct>(chunkShift: 2);
 
         var value1 = new LargeStruct { A = 1, B = 2, C = 3, D = 4 };
         var value2 = new LargeStruct { A = 10, B = 20, C = 30, D = 40 };
@@ -181,6 +183,32 @@ public sealed class ConcurrentAppendOnlyListTests
         await Assert.That(retrieved2.B).IsEqualTo(20L);
         await Assert.That(retrieved2.C).IsEqualTo(30L);
         await Assert.That(retrieved2.D).IsEqualTo(40L);
+    }
+
+    [Test]
+    public async Task Add_ReferenceType_StoresCorrectly()
+    {
+        var list = new ConcurrentAppendOnlyList<string>();
+
+        list.Add("hello");
+        list.Add("world");
+
+        await Assert.That(list[0]).IsEqualTo("hello");
+        await Assert.That(list[1]).IsEqualTo("world");
+    }
+
+    [Test]
+    public async Task Add_NullReference_StoresCorrectly()
+    {
+        var list = new ConcurrentAppendOnlyList<string?>();
+
+        list.Add(null);
+        list.Add("not null");
+        list.Add(null);
+
+        await Assert.That(list[0]).IsNull();
+        await Assert.That(list[1]).IsEqualTo("not null");
+        await Assert.That(list[2]).IsNull();
     }
 
     private struct LargeStruct
