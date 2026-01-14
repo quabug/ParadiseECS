@@ -90,38 +90,6 @@ public sealed class ConcurrentAppendOnlyListTests
     }
 
     [Test]
-    public async Task AsSpan_ReturnsCorrectSnapshot()
-    {
-        using var list = new ConcurrentAppendOnlyList<int>();
-        list.Add(1);
-        list.Add(2);
-        list.Add(3);
-
-        // Capture values before await boundary
-        var span = list.AsSpan();
-        int length = span.Length;
-        int v0 = span[0];
-        int v1 = span[1];
-        int v2 = span[2];
-
-        await Assert.That(length).IsEqualTo(3);
-        await Assert.That(v0).IsEqualTo(1);
-        await Assert.That(v1).IsEqualTo(2);
-        await Assert.That(v2).IsEqualTo(3);
-    }
-
-    [Test]
-    public async Task AsSpan_EmptyList_ReturnsEmptySpan()
-    {
-        using var list = new ConcurrentAppendOnlyList<int>();
-
-        var span = list.AsSpan();
-        int length = span.Length;
-
-        await Assert.That(length).IsEqualTo(0);
-    }
-
-    [Test]
     public async Task Dispose_SubsequentAddThrows()
     {
         var list = new ConcurrentAppendOnlyList<int>();

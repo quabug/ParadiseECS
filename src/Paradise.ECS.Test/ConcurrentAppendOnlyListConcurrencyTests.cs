@@ -239,13 +239,13 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
             {
                 while (!Volatile.Read(ref addComplete))
                 {
-                    var span = list.AsSpan();
-                    // Verify the span is consistent
-                    for (int i = 0; i < span.Length; i++)
+                    int count = list.Count;
+                    // Verify the list is consistent using indexer
+                    for (int i = 0; i < count; i++)
                     {
-                        if (span[i] != i)
+                        if (list[i] != i)
                         {
-                            throw new Exception($"Span inconsistency at {i}: got {span[i]}");
+                            throw new Exception($"List inconsistency at {i}: got {list[i]}");
                         }
                     }
                     Thread.SpinWait(50);
