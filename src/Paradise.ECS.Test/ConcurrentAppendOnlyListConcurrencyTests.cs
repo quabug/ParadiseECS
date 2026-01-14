@@ -335,4 +335,84 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
         public long C;
         public long D;
     }
+
+    /// <summary>
+    /// Regression test for data race in indexer where _chunks array reference was not read with Volatile.Read.
+    /// The race condition: a reader could see an updated _committedCount but hold a stale reference to
+    /// an old, smaller _chunks array, causing IndexOutOfRangeException or NullReferenceException.
+    /// </summary>
+    [Test]
+    [Repeat(5)] // Repeat to increase chance of hitting the race condition
+    public async Task ConcurrentReadDuringGrowth_NoStaleChunksArrayReference()
+    {
+        // Use minimum chunk size (4 elements) to maximize array growth frequency
+        // Start with initial capacity of 4 chunks = 16 elements
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 2);
+        const int totalAdditions = 10000; // Force many _chunks array growths
+        var exceptions = new ConcurrentBag<Exception>();
+        var addComplete = false;
+
+        // Writer task - adds elements to force frequent _chunks array reallocations
+        var writer = Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < totalAdditions; i++)
+                {
+                    list.Add(i);
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+            finally
+            {
+                Volatile.Write(ref addComplete, true);
+            }
+        });
+
+        // Multiple aggressive reader tasks that hammer the indexer during growth
+        // This should expose the race where _chunks is read without Volatile.Read
+        var readers = Enumerable.Range(0, 8).Select(_ => Task.Run(() =>
+        {
+            try
+            {
+                int lastCheckedIndex = -1;
+                while (!Volatile.Read(ref addComplete) || lastCheckedIndex < list.Count - 1)
+                {
+                    int count = list.Count;
+                    if (count > 0)
+                    {
+                        // Read the last committed index - this is where the race is most likely
+                        // because the _chunks array may have just grown
+                        int indexToRead = count - 1;
+                        if (indexToRead > lastCheckedIndex)
+                        {
+                            // This read could fail with IndexOutOfRangeException or NullReferenceException
+                            // if _chunks is not read with Volatile.Read and we get a stale array reference
+                            int value = list[indexToRead];
+                            if (value != indexToRead)
+                            {
+                                throw new Exception($"Data inconsistency at index {indexToRead}: got {value}");
+                            }
+                            lastCheckedIndex = indexToRead;
+                        }
+                    }
+                    // No spin wait - maximize contention
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+
+        await writer.ConfigureAwait(false);
+        await Task.WhenAll(readers).ConfigureAwait(false);
+
+        // If the race condition was hit, we'd see IndexOutOfRangeException or NullReferenceException
+        await Assert.That(exceptions).IsEmpty();
+        await Assert.That(list.Count).IsEqualTo(totalAdditions);
+    }
 }

@@ -143,7 +143,7 @@ public sealed class ConcurrentAppendOnlyList<T>
             if ((uint)index >= (uint)count)
                 ThrowArgumentOutOfRange(index, count);
 
-            var chunk = _chunks[index >> _chunkShift];
+            var chunk = Volatile.Read(ref _chunks)[index >> _chunkShift];
             return chunk[index & _chunkMask];
         }
     }
