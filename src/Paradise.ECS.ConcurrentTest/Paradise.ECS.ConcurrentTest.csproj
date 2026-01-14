@@ -19,11 +19,6 @@
 
   <!-- Coyote Rewriting: Rewrite binaries after build for systematic testing -->
   <Target Name="CoyoteRewrite" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
-    <!-- Generate coyote-rewrite.json dynamically with correct paths -->
-    <PropertyGroup>
-      <CoyoteConfig>{ "AssembliesPath": "$(TargetDir.TrimEnd('\/'))", "Assemblies": ["Paradise.ECS.ConcurrentTest.dll", "Paradise.ECS.dll"], "OutputPath": "$(TargetDir.TrimEnd('\/'))" }</CoyoteConfig>
-    </PropertyGroup>
-    <WriteLinesToFile File="$(TargetDir)coyote-rewrite.json" Lines="$(CoyoteConfig)" Overwrite="true" />
     <Exec Command="coyote rewrite $(TargetDir)coyote-rewrite.json" />
   </Target>
 
