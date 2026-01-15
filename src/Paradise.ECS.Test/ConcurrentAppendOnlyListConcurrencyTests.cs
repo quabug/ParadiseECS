@@ -337,6 +337,147 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     }
 
     /// <summary>
+    /// Regression test for race condition in MarkSlotReady where bitmap array could be replaced
+    /// while a thread holds a reference to the old array.
+    ///
+    /// The race condition:
+    /// 1. Thread A reads _readyBitmap reference in MarkSlotReady
+    /// 2. Thread B in EnsureChunkSlow creates new bitmap, copies old data, replaces _readyBitmap
+    /// 3. Thread A writes to old bitmap array (now orphaned)
+    /// 4. The bit is never set in the new bitmap → slot appears not ready → infinite spin
+    ///
+    /// The fix: MarkSlotReady re-reads _readyBitmap after the atomic OR and retries if changed.
+    /// </summary>
+    [Test]
+    [Repeat(10)] // Repeat to increase chance of hitting the race condition
+    public async Task ConcurrentAdd_BitmapGrowthRace_NoInfiniteSpin()
+    {
+        // Use chunkShift=2 (4 elements per chunk)
+        // Initial bitmap: 4 ulong words = 256 bits = 64 chunks worth
+        // Bitmap growth triggers when adding chunk 64+ (element 256+)
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 2);
+
+        // Pre-populate to just below bitmap growth threshold
+        // This ensures concurrent adds will straddle the growth boundary
+        const int prePopulateCount = 250;
+        for (int i = 0; i < prePopulateCount; i++)
+        {
+            list.Add(i);
+        }
+
+        const int threadCount = 16;
+        const int additionsPerThread = 50;
+        var exceptions = new ConcurrentBag<Exception>();
+        var completed = new int[threadCount];
+
+        // Use timeout task to detect infinite spin
+        using var cts = new CancellationTokenSource();
+        var timeoutTask = Task.Delay(TimeSpan.FromSeconds(10), cts.Token);
+
+        var tasks = Enumerable.Range(0, threadCount).Select(threadId => Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < additionsPerThread; i++)
+                {
+                    int value = prePopulateCount + threadId * additionsPerThread + i;
+                    int index = list.Add(value);
+
+                    // Verify the value is immediately readable (proves commit succeeded)
+                    int stored = list[index];
+                    if (stored != value)
+                    {
+                        throw new Exception($"Data corruption at index {index}: expected {value}, got {stored}");
+                    }
+                }
+                Interlocked.Exchange(ref completed[threadId], 1);
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+
+        var allTasks = Task.WhenAll(tasks);
+        var finishedTask = await Task.WhenAny(allTasks, timeoutTask).ConfigureAwait(false);
+
+        if (finishedTask == timeoutTask)
+        {
+            // Timeout - some threads are stuck
+            int completedCount = completed.Sum();
+            Assert.Fail($"Timeout: only {completedCount}/{threadCount} threads completed - likely infinite spin in Add");
+        }
+
+        await cts.CancelAsync().ConfigureAwait(false);
+        await Assert.That(exceptions).IsEmpty();
+
+        int expectedCount = prePopulateCount + threadCount * additionsPerThread;
+        await Assert.That(list.Count).IsEqualTo(expectedCount);
+
+        // Verify all values are readable
+        for (int i = 0; i < expectedCount; i++)
+        {
+            var _ = list[i];
+        }
+    }
+
+    /// <summary>
+    /// Stress test for bitmap race condition with multiple growth events.
+    /// Forces many bitmap reallocations to increase race window exposure.
+    /// </summary>
+    [Test]
+    [Repeat(5)]
+    public async Task ConcurrentAdd_MultipleBitmapGrowths_AllSlotsCommitted()
+    {
+        // chunkShift=2: 4 elements/chunk, bitmap grows every 256 elements
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 2);
+
+        const int threadCount = 8;
+        const int additionsPerThread = 500; // 4000 total = ~15 bitmap growths
+        var exceptions = new ConcurrentBag<Exception>();
+        var completed = new int[threadCount];
+
+        using var cts = new CancellationTokenSource();
+        var timeoutTask = Task.Delay(TimeSpan.FromSeconds(30), cts.Token);
+
+        var tasks = Enumerable.Range(0, threadCount).Select(threadId => Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < additionsPerThread; i++)
+                {
+                    int value = threadId * 1_000_000 + i;
+                    int index = list.Add(value);
+
+                    // Verify commit succeeded
+                    if (list[index] != value)
+                    {
+                        throw new Exception($"Data mismatch at index {index}");
+                    }
+                }
+                Interlocked.Exchange(ref completed[threadId], 1);
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+
+        var allTasks = Task.WhenAll(tasks);
+        var finishedTask = await Task.WhenAny(allTasks, timeoutTask).ConfigureAwait(false);
+
+        if (finishedTask == timeoutTask)
+        {
+            int completedCount = completed.Sum();
+            Assert.Fail($"Timeout: only {completedCount}/{threadCount} threads completed - bitmap race condition");
+        }
+
+        await cts.CancelAsync().ConfigureAwait(false);
+        await Assert.That(exceptions).IsEmpty();
+        await Assert.That(list.Count).IsEqualTo(threadCount * additionsPerThread);
+    }
+
+    /// <summary>
     /// Regression test for data race in indexer where _chunks array reference was not read with Volatile.Read.
     /// The race condition: a reader could see an updated _committedCount but hold a stale reference to
     /// an old, smaller _chunks array, causing IndexOutOfRangeException or NullReferenceException.

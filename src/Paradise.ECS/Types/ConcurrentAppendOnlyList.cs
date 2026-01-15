@@ -143,6 +143,7 @@ public sealed class ConcurrentAppendOnlyList<T>
 
     /// <summary>
     /// Atomically marks a slot as ready in the bitmap.
+    /// Retries if the bitmap array is replaced during the operation.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void MarkSlotReady(int index)
@@ -151,8 +152,16 @@ public sealed class ConcurrentAppendOnlyList<T>
         int bitIndex = index & BitsPerWordMask;
         ulong mask = 1UL << bitIndex;
 
-        var bitmap = Volatile.Read(ref _readyBitmap);
-        Interlocked.Or(ref bitmap[wordIndex], mask);
+        while (true)
+        {
+            var bitmap = Volatile.Read(ref _readyBitmap);
+            Interlocked.Or(ref bitmap[wordIndex], mask);
+
+            // Verify bitmap wasn't replaced during the operation.
+            // If it was, retry to ensure the bit is set in the current bitmap.
+            if (ReferenceEquals(bitmap, Volatile.Read(ref _readyBitmap)))
+                return;
+        }
     }
 
     /// <summary>
