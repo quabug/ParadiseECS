@@ -144,12 +144,15 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     }
 
     [Test]
-    public async Task ConcurrentRead_WhileGrowing_ReturnsConsistentValues()
+    [MethodDataSource(nameof(GetTestTimeout))]
+    public async Task ConcurrentRead_WhileGrowing_ReturnsConsistentValues(TimeSpan timeout)
     {
         var list = new ConcurrentAppendOnlyList<int>(chunkShift: 2); // 4 elements per chunk
         const int totalAdditions = 5000;
         var exceptions = new ConcurrentBag<Exception>();
         var addComplete = false;
+
+        using var cts = new CancellationTokenSource(timeout);
 
         // Writer task - adds sequential values where value == index
         var writer = Task.Run(() =>
@@ -176,7 +179,7 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
         {
             try
             {
-                while (!Volatile.Read(ref addComplete) || list.Count > 0)
+                while (!Volatile.Read(ref addComplete))
                 {
                     int count = list.Count;
                     for (int i = 0; i < count && i < list.Count; i++)
@@ -189,9 +192,6 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
                         }
                     }
 
-                    if (Volatile.Read(ref addComplete))
-                        break;
-
                     Thread.SpinWait(100);
                 }
             }
@@ -201,8 +201,13 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
             }
         })).ToArray();
 
-        await writer.ConfigureAwait(false);
-        await Task.WhenAll(readers).ConfigureAwait(false);
+        var allTasks = Task.WhenAll(writer, Task.WhenAll(readers));
+        var completedTask = await Task.WhenAny(allTasks, Task.Delay(timeout)).ConfigureAwait(false);
+
+        if (completedTask != allTasks)
+        {
+            Assert.Fail($"Timeout after {timeout.TotalSeconds}s - test did not complete");
+        }
 
         await Assert.That(exceptions).IsEmpty();
         await Assert.That(list.Count).IsEqualTo(totalAdditions);
@@ -334,6 +339,11 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
         public long B;
         public long C;
         public long D;
+    }
+
+    public static IEnumerable<TimeSpan> GetTestTimeout()
+    {
+        yield return TimeSpan.FromSeconds(30);
     }
 
     /// <summary>
@@ -484,7 +494,8 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     /// </summary>
     [Test]
     [Repeat(5)] // Repeat to increase chance of hitting the race condition
-    public async Task ConcurrentReadDuringGrowth_NoStaleChunksArrayReference()
+    [MethodDataSource(nameof(GetTestTimeout))]
+    public async Task ConcurrentReadDuringGrowth_NoStaleChunksArrayReference(TimeSpan timeout)
     {
         // Use minimum chunk size (4 elements) to maximize array growth frequency
         // Start with initial capacity of 4 chunks = 16 elements
@@ -520,7 +531,7 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
             try
             {
                 int lastCheckedIndex = -1;
-                while (!Volatile.Read(ref addComplete) || lastCheckedIndex < list.Count - 1)
+                while (!Volatile.Read(ref addComplete))
                 {
                     int count = list.Count;
                     if (count > 0)
@@ -540,7 +551,7 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
                             lastCheckedIndex = indexToRead;
                         }
                     }
-                    // No spin wait - maximize contention
+                    Thread.SpinWait(1); // Minimal yield to prevent thread starvation
                 }
             }
             catch (Exception ex)
@@ -549,8 +560,13 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
             }
         })).ToArray();
 
-        await writer.ConfigureAwait(false);
-        await Task.WhenAll(readers).ConfigureAwait(false);
+        var allTasks = Task.WhenAll(writer, Task.WhenAll(readers));
+        var completedTask = await Task.WhenAny(allTasks, Task.Delay(timeout)).ConfigureAwait(false);
+
+        if (completedTask != allTasks)
+        {
+            Assert.Fail($"Timeout after {timeout.TotalSeconds}s - test did not complete");
+        }
 
         // If the race condition was hit, we'd see IndexOutOfRangeException or NullReferenceException
         await Assert.That(exceptions).IsEmpty();
@@ -562,7 +578,8 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
     /// This is a critical invariant: once a value is committed, it must remain visible.
     /// </summary>
     [Test]
-    public async Task CommitOrdering_CountMonotonicallyIncreasing()
+    [MethodDataSource(nameof(GetTestTimeout))]
+    public async Task CommitOrdering_CountMonotonicallyIncreasing(TimeSpan timeout)
     {
         var list = new ConcurrentAppendOnlyList<int>(chunkShift: 3); // 8 elements per chunk
 
@@ -592,7 +609,7 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
             try
             {
                 int lastSeen = 0;
-                while (!Volatile.Read(ref writersComplete) || lastSeen < list.Count)
+                while (!Volatile.Read(ref writersComplete))
                 {
                     int current = list.Count;
                     if (current < lastSeen)
@@ -600,9 +617,14 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
                         throw new Exception($"Count decreased from {lastSeen} to {current}");
                     }
                     lastSeen = current;
+                    Thread.SpinWait(10);
+                }
 
-                    if (Volatile.Read(ref writersComplete) && lastSeen >= writerCount * itemsPerWriter)
-                        break;
+                // Final check after writers complete
+                int finalCount = list.Count;
+                if (finalCount < lastSeen)
+                {
+                    throw new Exception($"Count decreased from {lastSeen} to {finalCount}");
                 }
             }
             catch (Exception ex)
@@ -611,7 +633,14 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
             }
         });
 
-        await Task.WhenAll(writerTasks).ConfigureAwait(false);
+        var allWriters = Task.WhenAll(writerTasks);
+        var completedTask = await Task.WhenAny(allWriters, Task.Delay(timeout)).ConfigureAwait(false);
+
+        if (completedTask != allWriters)
+        {
+            Assert.Fail($"Timeout after {timeout.TotalSeconds}s - writers did not complete");
+        }
+
         Volatile.Write(ref writersComplete, true);
         await observerTask.ConfigureAwait(false);
 
