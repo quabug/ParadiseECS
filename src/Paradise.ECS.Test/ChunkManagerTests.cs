@@ -218,7 +218,7 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Dispose_MultipleTimes_DoesNotThrow()
     {
-        var manager = new ChunkManager(initialCapacity: 4);
+        using var manager = new ChunkManager(initialCapacity: 4);
         manager.Allocate(); // Allocate something
 
         await Assert.That(() =>

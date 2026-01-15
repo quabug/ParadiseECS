@@ -62,7 +62,7 @@ public static class Program
                 .WithDeadlockTimeout(5000) // 5 seconds timeout for spin-wait patterns
                 .WithPotentialDeadlocksReportedAsBugs(false); // SpinWait is intentional, not a deadlock
 
-            var engine = TestingEngine.Create(configuration, action);
+            using var engine = TestingEngine.Create(configuration, action);
             engine.Run();
 
             if (engine.TestReport.NumOfFoundBugs == 0)
