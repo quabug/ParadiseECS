@@ -29,11 +29,11 @@ public sealed class ConcurrentAppendOnlyList<T>
     private readonly int _chunkMask;
     private readonly Lock _chunkLock = new();
 
-    private T[][] _chunks;
-    private ulong[] _readyBitmap;  // Bitmap tracking which slots have been written
-    private int _chunkCount;
-    private int _count;
-    private int _committedCount;
+    private volatile T[][] _chunks;
+    private volatile ulong[] _readyBitmap;  // Bitmap tracking which slots have been written
+    private volatile int _chunkCount;
+    private volatile int _count;
+    private volatile int _committedCount;
 
     /// <summary>
     /// Creates a new <see cref="ConcurrentAppendOnlyList{T}"/> with chunk size optimized for L1 cache (~16KB per chunk).
@@ -82,7 +82,7 @@ public sealed class ConcurrentAppendOnlyList<T>
     public int Count
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Volatile.Read(ref _committedCount);
+        get => _committedCount;
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ public sealed class ConcurrentAppendOnlyList<T>
     public int Capacity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Volatile.Read(ref _chunkCount) * _chunkSize;
+        get => _chunkCount * _chunkSize;
     }
 
     /// <summary>
@@ -100,7 +100,7 @@ public sealed class ConcurrentAppendOnlyList<T>
     public int ChunkCount
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => Volatile.Read(ref _chunkCount);
+        get => _chunkCount;
     }
 
     /// <summary>
@@ -120,7 +120,8 @@ public sealed class ConcurrentAppendOnlyList<T>
         EnsureChunk(chunkIndex);
 
         // Write to the slot (chunk is guaranteed to exist now)
-        var chunk = Volatile.Read(ref _chunks[chunkIndex]);
+        // _chunks is volatile, so this read has acquire semantics
+        var chunk = _chunks[chunkIndex];
         chunk[indexInChunk] = value;
 
         // Mark slot as ready in bitmap (atomic)
@@ -131,7 +132,7 @@ public sealed class ConcurrentAppendOnlyList<T>
 
         // Wait until our slot is committed (fast path: usually already committed)
         SpinWait spinWait = default;
-        while (Volatile.Read(ref _committedCount) <= index)
+        while (_committedCount <= index)
         {
             // Try to help advance if possible
             TryAdvanceCommittedCount();
@@ -154,12 +155,12 @@ public sealed class ConcurrentAppendOnlyList<T>
 
         while (true)
         {
-            var bitmap = Volatile.Read(ref _readyBitmap);
+            var bitmap = _readyBitmap;
             Interlocked.Or(ref bitmap[wordIndex], mask);
 
             // Verify bitmap wasn't replaced during the operation.
             // If it was, retry to ensure the bit is set in the current bitmap.
-            if (ReferenceEquals(bitmap, Volatile.Read(ref _readyBitmap)))
+            if (ReferenceEquals(bitmap, _readyBitmap))
                 return;
         }
     }
@@ -174,7 +175,7 @@ public sealed class ConcurrentAppendOnlyList<T>
         int bitIndex = index & BitsPerWordMask;
         ulong mask = 1UL << bitIndex;
 
-        var bitmap = Volatile.Read(ref _readyBitmap);
+        var bitmap = _readyBitmap;
         if (wordIndex >= bitmap.Length)
             return false;
 
@@ -190,15 +191,15 @@ public sealed class ConcurrentAppendOnlyList<T>
     {
         while (true)
         {
-            int current = Volatile.Read(ref _committedCount);
-            int reserved = Volatile.Read(ref _count);
+            int current = _committedCount;
+            int reserved = _count;
 
             // Nothing to advance
             if (current >= reserved)
                 return;
 
             // Count consecutive ready slots using optimized word-at-a-time scanning
-            var bitmap = Volatile.Read(ref _readyBitmap);
+            var bitmap = _readyBitmap;
             int consecutiveReady = bitmap.CountConsecutiveSetBits(current, reserved);
             if (consecutiveReady == 0)
                 return;
@@ -230,11 +231,11 @@ public sealed class ConcurrentAppendOnlyList<T>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            int count = Volatile.Read(ref _committedCount);
+            int count = _committedCount;
             if ((uint)index >= (uint)count)
                 ThrowArgumentOutOfRange(index, count);
 
-            var chunk = Volatile.Read(ref _chunks)[index >> _chunkShift];
+            var chunk = _chunks[index >> _chunkShift];
             return chunk[index & _chunkMask];
         }
     }
@@ -247,7 +248,7 @@ public sealed class ConcurrentAppendOnlyList<T>
     private void EnsureChunk(int chunkIndex)
     {
         // Fast path: chunk already exists
-        if (chunkIndex < Volatile.Read(ref _chunkCount))
+        if (chunkIndex < _chunkCount)
             return;
 
         EnsureChunkSlow(chunkIndex);
@@ -270,7 +271,7 @@ public sealed class ConcurrentAppendOnlyList<T>
             int newLength = Math.Max(_chunks.Length * 2, chunkIndex + 1);
             var newChunks = new T[newLength][];
             Array.Copy(_chunks, newChunks, _chunkCount);
-            Volatile.Write(ref _chunks, newChunks);
+            _chunks = newChunks;
         }
 
         // Calculate required bitmap size for all slots up to this chunk
@@ -283,7 +284,7 @@ public sealed class ConcurrentAppendOnlyList<T>
             int newBitmapLength = Math.Max(_readyBitmap.Length * 2, requiredBitmapWords);
             var newBitmap = new ulong[newBitmapLength];
             Array.Copy(_readyBitmap, newBitmap, _readyBitmap.Length);
-            Volatile.Write(ref _readyBitmap, newBitmap);
+            _readyBitmap = newBitmap;
         }
 
         // Allocate all chunks up to and including chunkIndex
@@ -292,7 +293,7 @@ public sealed class ConcurrentAppendOnlyList<T>
             Volatile.Write(ref _chunks[i], new T[_chunkSize]);
         }
 
-        Volatile.Write(ref _chunkCount, chunkIndex + 1);
+        _chunkCount = chunkIndex + 1;
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
