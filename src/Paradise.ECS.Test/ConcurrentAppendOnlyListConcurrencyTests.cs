@@ -556,4 +556,167 @@ public sealed class ConcurrentAppendOnlyListConcurrencyTests
         await Assert.That(exceptions).IsEmpty();
         await Assert.That(list.Count).IsEqualTo(totalAdditions);
     }
+
+    /// <summary>
+    /// Verifies that Count (committed count) only increases monotonically.
+    /// This is a critical invariant: once a value is committed, it must remain visible.
+    /// </summary>
+    [Test]
+    public async Task CommitOrdering_CountMonotonicallyIncreasing()
+    {
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 3); // 8 elements per chunk
+
+        const int writerCount = 4;
+        const int itemsPerWriter = 200;
+        var exceptions = new ConcurrentBag<Exception>();
+        var writersComplete = false;
+
+        var writerTasks = Enumerable.Range(0, writerCount).Select(threadId => Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < itemsPerWriter; i++)
+                {
+                    list.Add(threadId * 10000 + i);
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+
+        // Observer task that watches Count and verifies it never decreases
+        var observerTask = Task.Run(() =>
+        {
+            try
+            {
+                int lastSeen = 0;
+                while (!Volatile.Read(ref writersComplete) || lastSeen < list.Count)
+                {
+                    int current = list.Count;
+                    if (current < lastSeen)
+                    {
+                        throw new Exception($"Count decreased from {lastSeen} to {current}");
+                    }
+                    lastSeen = current;
+
+                    if (Volatile.Read(ref writersComplete) && lastSeen >= writerCount * itemsPerWriter)
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        });
+
+        await Task.WhenAll(writerTasks).ConfigureAwait(false);
+        Volatile.Write(ref writersComplete, true);
+        await observerTask.ConfigureAwait(false);
+
+        await Assert.That(exceptions).IsEmpty();
+        await Assert.That(list.Count).IsEqualTo(writerCount * itemsPerWriter);
+    }
+
+    /// <summary>
+    /// Tests when multiple threads try to trigger chunk allocation simultaneously
+    /// by pre-filling to just below the chunk boundary.
+    /// </summary>
+    [Test]
+    [Repeat(10)]
+    public async Task ConcurrentAdd_SimultaneousGrowthTrigger_AllValuesAdded()
+    {
+        var list = new ConcurrentAppendOnlyList<int>(chunkShift: 2); // 4 elements per chunk
+
+        // Pre-fill to just below chunk boundary (3 of 4 slots filled)
+        for (int i = 0; i < 3; i++)
+        {
+            list.Add(i);
+        }
+
+        const int threadCount = 16;
+        var exceptions = new ConcurrentBag<Exception>();
+        var indices = new ConcurrentBag<int>();
+
+        // All threads try to add at the same time, triggering chunk allocation contention
+        var tasks = Enumerable.Range(0, threadCount).Select(threadId => Task.Run(() =>
+        {
+            try
+            {
+                int index = list.Add(100 + threadId);
+                indices.Add(index);
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        await Assert.That(exceptions).IsEmpty();
+        await Assert.That(list.Count).IsEqualTo(3 + threadCount);
+
+        // Verify all returned indices are unique
+        var uniqueIndices = indices.Distinct().ToList();
+        await Assert.That(uniqueIndices.Count).IsEqualTo(threadCount);
+
+        // Verify all indices are in valid range [3, 3 + threadCount)
+        foreach (int idx in indices)
+        {
+            await Assert.That(idx).IsGreaterThanOrEqualTo(3);
+            await Assert.That(idx).IsLessThan(3 + threadCount);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that the index returned by Add actually contains the added value.
+    /// Each thread adds unique values and verifies they're at the returned indices.
+    /// </summary>
+    [Test]
+    public async Task DataIntegrity_ReturnedIndexContainsAddedValue()
+    {
+        var list = new ConcurrentAppendOnlyList<long>(chunkShift: 3); // 8 elements per chunk
+
+        const int threadCount = 8;
+        const int itemsPerThread = 100;
+        var exceptions = new ConcurrentBag<Exception>();
+
+        // Each thread records its (value, index) pairs
+        var allPairs = new ConcurrentBag<(long Value, int Index)>();
+
+        var tasks = Enumerable.Range(0, threadCount).Select(threadId => Task.Run(() =>
+        {
+            try
+            {
+                for (int i = 0; i < itemsPerThread; i++)
+                {
+                    long value = threadId * 1_000_000L + i;
+                    int index = list.Add(value);
+                    allPairs.Add((value, index));
+                }
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        })).ToArray();
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        await Assert.That(exceptions).IsEmpty();
+        await Assert.That(list.Count).IsEqualTo(threadCount * itemsPerThread);
+
+        // Verify each value is at its recorded index
+        foreach (var (value, index) in allPairs)
+        {
+            long stored = list[index];
+            await Assert.That(stored).IsEqualTo(value);
+        }
+
+        // Verify all indices are unique
+        var uniqueIndices = allPairs.Select(p => p.Index).Distinct().ToList();
+        await Assert.That(uniqueIndices.Count).IsEqualTo(threadCount * itemsPerThread);
+    }
 }
