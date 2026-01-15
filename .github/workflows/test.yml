@@ -124,7 +124,7 @@ jobs:
           for proj in src/*.Test/*.csproj; do
             name=$(basename "$proj" .csproj)
             dotnet publish "$proj" -c Release -r ${{ matrix.rid }}
-            ./src/$name/bin/Release/net10.0/${{ matrix.rid }}/publish/$name
+            ./src/$name/bin/Release/net10.0/${{ matrix.rid }}/publish/$name --output Detailed
           done
 
       - name: Publish and run AOT tests (Windows)
@@ -134,5 +134,5 @@ jobs:
           foreach ($proj in Get-ChildItem -Path src/*.Test/*.csproj) {
             $name = $proj.BaseName
             dotnet publish $proj.FullName -c Release -r ${{ matrix.rid }}
-            & "./src/$name/bin/Release/net10.0/${{ matrix.rid }}/publish/$name.exe"
+            & "./src/$name/bin/Release/net10.0/${{ matrix.rid }}/publish/$name.exe" --output Detailed
           }
