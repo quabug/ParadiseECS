@@ -184,6 +184,7 @@ public sealed class ConcurrentAppendOnlyList<T>
     /// <summary>
     /// Tries to advance the committed count by scanning consecutive ready slots.
     /// Uses lock-free CAS to ensure only one thread advances at a time.
+    /// Uses bit operations to process 64 slots at a time for better performance.
     /// </summary>
     private void TryAdvanceCommittedCount()
     {
@@ -196,16 +197,13 @@ public sealed class ConcurrentAppendOnlyList<T>
             if (current >= reserved)
                 return;
 
-            // Check if the next slot is ready
-            if (!IsSlotReady(current))
+            // Count consecutive ready slots using optimized word-at-a-time scanning
+            var bitmap = Volatile.Read(ref _readyBitmap);
+            int consecutiveReady = bitmap.CountConsecutiveSetBits(current, reserved);
+            if (consecutiveReady == 0)
                 return;
 
-            // Count how many consecutive slots are ready
-            int newCommitted = current + 1;
-            while (newCommitted < reserved && IsSlotReady(newCommitted))
-            {
-                newCommitted++;
-            }
+            int newCommitted = current + consecutiveReady;
 
             // Try to advance committed count atomically
             if (Interlocked.CompareExchange(ref _committedCount, newCommitted, current) == current)
