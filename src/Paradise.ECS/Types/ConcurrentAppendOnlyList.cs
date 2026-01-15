@@ -252,42 +252,40 @@ public sealed class ConcurrentAppendOnlyList<T>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private void EnsureChunkSlow(int chunkIndex)
     {
-        lock (_chunkLock)
+        using var _ = _chunkLock.EnterScope();
+        // Double-check after acquiring lock
+        if (chunkIndex < _chunkCount)
+            return;
+
+        // Grow chunks array if needed (only copies pointers, not data)
+        if (chunkIndex >= _chunks.Length)
         {
-            // Double-check after acquiring lock
-            if (chunkIndex < _chunkCount)
-                return;
-
-            // Grow chunks array if needed (only copies pointers, not data)
-            if (chunkIndex >= _chunks.Length)
-            {
-                int newLength = Math.Max(_chunks.Length * 2, chunkIndex + 1);
-                var newChunks = new T[newLength][];
-                Array.Copy(_chunks, newChunks, _chunkCount);
-                Volatile.Write(ref _chunks, newChunks);
-            }
-
-            // Calculate required bitmap size for all slots up to this chunk
-            int maxIndex = (chunkIndex + 1) * _chunkSize - 1;
-            int requiredBitmapWords = (maxIndex >> BitsPerWordShift) + 1;
-
-            // Grow bitmap if needed
-            if (requiredBitmapWords > _readyBitmap.Length)
-            {
-                int newBitmapLength = Math.Max(_readyBitmap.Length * 2, requiredBitmapWords);
-                var newBitmap = new ulong[newBitmapLength];
-                Array.Copy(_readyBitmap, newBitmap, _readyBitmap.Length);
-                Volatile.Write(ref _readyBitmap, newBitmap);
-            }
-
-            // Allocate all chunks up to and including chunkIndex
-            for (int i = _chunkCount; i <= chunkIndex; i++)
-            {
-                Volatile.Write(ref _chunks[i], new T[_chunkSize]);
-            }
-
-            Volatile.Write(ref _chunkCount, chunkIndex + 1);
+            int newLength = Math.Max(_chunks.Length * 2, chunkIndex + 1);
+            var newChunks = new T[newLength][];
+            Array.Copy(_chunks, newChunks, _chunkCount);
+            Volatile.Write(ref _chunks, newChunks);
         }
+
+        // Calculate required bitmap size for all slots up to this chunk
+        int maxIndex = (chunkIndex + 1) * _chunkSize - 1;
+        int requiredBitmapWords = (maxIndex >> BitsPerWordShift) + 1;
+
+        // Grow bitmap if needed
+        if (requiredBitmapWords > _readyBitmap.Length)
+        {
+            int newBitmapLength = Math.Max(_readyBitmap.Length * 2, requiredBitmapWords);
+            var newBitmap = new ulong[newBitmapLength];
+            Array.Copy(_readyBitmap, newBitmap, _readyBitmap.Length);
+            Volatile.Write(ref _readyBitmap, newBitmap);
+        }
+
+        // Allocate all chunks up to and including chunkIndex
+        for (int i = _chunkCount; i <= chunkIndex; i++)
+        {
+            Volatile.Write(ref _chunks[i], new T[_chunkSize]);
+        }
+
+        Volatile.Write(ref _chunkCount, chunkIndex + 1);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
