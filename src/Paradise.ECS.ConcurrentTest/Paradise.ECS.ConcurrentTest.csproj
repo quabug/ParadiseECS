@@ -17,6 +17,10 @@
     <ProjectReference Include="..\Paradise.ECS\Paradise.ECS.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="coyote-rewrite.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- Coyote Rewriting: Rewrite binaries after build for systematic testing -->
   <Target Name="CoyoteRewrite" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <Exec Command="coyote rewrite $(TargetDir)coyote-rewrite.json" />

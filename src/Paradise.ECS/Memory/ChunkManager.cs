@@ -43,12 +43,6 @@ public sealed unsafe class ChunkManager : IDisposable
     private int _disposed; // 0 = not disposed, 1 = disposed
 
     /// <summary>
-    /// Begins an operation scope that prevents disposal until complete.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private OperationGuard.Scope BeginOperation() => _operationGuard.EnterScope();
-
-    /// <summary>
     /// Creates a new ChunkManager with the default <see cref="NativeMemoryAllocator"/>.
     /// </summary>
     /// <param name="initialCapacity">Initial number of chunk slots to allocate.</param>
@@ -96,7 +90,7 @@ public sealed unsafe class ChunkManager : IDisposable
     /// </summary>
     public ChunkHandle Allocate()
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if (!_freeSlots.TryPop(out int id))
@@ -158,7 +152,7 @@ public sealed unsafe class ChunkManager : IDisposable
     {
         if (!handle.IsValid) return;
 
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         if (_disposed != 0) return;
 
         if (handle.Id >= Volatile.Read(ref _nextSlotId)) return;
@@ -206,7 +200,7 @@ public sealed unsafe class ChunkManager : IDisposable
         if (!handle.IsValid)
             return default;
 
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if ((uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
@@ -238,7 +232,7 @@ public sealed unsafe class ChunkManager : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Release(int id)
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         if (_disposed != 0) return;
 
         if (id >= Volatile.Read(ref _nextSlotId))

@@ -53,7 +53,7 @@ public sealed class WorldTests
     [Test]
     public async Task Dispose_MultipleTimes_DoesNotThrow()
     {
-        var world = new World<Bit64, ComponentRegistry>();
+        using var world = new World<Bit64, ComponentRegistry>();
 
         await Assert.That(() =>
         {

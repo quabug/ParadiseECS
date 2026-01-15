@@ -69,8 +69,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
 
     private readonly bool _ownsChunkManager;
 
-    private OperationGuard.Scope BeginOperation() => _operationGuard.EnterScope();
-
     /// <summary>
     /// Creates a new entity with no components.
     /// Location is lazily initialized when components are first added.
@@ -78,7 +76,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <returns>The created entity handle.</returns>
     public Entity Spawn()
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         return _entityManager.Create();
@@ -93,7 +91,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     internal Entity CreateEntity<TBuilder>(TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         // Collect component mask
@@ -129,7 +127,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     internal Entity OverwriteEntity<TBuilder>(Entity entity, TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         using var lockScope = _structuralChangeLock.EnterScope();
@@ -168,7 +166,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     internal Entity AddComponents<TBuilder>(Entity entity, TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         using var lockScope = _structuralChangeLock.EnterScope();
@@ -284,7 +282,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (!entity.IsValid)
             return false;
 
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if (!_entityManager.IsAlive(entity))
@@ -318,7 +316,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (!entity.IsValid)
             return false;
 
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         return _entityManager.IsAlive(entity);
@@ -333,7 +331,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
     public ComponentRef<T> GetComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         ref var location = ref GetValidatedLocation(entity);
@@ -359,7 +357,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
     public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         ref var location = ref GetValidatedLocation(entity);
@@ -387,7 +385,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (!entity.IsValid)
             return false;
 
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if (!TryGetLocation(entity, out var location))
@@ -409,7 +407,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <exception cref="InvalidOperationException">Entity is not alive or already has the component.</exception>
     public void AddComponent<T>(Entity entity, T value = default) where T : unmanaged, IComponent
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         using var lockScope = _structuralChangeLock.EnterScope();
@@ -463,7 +461,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <exception cref="InvalidOperationException">Entity is not alive or doesn't have the component.</exception>
     public void RemoveComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         using var lockScope = _structuralChangeLock.EnterScope();

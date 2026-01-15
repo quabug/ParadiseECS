@@ -30,8 +30,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// </summary>
     public int Count => _archetypes.Count;
 
-    private OperationGuard.Scope BeginOperation() => _operationGuard.EnterScope();
-
     /// <summary>
     /// Creates a new archetype registry.
     /// </summary>
@@ -51,7 +49,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     public Query<TBits, TRegistry> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
 
         using var lockScope = _createLock.EnterScope();
 
@@ -84,7 +82,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     public Archetype<TBits, TRegistry> GetOrCreate(HashedKey<ImmutableBitSet<TBits>> mask)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
 
         // Fast path: already exists
         if (_maskToArchetypeId.TryGetValue(mask, out int existingId))
@@ -144,7 +142,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     public Archetype<TBits, TRegistry>? GetById(int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
 
         if (archetypeId < 0 || archetypeId >= _archetypes.Count)
             return null;
@@ -160,7 +158,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     public bool TryGet(HashedKey<ImmutableBitSet<TBits>> mask, out Archetype<TBits, TRegistry>? store)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
 
         if (_maskToArchetypeId.TryGetValue(mask, out int id))
         {
@@ -184,7 +182,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ArgumentNullException.ThrowIfNull(source);
 
         var addKey = EdgeKey.ForAdd(source.Id, componentId.Value);
@@ -220,7 +218,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        using var _ = BeginOperation();
+        using var _ = _operationGuard.EnterScope();
         ArgumentNullException.ThrowIfNull(source);
 
         var removeKey = EdgeKey.ForRemove(source.Id, componentId.Value);
