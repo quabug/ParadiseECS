@@ -1,0 +1,251 @@
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
+
+namespace Paradise.ECS;
+
+/// <summary>
+/// Shared archetype metadata that can be used across multiple worlds.
+/// Contains archetype masks, layouts, graph edges, and query descriptions.
+/// Thread-safe for concurrent access from multiple worlds.
+/// </summary>
+/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
+public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
+    where TBits : unmanaged, IStorage
+    where TRegistry : IComponentRegistry
+{
+    /// <summary>
+    /// Gets the shared singleton instance for this TBits/TRegistry combination.
+    /// </summary>
+    public static SharedArchetypeMetadata<TBits, TRegistry> Shared { get; } = new();
+
+    private readonly IAllocator _allocator;
+    private readonly ConcurrentDictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
+    private readonly ConcurrentAppendOnlyList<nint/* ArchetypeLayout* */> _layouts = new();
+    private readonly ConcurrentDictionary<EdgeKey, int> _edges = new();
+    private readonly ConcurrentDictionary<HashedKey<ImmutableQueryDescription<TBits>>, int> _queryDescToId = new();
+    private readonly ConcurrentAppendOnlyList<ImmutableQueryDescription<TBits>> _queryDescriptions = new();
+    private readonly Lock _createLock = new();
+
+    private int _disposed;
+
+    /// <summary>
+    /// Gets the number of registered archetypes.
+    /// </summary>
+    public int ArchetypeCount => _layouts.Count;
+
+    /// <summary>
+    /// Gets the number of registered query descriptions.
+    /// </summary>
+    public int QueryDescriptionCount => _queryDescriptions.Count;
+
+    /// <summary>
+    /// Creates a new shared archetype metadata instance.
+    /// </summary>
+    /// <param name="allocator">The memory allocator to use. If null, uses <see cref="NativeMemoryAllocator.Shared"/>.</param>
+    public SharedArchetypeMetadata(IAllocator? allocator = null)
+    {
+        _allocator = allocator ?? NativeMemoryAllocator.Shared;
+    }
+
+    /// <summary>
+    /// Gets or creates an archetype ID for the given component mask.
+    /// Also creates and stores the layout for the archetype.
+    /// </summary>
+    /// <param name="mask">The component mask defining the archetype.</param>
+    /// <returns>The archetype ID for this mask.</returns>
+    public int GetOrCreateArchetypeId(HashedKey<ImmutableBitSet<TBits>> mask)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+
+        // Fast path: already exists
+        if (_maskToArchetypeId.TryGetValue(mask, out int existingId))
+        {
+            return existingId;
+        }
+
+        // Slow path: create new archetype
+        // Lock prevents duplicate creation - without it, two threads could both pass the
+        // fast path check, create separate layouts for the same mask, and one would be orphaned.
+        using var createScope = _createLock.EnterScope();
+
+        // Double-check after acquiring lock
+        if (_maskToArchetypeId.TryGetValue(mask, out existingId))
+        {
+            return existingId;
+        }
+
+        var layoutData = ImmutableArchetypeLayout<TBits, TRegistry>.Create(_allocator, mask);
+        int newId = _layouts.Add(layoutData);
+        if (newId > EcsLimits.MaxArchetypeId)
+            throw new InvalidOperationException($"Archetype count exceeded maximum of {EcsLimits.MaxArchetypeId}.");
+        _maskToArchetypeId[mask] = newId;
+
+        return newId;
+    }
+
+    /// <summary>
+    /// Gets the layout data pointer for the specified archetype ID.
+    /// </summary>
+    /// <param name="archetypeId">The archetype ID.</param>
+    /// <returns>The layout data pointer (as nint) for this archetype.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if the archetype ID is invalid.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public nint GetLayoutData(int archetypeId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        return _layouts[archetypeId];
+    }
+
+    /// <summary>
+    /// Gets the layout for the specified archetype ID.
+    /// </summary>
+    /// <param name="archetypeId">The archetype ID.</param>
+    /// <returns>The layout for this archetype.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if the archetype ID is invalid.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ImmutableArchetypeLayout<TBits, TRegistry> GetLayout(int archetypeId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        return new ImmutableArchetypeLayout<TBits, TRegistry>(_layouts[archetypeId]);
+    }
+
+    /// <summary>
+    /// Gets the archetype ID resulting from adding a component to a source archetype.
+    /// Uses cached graph edges for O(1) lookup on subsequent calls.
+    /// </summary>
+    /// <param name="sourceArchetypeId">The source archetype ID.</param>
+    /// <param name="componentId">The component to add.</param>
+    /// <returns>The target archetype ID with the component added.</returns>
+    public int GetOrCreateWithAdd(int sourceArchetypeId, ComponentId componentId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+
+        var addKey = EdgeKey.ForAdd(sourceArchetypeId, componentId.Value);
+
+        // Fast path: edge already exists
+        if (_edges.TryGetValue(addKey, out int targetId))
+        {
+            return targetId;
+        }
+
+        // Slow path: compute mask and get/create archetype
+        var sourceLayout = GetLayout(sourceArchetypeId);
+        // TODO: Use incremental hash computation instead of recomputing from scratch (#14)
+        var newMask = (HashedKey<ImmutableBitSet<TBits>>)sourceLayout.ComponentMask.Set(componentId);
+        targetId = GetOrCreateArchetypeId(newMask);
+
+        // Cache bidirectional edges
+        var removeKey = EdgeKey.ForRemove(targetId, componentId.Value);
+        _edges[addKey] = targetId;
+        _edges[removeKey] = sourceArchetypeId;
+
+        return targetId;
+    }
+
+    /// <summary>
+    /// Gets the archetype ID resulting from removing a component from a source archetype.
+    /// Uses cached graph edges for O(1) lookup on subsequent calls.
+    /// </summary>
+    /// <param name="sourceArchetypeId">The source archetype ID.</param>
+    /// <param name="componentId">The component to remove.</param>
+    /// <returns>The target archetype ID with the component removed.</returns>
+    public int GetOrCreateWithRemove(int sourceArchetypeId, ComponentId componentId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+
+        var removeKey = EdgeKey.ForRemove(sourceArchetypeId, componentId.Value);
+
+        // Fast path: edge already exists
+        if (_edges.TryGetValue(removeKey, out int targetId))
+        {
+            return targetId;
+        }
+
+        // Slow path: compute mask and get/create archetype
+        var sourceLayout = GetLayout(sourceArchetypeId);
+        // TODO: Use incremental hash computation instead of recomputing from scratch (#14)
+        var newMask = (HashedKey<ImmutableBitSet<TBits>>)sourceLayout.ComponentMask.Clear(componentId);
+        targetId = GetOrCreateArchetypeId(newMask);
+
+        // Cache bidirectional edges
+        var addKey = EdgeKey.ForAdd(targetId, componentId.Value);
+        _edges[removeKey] = targetId;
+        _edges[addKey] = sourceArchetypeId;
+
+        return targetId;
+    }
+
+    /// <summary>
+    /// Gets or creates a query ID for the given query description.
+    /// </summary>
+    /// <param name="description">The query description.</param>
+    /// <returns>The query ID for this description.</returns>
+    public int GetOrCreateQueryId(HashedKey<ImmutableQueryDescription<TBits>> description)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+
+        // Fast path: already exists
+        if (_queryDescToId.TryGetValue(description, out int existingId))
+        {
+            return existingId;
+        }
+
+        // Slow path: create new query ID
+        using var createScope = _createLock.EnterScope();
+
+        // Double-check after acquiring lock
+        if (_queryDescToId.TryGetValue(description, out existingId))
+        {
+            return existingId;
+        }
+
+        int newId = _queryDescriptions.Count;
+        _queryDescriptions.Add(description.Value);
+        _queryDescToId[description] = newId;
+
+        return newId;
+    }
+
+    /// <summary>
+    /// Gets the query description for the specified query ID.
+    /// </summary>
+    /// <param name="queryId">The query ID.</param>
+    /// <returns>A reference to the query description.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if the query ID is invalid.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref ImmutableQueryDescription<TBits> GetQueryDescription(int queryId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        return ref _queryDescriptions.GetRef(queryId);
+    }
+
+    /// <summary>
+    /// Tries to get an existing archetype ID for the given component mask.
+    /// </summary>
+    /// <param name="mask">The component mask.</param>
+    /// <param name="archetypeId">The archetype ID if found.</param>
+    /// <returns>True if the archetype exists.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetArchetypeId(HashedKey<ImmutableBitSet<TBits>> mask, out int archetypeId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        return _maskToArchetypeId.TryGetValue(mask, out archetypeId);
+    }
+
+    /// <summary>
+    /// Releases all resources used by this instance.
+    /// Note: The static <see cref="Shared"/> instance should typically not be disposed.
+    /// </summary>
+    public void Dispose()
+    {
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
+            return;
+
+        // Free all layouts
+        for (int i = 0; i < _layouts.Count; i++)
+        {
+            ImmutableArchetypeLayout<TBits, TRegistry>.Free(_allocator, _layouts[i]);
+        }
+    }
+}
