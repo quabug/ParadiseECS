@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
@@ -15,7 +16,7 @@ namespace Paradise.ECS;
 /// Uses atomic bitmap marking for high-performance concurrent commits without convoy effects.
 /// </remarks>
 /// <typeparam name="T">The element type.</typeparam>
-public sealed class ConcurrentAppendOnlyList<T>
+public sealed class ConcurrentAppendOnlyList<T> : IReadOnlyList<T>
 {
     private const int TargetChunkBytes = 16 * 1024; // 16KB target chunk size
     private const int MinChunkShift = 2;            // Minimum 4 elements per chunk
@@ -417,8 +418,70 @@ public sealed class ConcurrentAppendOnlyList<T>
         _chunkCount = chunkIndex + 1;
     }
 
+    /// <summary>
+    /// Returns an enumerator that iterates through the list.
+    /// </summary>
+    /// <returns>An enumerator for the list.</returns>
+    public Enumerator GetEnumerator() => new(this);
+
+    /// <inheritdoc />
+    IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetEnumerator();
+
+    /// <inheritdoc />
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowArgumentOutOfRange(int index, int count)
         => throw new ArgumentOutOfRangeException(nameof(index),
             $"Index {index} is out of range. Count: {count}");
+
+    /// <summary>
+    /// Enumerator for <see cref="ConcurrentAppendOnlyList{T}"/>.
+    /// </summary>
+    public struct Enumerator : IEnumerator<T>
+    {
+        private readonly ConcurrentAppendOnlyList<T> _list;
+        private readonly int _count;
+        private int _index;
+
+        internal Enumerator(ConcurrentAppendOnlyList<T> list)
+        {
+            _list = list;
+            _count = list._committedCount;
+            _index = -1;
+        }
+
+        /// <inheritdoc />
+        public readonly T Current
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var chunk = _list._chunks[_index >> _list._chunkShift];
+                return chunk[_index & _list._chunkMask];
+            }
+        }
+
+        /// <inheritdoc />
+        readonly object? IEnumerator.Current => Current;
+
+        /// <inheritdoc />
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool MoveNext()
+        {
+            int next = _index + 1;
+            if (next < _count)
+            {
+                _index = next;
+                return true;
+            }
+            return false;
+        }
+
+        /// <inheritdoc />
+        public void Reset() => _index = -1;
+
+        /// <inheritdoc />
+        public readonly void Dispose() { }
+    }
 }

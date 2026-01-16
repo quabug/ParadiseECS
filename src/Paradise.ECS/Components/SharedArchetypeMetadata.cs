@@ -24,8 +24,23 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     private readonly ConcurrentAppendOnlyList<nint/* ArchetypeLayout* */> _layouts = new();
     private readonly ConcurrentDictionary<EdgeKey, int> _edges = new();
     private readonly ConcurrentDictionary<HashedKey<ImmutableQueryDescription<TBits>>, int> _queryDescToId = new();
-    private readonly ConcurrentAppendOnlyList<ImmutableQueryDescription<TBits>> _queryDescriptions = new();
+    private readonly ConcurrentAppendOnlyList<QueryData> _queries = new();
     private readonly Lock _createLock = new();
+
+    /// <summary>
+    /// Holds query description and its matched archetype IDs together for cache locality.
+    /// </summary>
+    private readonly struct QueryData
+    {
+        public readonly ImmutableQueryDescription<TBits> Description;
+        public readonly ConcurrentAppendOnlyList<int> MatchedArchetypeIds;
+
+        public QueryData(ImmutableQueryDescription<TBits> description)
+        {
+            Description = description;
+            MatchedArchetypeIds = new ConcurrentAppendOnlyList<int>();
+        }
+    }
 
     private int _disposed;
 
@@ -37,7 +52,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// <summary>
     /// Gets the number of registered query descriptions.
     /// </summary>
-    public int QueryDescriptionCount => _queryDescriptions.Count;
+    public int QueryDescriptionCount => _queries.Count;
 
     /// <summary>
     /// Creates a new shared archetype metadata instance.
@@ -81,7 +96,29 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
             throw new InvalidOperationException($"Archetype count exceeded maximum of {EcsLimits.MaxArchetypeId}.");
         _maskToArchetypeId[mask] = newId;
 
+        // Notify all existing queries about the new archetype
+        NotifyQueriesOfNewArchetype(newId, mask.Value);
+
         return newId;
+    }
+
+    /// <summary>
+    /// Notifies all existing queries about a newly created archetype.
+    /// Adds the archetype ID to matching query lists.
+    /// </summary>
+    /// <param name="archetypeId">The new archetype ID.</param>
+    /// <param name="mask">The component mask of the new archetype.</param>
+    private void NotifyQueriesOfNewArchetype(int archetypeId, ImmutableBitSet<TBits> mask)
+    {
+        int queryCount = _queries.Count;
+        for (int i = 0; i < queryCount; i++)
+        {
+            ref readonly var query = ref _queries.GetRef(i);
+            if (query.Description.Matches(mask))
+            {
+                query.MatchedArchetypeIds.Add(archetypeId);
+            }
+        }
     }
 
     /// <summary>
@@ -200,11 +237,35 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
             return existingId;
         }
 
-        int newId = _queryDescriptions.Count;
-        _queryDescriptions.Add(description.Value);
+        // Create query data and populate matched archetypes with existing matches
+        var queryData = new QueryData(description.Value);
+        int archetypeCount = _layouts.Count;
+        for (int i = 0; i < archetypeCount; i++)
+        {
+            var layout = new ImmutableArchetypeLayout<TBits, TRegistry>(_layouts[i]);
+            if (description.Value.Matches(layout.ComponentMask))
+            {
+                queryData.MatchedArchetypeIds.Add(i);
+            }
+        }
+
+        int newId = _queries.Add(queryData);
         _queryDescToId[description] = newId;
 
         return newId;
+    }
+
+    /// <summary>
+    /// Gets the list of archetype IDs that match the specified query.
+    /// </summary>
+    /// <param name="queryId">The query ID.</param>
+    /// <returns>The list of matching archetype IDs.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if the query ID is invalid.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public IReadOnlyList<int> GetMatchedArchetypeIds(int queryId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        return _queries[queryId].MatchedArchetypeIds;
     }
 
     /// <summary>
@@ -214,10 +275,10 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// <returns>A reference to the query description.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the query ID is invalid.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref ImmutableQueryDescription<TBits> GetQueryDescription(int queryId)
+    public ref readonly ImmutableQueryDescription<TBits> GetQueryDescription(int queryId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        return ref _queryDescriptions.GetRef(queryId);
+        return ref _queries.GetRef(queryId).Description;
     }
 
     /// <summary>

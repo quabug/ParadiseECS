@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 namespace Paradise.ECS;
 
 /// <summary>
@@ -14,8 +12,8 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     where TRegistry : IComponentRegistry
 {
     private readonly SharedArchetypeMetadata<TBits, TRegistry> _sharedMetadata;
-    private readonly Dictionary<int, Archetype<TBits, TRegistry>> _archetypes = new();
-    private readonly ConcurrentDictionary<int, List<Archetype<TBits, TRegistry>>> _queryCache = new();
+    private readonly ConcurrentAppendOnlyList<Archetype<TBits, TRegistry>?> _archetypes = new();
+    private readonly ConcurrentAppendOnlyList<List<Archetype<TBits, TRegistry>>?> _queryCache = new();
     private readonly Lock _lock = new();
     private readonly ChunkManager _chunkManager;
     private readonly OperationGuard _operationGuard = new();
@@ -63,31 +61,43 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         int queryId = _sharedMetadata.GetOrCreateQueryId(description);
 
         // Fast path: query already exists in this world
-        if (_queryCache.TryGetValue(queryId, out var existingList))
+        if ((uint)queryId < (uint)_queryCache.Count && _queryCache[queryId] is { } existingList)
         {
             return new Query<TBits, TRegistry>(existingList);
         }
 
         using var lockScope = _lock.EnterScope();
 
+        // Grow list if needed by adding nulls
+        int requiredCount = queryId + 1;
+        int currentCount = _queryCache.Count;
+        if (currentCount < requiredCount)
+        {
+            int nullsToAdd = requiredCount - currentCount;
+            _queryCache.AddRange(new List<Archetype<TBits, TRegistry>>?[nullsToAdd]);
+        }
+
         // Double-check after acquiring lock
-        if (_queryCache.TryGetValue(queryId, out existingList))
+        ref var slot = ref _queryCache.GetRef(queryId);
+        if (slot is not null)
         {
-            return new Query<TBits, TRegistry>(existingList);
+            return new Query<TBits, TRegistry>(slot);
         }
 
-        // Create new list and populate with existing matching archetypes
-        var archetypes = new List<Archetype<TBits, TRegistry>>(32);
+        // Get matched archetype IDs from shared metadata and create local archetype instances
+        var matchedIds = _sharedMetadata.GetMatchedArchetypeIds(queryId);
+        int matchedCount = matchedIds.Count;
+        var archetypes = new List<Archetype<TBits, TRegistry>>(matchedCount);
 
-        foreach (var (_, archetype) in _archetypes)
+        for (int i = 0; i < matchedCount; i++)
         {
-            if (description.Value.Matches(archetype.Layout.ComponentMask))
-            {
-                archetypes.Add(archetype);
-            }
+            int archetypeId = matchedIds[i];
+            // GetOrCreateByIdNoLock will create the archetype if it doesn't exist locally
+            // Note: This won't cause recursion as NotifyQueries only updates existing query caches
+            archetypes.Add(GetOrCreateByIdNoLock(archetypeId));
         }
 
-        _queryCache[queryId] = archetypes;
+        slot = archetypes;
         return new Query<TBits, TRegistry>(archetypes);
     }
 
@@ -116,9 +126,14 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     {
         var mask = archetype.Layout.ComponentMask;
 
-        foreach (var (queryId, archetypes) in _queryCache)
+        int queryCount = _queryCache.Count;
+        for (int i = 0; i < queryCount; i++)
         {
-            var description = _sharedMetadata.GetQueryDescription(queryId);
+            var archetypes = _queryCache[i];
+            if (archetypes is null)
+                continue;
+
+            var description = _sharedMetadata.GetQueryDescription(i);
             if (description.Matches(mask))
             {
                 archetypes.Add(archetype);
@@ -135,9 +150,8 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = _operationGuard.EnterScope();
-        using var __ = _lock.EnterScope();
 
-        return _archetypes.TryGetValue(archetypeId, out var archetype) ? archetype : null;
+        return (uint)archetypeId < (uint)_archetypes.Count ? _archetypes[archetypeId] : null;
     }
 
     /// <summary>
@@ -150,10 +164,10 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = _operationGuard.EnterScope();
-        using var __ = _lock.EnterScope();
 
         if (_sharedMetadata.TryGetArchetypeId(mask, out int archetypeId) &&
-            _archetypes.TryGetValue(archetypeId, out var archetype))
+            (uint)archetypeId < (uint)_archetypes.Count &&
+            _archetypes[archetypeId] is { } archetype)
         {
             store = archetype;
             return true;
@@ -215,16 +229,36 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     private Archetype<TBits, TRegistry> GetOrCreateById(int archetypeId)
     {
         using var lockScope = _lock.EnterScope();
+        return GetOrCreateByIdNoLock(archetypeId);
+    }
+
+    /// <summary>
+    /// Gets or creates an archetype instance by its global ID without acquiring the lock.
+    /// Caller must hold the lock.
+    /// </summary>
+    /// <param name="archetypeId">The global archetype ID.</param>
+    /// <returns>The archetype instance for this world.</returns>
+    private Archetype<TBits, TRegistry> GetOrCreateByIdNoLock(int archetypeId)
+    {
+        // Grow list if needed by adding nulls
+        int requiredCount = archetypeId + 1;
+        int currentCount = _archetypes.Count;
+        if (currentCount < requiredCount)
+        {
+            int nullsToAdd = requiredCount - currentCount;
+            _archetypes.AddRange(new Archetype<TBits, TRegistry>?[nullsToAdd]);
+        }
 
         // Fast path: check if already exists in this world
-        if (_archetypes.TryGetValue(archetypeId, out var existing))
-            return existing;
+        ref var slot = ref _archetypes.GetRef(archetypeId);
+        if (slot is not null)
+            return slot;
 
         // Slow path: create new archetype instance for this world
         var layoutData = _sharedMetadata.GetLayoutData(archetypeId);
         var archetype = new Archetype<TBits, TRegistry>(archetypeId, layoutData, _chunkManager);
 
-        _archetypes[archetypeId] = archetype;
+        slot = archetype;
 
         // Notify all registered queries about the new archetype
         NotifyQueries(archetype);
@@ -244,10 +278,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         // Wait for all in-flight operations to complete
         _operationGuard.WaitForCompletion();
 
-        using var _ = _lock.EnterScope();
-
         // Note: We don't dispose layouts here since they are owned by SharedArchetypeMetadata
-        _archetypes.Clear();
-        _queryCache.Clear();
+        // ConcurrentAppendOnlyList doesn't need clearing - GC will handle the references
     }
 }
