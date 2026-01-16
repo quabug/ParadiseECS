@@ -49,7 +49,8 @@ public class QueryBenchmarks
     public void Setup()
     {
         _chunkManager = new ChunkManager(initialCapacity: 256);
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry>(_chunkManager);
+        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared, _chunkManager);
 
         // Create various archetypes
         var componentIds = new[] { Position.TypeId, Velocity.TypeId, Health.TypeId, Damage.TypeId, Armor.TypeId };

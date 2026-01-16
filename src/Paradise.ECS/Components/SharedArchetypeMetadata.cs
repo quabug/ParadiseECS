@@ -19,6 +19,13 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// </summary>
     public static SharedArchetypeMetadata<TBits, TRegistry> Shared { get; } = new();
 
+    /// <summary>
+    /// Thread-local temporary list for collecting matched query IDs during archetype operations.
+    /// Reused to avoid allocations on each operation.
+    /// </summary>
+    [ThreadStatic]
+    private static List<int>? s_tempMatchedQueries;
+
     private readonly IAllocator _allocator;
     private readonly ConcurrentDictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
     private readonly ConcurrentAppendOnlyList<nint/* ArchetypeLayout* */> _layouts = new();
@@ -71,11 +78,28 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// <returns>The archetype ID for this mask.</returns>
     public int GetOrCreateArchetypeId(HashedKey<ImmutableBitSet<TBits>> mask)
     {
+        var tempList = s_tempMatchedQueries ??= new List<int>();
+        tempList.Clear();
+        return GetOrCreateArchetypeId(mask, tempList);
+    }
+
+    /// <summary>
+    /// Gets or creates an archetype ID for the given component mask.
+    /// Also creates and stores the layout for the archetype.
+    /// Outputs the IDs of queries that match this archetype.
+    /// </summary>
+    /// <typeparam name="T">A list type to collect the matching query IDs.</typeparam>
+    /// <param name="mask">The component mask defining the archetype.</param>
+    /// <param name="matchedQueries">The list to add matching query IDs to.</param>
+    /// <returns>The archetype ID for this mask.</returns>
+    public int GetOrCreateArchetypeId<T>(HashedKey<ImmutableBitSet<TBits>> mask, T matchedQueries) where T : IList<int>
+    {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         // Fast path: already exists
         if (_maskToArchetypeId.TryGetValue(mask, out int existingId))
         {
+            GetMatchedQueryIds(mask.Value, matchedQueries);
             return existingId;
         }
 
@@ -87,6 +111,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         // Double-check after acquiring lock
         if (_maskToArchetypeId.TryGetValue(mask, out existingId))
         {
+            GetMatchedQueryIds(mask.Value, matchedQueries);
             return existingId;
         }
 
@@ -97,7 +122,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         _maskToArchetypeId[mask] = newId;
 
         // Notify all existing queries about the new archetype
-        NotifyQueriesOfNewArchetype(newId, mask.Value);
+        NotifyQueriesOfNewArchetype(newId, mask.Value, matchedQueries);
 
         return newId;
     }
@@ -106,9 +131,11 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// Notifies all existing queries about a newly created archetype.
     /// Adds the archetype ID to matching query lists.
     /// </summary>
+    /// <typeparam name="T">A list type to collect the matching query IDs.</typeparam>
     /// <param name="archetypeId">The new archetype ID.</param>
     /// <param name="mask">The component mask of the new archetype.</param>
-    private void NotifyQueriesOfNewArchetype(int archetypeId, ImmutableBitSet<TBits> mask)
+    /// <param name="matchedQueries">The list to add matching query IDs to.</param>
+    private void NotifyQueriesOfNewArchetype<T>(int archetypeId, ImmutableBitSet<TBits> mask, T matchedQueries) where T : IList<int>
     {
         int queryCount = _queries.Count;
         for (int i = 0; i < queryCount; i++)
@@ -116,7 +143,29 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
             ref readonly var query = ref _queries.GetRef(i);
             if (query.Description.Matches(mask))
             {
+                matchedQueries.Add(i);
                 query.MatchedArchetypeIds.Add(archetypeId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the IDs of all queries that match the given component mask.
+    /// </summary>
+    /// <typeparam name="T">A list type to collect the matching query IDs.</typeparam>
+    /// <param name="mask">The component mask to match against.</param>
+    /// <param name="result">The list to add matching query IDs to.</param>
+    public void GetMatchedQueryIds<T>(ImmutableBitSet<TBits> mask, T result) where T : IList<int>
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+
+        int queryCount = _queries.Count;
+        for (int i = 0; i < queryCount; i++)
+        {
+            ref readonly var query = ref _queries.GetRef(i);
+            if (query.Description.Matches(mask))
+            {
+                result.Add(i);
             }
         }
     }
@@ -156,6 +205,22 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// <returns>The target archetype ID with the component added.</returns>
     public int GetOrCreateWithAdd(int sourceArchetypeId, ComponentId componentId)
     {
+        var tempList = s_tempMatchedQueries ??= new List<int>();
+        tempList.Clear();
+        return GetOrCreateWithAdd(sourceArchetypeId, componentId, tempList);
+    }
+
+    /// <summary>
+    /// Gets the archetype ID resulting from adding a component to a source archetype.
+    /// Uses cached graph edges for O(1) lookup on subsequent calls.
+    /// </summary>
+    /// <typeparam name="T">A list type to collect the matching query IDs.</typeparam>
+    /// <param name="sourceArchetypeId">The source archetype ID.</param>
+    /// <param name="componentId">The component to add.</param>
+    /// <param name="matchedQueries">The list to add matching query IDs to.</param>
+    /// <returns>The target archetype ID with the component added.</returns>
+    public int GetOrCreateWithAdd<T>(int sourceArchetypeId, ComponentId componentId, T matchedQueries) where T : IList<int>
+    {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         var addKey = EdgeKey.ForAdd(sourceArchetypeId, componentId.Value);
@@ -163,6 +228,8 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         // Fast path: edge already exists
         if (_edges.TryGetValue(addKey, out int targetId))
         {
+            var targetLayout = GetLayout(targetId);
+            GetMatchedQueryIds(targetLayout.ComponentMask, matchedQueries);
             return targetId;
         }
 
@@ -170,7 +237,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         var sourceLayout = GetLayout(sourceArchetypeId);
         // TODO: Use incremental hash computation instead of recomputing from scratch (#14)
         var newMask = (HashedKey<ImmutableBitSet<TBits>>)sourceLayout.ComponentMask.Set(componentId);
-        targetId = GetOrCreateArchetypeId(newMask);
+        targetId = GetOrCreateArchetypeId(newMask, matchedQueries);
 
         // Cache bidirectional edges
         var removeKey = EdgeKey.ForRemove(targetId, componentId.Value);
@@ -189,6 +256,22 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// <returns>The target archetype ID with the component removed.</returns>
     public int GetOrCreateWithRemove(int sourceArchetypeId, ComponentId componentId)
     {
+        var tempList = s_tempMatchedQueries ??= new List<int>();
+        tempList.Clear();
+        return GetOrCreateWithRemove(sourceArchetypeId, componentId, tempList);
+    }
+
+    /// <summary>
+    /// Gets the archetype ID resulting from removing a component from a source archetype.
+    /// Uses cached graph edges for O(1) lookup on subsequent calls.
+    /// </summary>
+    /// <typeparam name="T">A list type to collect the matching query IDs.</typeparam>
+    /// <param name="sourceArchetypeId">The source archetype ID.</param>
+    /// <param name="componentId">The component to remove.</param>
+    /// <param name="matchedQueries">The list to add matching query IDs to.</param>
+    /// <returns>The target archetype ID with the component removed.</returns>
+    public int GetOrCreateWithRemove<T>(int sourceArchetypeId, ComponentId componentId, T matchedQueries) where T : IList<int>
+    {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         var removeKey = EdgeKey.ForRemove(sourceArchetypeId, componentId.Value);
@@ -196,6 +279,8 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         // Fast path: edge already exists
         if (_edges.TryGetValue(removeKey, out int targetId))
         {
+            var targetLayout = GetLayout(targetId);
+            GetMatchedQueryIds(targetLayout.ComponentMask, matchedQueries);
             return targetId;
         }
 
@@ -203,7 +288,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         var sourceLayout = GetLayout(sourceArchetypeId);
         // TODO: Use incremental hash computation instead of recomputing from scratch (#14)
         var newMask = (HashedKey<ImmutableBitSet<TBits>>)sourceLayout.ComponentMask.Clear(componentId);
-        targetId = GetOrCreateArchetypeId(newMask);
+        targetId = GetOrCreateArchetypeId(newMask, matchedQueries);
 
         // Cache bidirectional edges
         var addKey = EdgeKey.ForAdd(targetId, componentId.Value);

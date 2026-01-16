@@ -12,6 +12,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
 {
     private const int DefaultEntityCapacity = 1024;
 
+    private readonly SharedArchetypeMetadata<TBits, TRegistry> _sharedMetadata;
     private readonly ChunkManager _chunkManager;
     private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
     private readonly EntityManager _entityManager;
@@ -20,6 +21,11 @@ public sealed class World<TBits, TRegistry> : IDisposable
     private readonly OperationGuard _operationGuard = new();
     private EntityLocation[] _entityLocations;
     private int _disposed;
+
+    /// <summary>
+    /// Gets the shared archetype metadata used by this world.
+    /// </summary>
+    public SharedArchetypeMetadata<TBits, TRegistry> SharedMetadata => _sharedMetadata;
 
     /// <summary>
     /// Gets the chunk manager for memory allocation.
@@ -37,37 +43,26 @@ public sealed class World<TBits, TRegistry> : IDisposable
     public int EntityCount => _entityManager.AliveCount;
 
     /// <summary>
-    /// Creates a new ECS world with a new ChunkManager.
+    /// Creates a new ECS world using the specified shared archetype metadata.
+    /// The caller is responsible for disposing the shared metadata and chunk manager.
     /// </summary>
-    /// <param name="initialEntityCapacity">Initial capacity for entity storage.</param>
-    public World(int initialEntityCapacity = DefaultEntityCapacity)
-        : this(new ChunkManager(), initialEntityCapacity, ownsChunkManager: true)
-    {
-    }
-
-    /// <summary>
-    /// Creates a new ECS world using an existing ChunkManager.
-    /// </summary>
+    /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
     /// <param name="initialEntityCapacity">Initial capacity for entity storage.</param>
-    public World(ChunkManager chunkManager, int initialEntityCapacity = DefaultEntityCapacity)
-        : this(chunkManager, initialEntityCapacity, ownsChunkManager: false)
+    public World(SharedArchetypeMetadata<TBits, TRegistry> sharedMetadata,
+                 ChunkManager chunkManager,
+                 int initialEntityCapacity = DefaultEntityCapacity)
     {
-    }
-
-    private World(ChunkManager chunkManager, int initialEntityCapacity, bool ownsChunkManager)
-    {
+        ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(initialEntityCapacity, 0);
 
+        _sharedMetadata = sharedMetadata;
         _chunkManager = chunkManager;
-        _ownsChunkManager = ownsChunkManager;
-        _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry>(chunkManager);
+        _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry>(sharedMetadata, chunkManager);
         _entityManager = new EntityManager(initialEntityCapacity);
         _entityLocations = new EntityLocation[initialEntityCapacity];
     }
-
-    private readonly bool _ownsChunkManager;
 
     /// <summary>
     /// Creates a new entity with no components.
@@ -643,9 +638,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
 
         _archetypeRegistry.Dispose();
         _entityManager.Dispose();
-
-        if (_ownsChunkManager)
-            _chunkManager.Dispose();
 
         _entityLocations = [];
     }
