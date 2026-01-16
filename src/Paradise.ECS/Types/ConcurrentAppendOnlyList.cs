@@ -241,6 +241,23 @@ public sealed class ConcurrentAppendOnlyList<T>
     }
 
     /// <summary>
+    /// Gets a reference to the element at the specified index.
+    /// </summary>
+    /// <param name="index">The zero-based index of the element to get.</param>
+    /// <returns>A reference to the value at the specified index.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if index is out of range.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRef(int index)
+    {
+        int count = _committedCount;
+        if ((uint)index >= (uint)count)
+            ThrowArgumentOutOfRange(index, count);
+
+        var chunk = _chunks[index >> _chunkShift];
+        return ref chunk[index & _chunkMask];
+    }
+
+    /// <summary>
     /// Ensures the chunk at the given index exists.
     /// Lock-free when chunk already exists; acquires lock only for allocation.
     /// </summary>

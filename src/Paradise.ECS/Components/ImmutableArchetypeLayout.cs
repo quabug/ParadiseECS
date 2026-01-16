@@ -47,15 +47,16 @@ public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
 ///        |----400B-----|---1200B----|---1200B-----|---800B---|
 /// </code>
 /// Entity IDs (4 bytes each) are stored at the beginning of each chunk.
-/// Each ArchetypeLayout owns its own native memory block containing:
+/// Memory is allocated as a single block containing:
 /// <code>
-/// [ArchetypeLayoutHeader&lt;TBits&gt;][BaseOffsets (short[])]
+/// [ImmutableArchetypeLayout struct][ArchetypeLayoutHeader&lt;TBits&gt;][BaseOffsets (short[])]
 /// </code>
 /// BaseOffsets uses short (2 bytes) indexed by (componentId - minComponentId).
 /// -1 indicates component not present; valid offsets are 0 to 32767.
 /// Component sizes are looked up from TRegistry.TypeInfos.
+/// Use <see cref="Create"/> to allocate and <see cref="Free"/> to deallocate.
 /// </remarks>
-public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposable
+public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
@@ -65,8 +66,17 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     /// </summary>
     public const int EntityIdSize = sizeof(int);
 
-    private readonly IAllocator _allocator;
-    private byte* _data;
+    private readonly byte* _data;
+
+    /// <summary>
+    /// Creates an archetype layout view from a data pointer.
+    /// </summary>
+    /// <param name="data">Pointer to the layout data allocated by <see cref="Create"/>.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ImmutableArchetypeLayout(nint data)
+    {
+        _data = (byte*)data;
+    }
 
     /// <summary>
     /// Gets the maximum number of entities that fit in a single chunk.
@@ -74,11 +84,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     public int EntitiesPerChunk
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get
-        {
-            ThrowIfDisposed();
-            return Header.EntitiesPerChunk;
-        }
+        get => Header.EntitiesPerChunk;
     }
 
     /// <summary>
@@ -87,11 +93,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     public int ComponentCount
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get
-        {
-            ThrowIfDisposed();
-            return Header.ComponentCount;
-        }
+        get => Header.ComponentCount;
     }
 
     /// <summary>
@@ -100,11 +102,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     public int MinComponentId
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get
-        {
-            ThrowIfDisposed();
-            return Header.MinComponentId;
-        }
+        get => Header.MinComponentId;
     }
 
     /// <summary>
@@ -113,11 +111,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     public int MaxComponentId
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get
-        {
-            ThrowIfDisposed();
-            return Header.MaxComponentId;
-        }
+        get => Header.MaxComponentId;
     }
 
     /// <summary>
@@ -126,11 +120,7 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     public ImmutableBitSet<TBits> ComponentMask
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get
-        {
-            ThrowIfDisposed();
-            return Header.ComponentMask;
-        }
+        get => Header.ComponentMask;
     }
 
     private ref ArchetypeLayoutHeader<TBits> Header
@@ -143,12 +133,13 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     /// Creates a new archetype layout from a component mask.
     /// Component type information is obtained from <typeparamref name="TRegistry"/>.TypeInfos.
     /// </summary>
+    /// <param name="allocator">The memory allocator to use.</param>
     /// <param name="componentMask">The component mask defining which components are in this archetype.</param>
-    /// <param name="allocator">The memory allocator to use. If null, uses <see cref="NativeMemoryAllocator.Shared"/>.</param>
-    public ImmutableArchetypeLayout(ImmutableBitSet<TBits> componentMask, IAllocator? allocator = null)
+    /// <returns>A pointer to the allocated data (as nint). Use <see cref="Free"/> to deallocate.</returns>
+    public static nint Create(
+        IAllocator allocator,
+        ImmutableBitSet<TBits> componentMask)
     {
-        _allocator = allocator ?? NativeMemoryAllocator.Shared;
-
         // Calculate min/max component ID range using FirstSetBit/LastSetBit
         int minId = componentMask.FirstSetBit();
         int maxId = componentMask.LastSetBit();
@@ -167,10 +158,10 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
         int baseOffsetsOffset = Memory.AlignUp(ArchetypeLayoutHeader<TBits>.SizeInBytes, sizeof(ushort));
         int totalBytes = baseOffsetsOffset + componentSlots * sizeof(ushort);
 
-        _data = (byte*)_allocator.Allocate((nuint)totalBytes);
+        byte* data = (byte*)allocator.Allocate((nuint)totalBytes);
 
         // Initialize header
-        ref var header = ref Header;
+        ref var header = ref Unsafe.AsRef<ArchetypeLayoutHeader<TBits>>(data);
         header.ComponentCount = componentCount;
         header.MinComponentId = minId;
         header.MaxComponentId = maxId;
@@ -178,18 +169,21 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
         header.ComponentMask = componentMask;
 
         // Initialize baseOffsets to -1 (0xFFFF in two's complement, so InitBlock with 0xFF works)
-        short* baseOffsets = (short*)(_data + baseOffsetsOffset);
+        short* baseOffsets = (short*)(data + baseOffsetsOffset);
         Unsafe.InitBlock(baseOffsets, 0xFF, (uint)(componentSlots * sizeof(short)));
 
-        InitializeLayout(componentMask);
+        InitializeLayout(data, componentMask);
+        return (nint)data;
     }
 
-    private void InitializeLayout(ImmutableBitSet<TBits> componentMask)
+    private static void InitializeLayout(
+        byte* data,
+        ImmutableBitSet<TBits> componentMask)
     {
-        ref var header = ref Header;
+        ref var header = ref Unsafe.AsRef<ArchetypeLayoutHeader<TBits>>(data);
         int minId = header.MinComponentId;
         int componentSlots = header.MaxComponentId - minId + 1;
-        var baseOffsets = new Span<short>((short*)(_data + header.BaseOffsetsOffset), componentSlots);
+        var baseOffsets = new Span<short>((short*)(data + header.BaseOffsetsOffset), componentSlots);
 
         // Empty archetype still needs entity ID storage
         if (componentMask.IsEmpty)
@@ -282,7 +276,6 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int GetBaseOffset(ComponentId componentId)
     {
-        ThrowIfDisposed();
         int id = componentId.Value;
         ref var header = ref Header;
         if (id < header.MinComponentId || id > header.MaxComponentId)
@@ -401,21 +394,16 @@ public sealed unsafe class ImmutableArchetypeLayout<TBits, TRegistry> : IDisposa
         return entityIndex * EntityIdSize;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ThrowIfDisposed()
-    {
-        ObjectDisposedException.ThrowIf(_data == null, this);
-    }
-
     /// <summary>
-    /// Releases the native memory.
+    /// Frees the memory allocated for an archetype layout.
     /// </summary>
-    public void Dispose()
+    /// <param name="allocator">The allocator that was used to create the layout.</param>
+    /// <param name="data">The data pointer returned by <see cref="Create"/>.</param>
+    public static void Free(IAllocator allocator, nint data)
     {
-        if (_data != null)
+        if (data != 0)
         {
-            _allocator.Free(_data);
-            _data = null;
+            allocator.Free((void*)data);
         }
     }
 }
