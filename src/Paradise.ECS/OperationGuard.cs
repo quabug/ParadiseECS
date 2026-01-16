@@ -32,6 +32,24 @@ internal sealed class OperationGuard
     }
 
     /// <summary>
+    /// Waits for all in-flight operations to complete with a timeout.
+    /// </summary>
+    /// <param name="timeout">Maximum time to wait.</param>
+    /// <returns><c>true</c> if all operations completed; <c>false</c> if the timeout expired.</returns>
+    public bool WaitForCompletion(TimeSpan timeout)
+    {
+        var startTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        var spinWait = new SpinWait();
+        while (Volatile.Read(ref _counter) > 0)
+        {
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp) >= timeout)
+                return false;
+            spinWait.SpinOnce();
+        }
+        return true;
+    }
+
+    /// <summary>
     /// RAII scope that decrements the operation counter when disposed.
     /// </summary>
     public ref struct Scope : IDisposable
