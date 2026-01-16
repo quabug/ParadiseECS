@@ -1,6 +1,6 @@
 # Paradise.ECS Roadmap
 
-> Last updated: 2026-01-15 (updated)
+> Last updated: 2026-01-17
 
 ## Vision
 
@@ -77,6 +77,12 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Enable multiple worlds to share archetype metadata
   - Reduce memory overhead for multi-world scenarios
 
+- [ ] **Extensible Metadata Interface**
+  - Define interface for world/archetype metadata (e.g., `IWorldMetadata`)
+  - Allow custom implementations beyond the default `SharedArchetypeMetadata`
+  - Enable extension points for custom caching strategies, persistence, or debugging hooks
+  - Support composition of metadata providers for modular functionality
+
 - [ ] **Static World Configuration**
   - Define interface-based configuration for world/archetype settings
   - Configurable chunk size (default 16KB)
@@ -90,11 +96,19 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Zero-allocation iteration patterns via generated code
   - Compile-time query validation
 
-- [ ] **World Clone & Readonly World**
+- [ ] **Specialized World Types**
+  - `SingleThreadWorld` - Optimized for single-threaded scenarios, minimal locking overhead
+  - `JobsWorld` - Multi-threaded world with job system integration, parallel query iteration
+  - `ReadOnlyWorld` - Immutable view for safe concurrent reads, snapshot queries
+  - `ReplayWorld` - Recording and playback of world state for debugging/networking
+  - Common interface (`IWorld`) with usage-specific implementations
+  - Compile-time world type selection for optimal performance
+
+- [ ] **World Clone & Snapshots**
   - World cloning for snapshot/rollback scenarios
-  - Readonly world view for safe concurrent reads
   - Copy-on-write semantics for efficient cloning
   - Support for game state serialization and networking
+  - Integration with ReadOnlyWorld for snapshot queries
 
 - [ ] **Performance Optimizations**
   - GetChunkIndex linear scan optimization ([#17](https://github.com/quabug/ParadiseECS/issues/17))
@@ -153,6 +167,12 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Regression detection
   - Comparison with other ECS libraries
 
+- [ ] **Object Pool**
+  - Generic object pooling for frequently allocated objects
+  - Thread-safe pool implementation for concurrent access
+  - Integration with ECS systems for reusable component data
+  - Configurable pool sizes and growth strategies
+
 ---
 
 ## Open Issues Summary
@@ -192,10 +212,11 @@ None currently tracked. Codebase is clean with zero TODO/FIXME markers.
 1. **Shared Archetype Infrastructure** - Enables multi-world scenarios with shared metadata
 2. **Static World Configuration** - Provides compile-time configurable ECS parameters
 3. **Queryable Archetype/Query Source Generator** - Enables type-safe, zero-allocation query patterns
-4. **World Clone & Readonly World** - Enables snapshots, rollback, and safe concurrent reads
-5. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
-6. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
-7. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
+4. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
+5. **World Clone & Snapshots** - Enables snapshots, rollback, and safe concurrent reads
+6. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
+7. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
+8. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
 
 ### Recent Activity
 

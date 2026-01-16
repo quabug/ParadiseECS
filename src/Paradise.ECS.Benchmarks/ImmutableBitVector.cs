@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 
-namespace Paradise.ECS.Benchmarks;
+namespace Paradise.ECS.Concurrent.Benchmarks;
 
 /// <summary>
 /// A SIMD-optimized immutable bit vector for benchmarking comparison.

@@ -3,7 +3,7 @@ using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Toolchains.NativeAot;
 
-namespace Paradise.ECS.Benchmarks;
+namespace Paradise.ECS.Concurrent.Benchmarks;
 
 /// <summary>
 /// Configuration for running benchmarks with NativeAOT toolchain.

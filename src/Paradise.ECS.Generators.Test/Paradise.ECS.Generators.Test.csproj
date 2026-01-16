@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>Paradise.ECS.Generators.Test</RootNamespace>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
@@ -20,7 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Paradise.ECS.Generators\Paradise.ECS.Generators.csproj" />
-    <ProjectReference Include="..\Paradise.ECS\Paradise.ECS.csproj" />
+    <ProjectReference Include="..\Paradise.ECS.Concurrent\Paradise.ECS.Concurrent.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 using System.Collections.Frozen;
 using BenchmarkDotNet.Attributes;
 
-namespace Paradise.ECS.Benchmarks;
+namespace Paradise.ECS.Concurrent.Benchmarks;
 
 /// <summary>
 /// Benchmarks comparing HashedKey cached hash vs direct GetHashCode calls.

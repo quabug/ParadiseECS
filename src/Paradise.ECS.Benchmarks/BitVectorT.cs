@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Paradise.ECS.Benchmarks;
+namespace Paradise.ECS.Concurrent.Benchmarks;
 
 /// <summary>
 /// A mutable SIMD-optimized bit vector using platform-agnostic Vector&lt;T&gt;.
