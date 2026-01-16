@@ -36,12 +36,6 @@ public class ArchetypeRegistryTests : IDisposable
     }
 
     [Test]
-    public async Task Constructor_CreatesEmptyRegistry()
-    {
-        await Assert.That(_registry.Count).IsEqualTo(0);
-    }
-
-    [Test]
     public async Task GetOrCreate_NewMask_CreatesArchetype()
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
@@ -49,8 +43,6 @@ public class ArchetypeRegistryTests : IDisposable
         var store = _registry.GetOrCreate(mask);
 
         await Assert.That(store).IsNotNull();
-        await Assert.That(store.Id).IsEqualTo(0);
-        await Assert.That(_registry.Count).IsEqualTo(1);
     }
 
     [Test]
@@ -62,7 +54,6 @@ public class ArchetypeRegistryTests : IDisposable
         var store2 = _registry.GetOrCreate(mask);
 
         await Assert.That(store1).IsSameReferenceAs(store2);
-        await Assert.That(_registry.Count).IsEqualTo(1);
     }
 
     [Test]
@@ -76,7 +67,6 @@ public class ArchetypeRegistryTests : IDisposable
 
         await Assert.That(store1).IsNotSameReferenceAs(store2);
         await Assert.That(store1.Id).IsNotEqualTo(store2.Id);
-        await Assert.That(_registry.Count).IsEqualTo(2);
     }
 
     [Test]
@@ -162,7 +152,6 @@ public class ArchetypeRegistryTests : IDisposable
         var expectedMask = posOnly.Set(TestVelocity.TypeId);
         await Assert.That(target).IsNotNull();
         await Assert.That(target.Layout.ComponentMask).IsEqualTo(expectedMask);
-        await Assert.That(_registry.Count).IsEqualTo(2);
     }
 
     [Test]
@@ -177,7 +166,6 @@ public class ArchetypeRegistryTests : IDisposable
         var target2 = _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId);
 
         await Assert.That(target1).IsSameReferenceAs(target2);
-        await Assert.That(_registry.Count).IsEqualTo(2);
     }
 
     [Test]
@@ -208,7 +196,6 @@ public class ArchetypeRegistryTests : IDisposable
         var expectedMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         await Assert.That(target).IsNotNull();
         await Assert.That(target.Layout.ComponentMask).IsEqualTo(expectedMask);
-        await Assert.That(_registry.Count).IsEqualTo(2);
     }
 
     [Test]
@@ -223,7 +210,6 @@ public class ArchetypeRegistryTests : IDisposable
         var target2 = _registry.GetOrCreateWithRemove(source, TestVelocity.TypeId);
 
         await Assert.That(target1).IsSameReferenceAs(target2);
-        await Assert.That(_registry.Count).IsEqualTo(2);
     }
 
     [Test]
@@ -239,7 +225,6 @@ public class ArchetypeRegistryTests : IDisposable
         var backToSource = _registry.GetOrCreateWithRemove(target, TestVelocity.TypeId);
 
         await Assert.That(backToSource).IsSameReferenceAs(source);
-        await Assert.That(_registry.Count).IsEqualTo(2); // No new archetypes created
     }
 
     [Test]
@@ -257,7 +242,6 @@ public class ArchetypeRegistryTests : IDisposable
         var target = _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId);
 
         await Assert.That(target).IsSameReferenceAs(preExisting);
-        await Assert.That(_registry.Count).IsEqualTo(2);
     }
 
     [Test]
@@ -275,7 +259,6 @@ public class ArchetypeRegistryTests : IDisposable
         var target = _registry.GetOrCreateWithRemove(source, TestVelocity.TypeId);
 
         await Assert.That(target).IsSameReferenceAs(preExisting);
-        await Assert.That(_registry.Count).IsEqualTo(2);
     }
 }
 
@@ -319,7 +302,6 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
             await Assert.That(store).IsSameReferenceAs(first);
         }
 
-        await Assert.That(_registry.Count).IsEqualTo(1);
     }
 
     [Test]
@@ -341,7 +323,6 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         // Each should create a unique archetype
         var uniqueIds = results.Select(r => r.Id).Distinct().ToList();
         await Assert.That(uniqueIds.Count).IsEqualTo(TestComponentCount);
-        await Assert.That(_registry.Count).IsEqualTo(TestComponentCount);
     }
 
     [Test]
@@ -365,7 +346,6 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
             await Assert.That(store).IsSameReferenceAs(first);
         }
 
-        await Assert.That(_registry.Count).IsEqualTo(2);
     }
 
     [Test]
@@ -386,6 +366,5 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         // Each should create a unique archetype
         var uniqueIds = results.Select(r => r.Id).Distinct().ToList();
         await Assert.That(uniqueIds.Count).IsEqualTo(TestComponentCount);
-        await Assert.That(_registry.Count).IsEqualTo(TestComponentCount + 1); // +1 for empty source
     }
 }

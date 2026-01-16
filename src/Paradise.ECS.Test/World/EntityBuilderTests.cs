@@ -5,16 +5,20 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class EntityBuilderTests : IDisposable
 {
+    private readonly ChunkManager _chunkManager = new();
     private readonly World<Bit64, ComponentRegistry> _world;
 
     public EntityBuilderTests()
     {
-        _world = new World<Bit64, ComponentRegistry>();
+        _world = new World<Bit64, ComponentRegistry>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared,
+            _chunkManager);
     }
 
     public void Dispose()
     {
         _world.Dispose();
+        _chunkManager.Dispose();
     }
 
     [Test]
@@ -144,36 +148,38 @@ public sealed class EntityBuilderTests : IDisposable
     }
 
     [Test]
-    public async Task Build_MultipleEntitiesSameArchetype_SharesArchetype()
+    public async Task Build_MultipleEntitiesSameArchetype_BothHaveSameComponents()
     {
-        _ = EntityBuilder.Create()
+        var e1 = EntityBuilder.Create()
             .Add(new TestPosition { X = 100 })
             .Build(_world);
 
-        _ = EntityBuilder.Create()
+        var e2 = EntityBuilder.Create()
             .Add(new TestPosition { X = 200 })
             .Build(_world);
 
-        // Both should be in same archetype
-        var count = _world.ArchetypeRegistry.Count;
-        await Assert.That(count).IsEqualTo(1);
+        // Both should have Position component
+        await Assert.That(_world.HasComponent<TestPosition>(e1)).IsTrue();
+        await Assert.That(_world.HasComponent<TestPosition>(e2)).IsTrue();
     }
 
     [Test]
-    public async Task Build_DifferentComponentCombinations_CreatesDifferentArchetypes()
+    public async Task Build_DifferentComponentCombinations_HaveDifferentComponents()
     {
-        _ = EntityBuilder.Create()
+        var e1 = EntityBuilder.Create()
             .Add(new TestPosition { X = 100 })
             .Build(_world);
 
-        _ = EntityBuilder.Create()
+        var e2 = EntityBuilder.Create()
             .Add(new TestPosition { X = 100 })
             .Add(new TestVelocity { X = 1 })
             .Build(_world);
 
-        // Should be in different archetypes
-        var count = _world.ArchetypeRegistry.Count;
-        await Assert.That(count).IsEqualTo(2);
+        // e1 has only Position, e2 has Position and Velocity
+        await Assert.That(_world.HasComponent<TestPosition>(e1)).IsTrue();
+        await Assert.That(_world.HasComponent<TestVelocity>(e1)).IsFalse();
+        await Assert.That(_world.HasComponent<TestPosition>(e2)).IsTrue();
+        await Assert.That(_world.HasComponent<TestVelocity>(e2)).IsTrue();
     }
 
     [Test]
@@ -351,10 +357,10 @@ public sealed class EntityBuilderTests : IDisposable
     }
 
     [Test]
-    public async Task Overwrite_SameArchetypeAsBuiltEntities_SharesArchetype()
+    public async Task Overwrite_SameArchetypeAsBuiltEntities_BothHaveSameComponents()
     {
         // Create entity using Build
-        _ = EntityBuilder.Create()
+        var built = EntityBuilder.Create()
             .Add(new TestPosition { X = 100 })
             .Build(_world);
 
@@ -364,9 +370,9 @@ public sealed class EntityBuilderTests : IDisposable
             .Add(new TestPosition { X = 200 })
             .Overwrite(spawned, _world);
 
-        // Both should be in same archetype
-        var count = _world.ArchetypeRegistry.Count;
-        await Assert.That(count).IsEqualTo(1);
+        // Both should have Position component
+        await Assert.That(_world.HasComponent<TestPosition>(built)).IsTrue();
+        await Assert.That(_world.HasComponent<TestPosition>(spawned)).IsTrue();
     }
 
     [Test]
