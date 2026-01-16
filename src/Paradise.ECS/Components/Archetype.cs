@@ -16,7 +16,7 @@ public sealed class Archetype<TBits, TRegistry>
 {
     private const int InitialChunkCapacity = 4;
 
-    private readonly ImmutableArchetypeLayout<TBits, TRegistry> _layout;
+    private readonly nint _layoutData;
     private readonly ChunkManager _chunkManager;
     private readonly Lock _lock = new();
     private ChunkHandle[] _chunks = new ChunkHandle[InitialChunkCapacity];
@@ -31,7 +31,7 @@ public sealed class Archetype<TBits, TRegistry>
     /// <summary>
     /// Gets the layout describing component offsets within this archetype.
     /// </summary>
-    public ImmutableArchetypeLayout<TBits, TRegistry> Layout => _layout;
+    public ImmutableArchetypeLayout<TBits, TRegistry> Layout => new(_layoutData);
 
     /// <summary>
     /// Gets the current number of entities in this archetype.
@@ -47,15 +47,14 @@ public sealed class Archetype<TBits, TRegistry>
     /// Creates a new archetype store.
     /// </summary>
     /// <param name="id">The unique archetype ID.</param>
-    /// <param name="layout">The component layout for this archetype.</param>
+    /// <param name="layoutData">The layout data pointer (as nint) for this archetype.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public Archetype(int id, ImmutableArchetypeLayout<TBits, TRegistry> layout, ChunkManager chunkManager)
+    public Archetype(int id, nint layoutData, ChunkManager chunkManager)
     {
-        ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(chunkManager);
 
         Id = id;
-        _layout = layout;
+        _layoutData = layoutData;
         _chunkManager = chunkManager;
     }
 
@@ -71,7 +70,7 @@ public sealed class Archetype<TBits, TRegistry>
         using var _ = _lock.EnterScope();
 
         // Find a chunk with space or allocate a new one
-        int entitiesPerChunk = _layout.EntitiesPerChunk;
+        int entitiesPerChunk = Layout.EntitiesPerChunk;
         int chunkCount = _chunkCount;
         int totalSlots = chunkCount * entitiesPerChunk;
         int currentCount = _entityCount;
@@ -127,7 +126,7 @@ public sealed class Archetype<TBits, TRegistry>
         Volatile.Write(ref _entityCount, lastIndex);
 
         // Swap-remove: copy last entity's data to the removed slot
-        int entitiesPerChunk = _layout.EntitiesPerChunk;
+        int entitiesPerChunk = Layout.EntitiesPerChunk;
 
         int srcChunkIdx = lastIndex / entitiesPerChunk;
         int srcIndexInChunk = lastIndex % entitiesPerChunk;
@@ -161,12 +160,12 @@ public sealed class Archetype<TBits, TRegistry>
         srcEntityIdData.CopyTo(dstEntityIdData);
 
         // Iterate from min to max component ID in this archetype's layout
-        int minId = _layout.MinComponentId;
-        int maxId = _layout.MaxComponentId;
+        int minId = Layout.MinComponentId;
+        int maxId = Layout.MaxComponentId;
         for (int id = minId; id <= maxId; id++)
         {
             var componentId = new ComponentId(id);
-            int baseOffset = _layout.GetBaseOffset(componentId);
+            int baseOffset = Layout.GetBaseOffset(componentId);
             if (baseOffset < 0)
                 continue; // Component not in this archetype
 
@@ -218,7 +217,7 @@ public sealed class Archetype<TBits, TRegistry>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int GetGlobalIndex(int chunkIndex, int indexInChunk)
     {
-        return chunkIndex * _layout.EntitiesPerChunk + indexInChunk;
+        return chunkIndex * Layout.EntitiesPerChunk + indexInChunk;
     }
 
     /// <summary>
@@ -227,7 +226,7 @@ public sealed class Archetype<TBits, TRegistry>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void GetChunkLocation(int globalIndex, out int chunkIndex, out int indexInChunk)
     {
-        int entitiesPerChunk = _layout.EntitiesPerChunk;
+        int entitiesPerChunk = Layout.EntitiesPerChunk;
         chunkIndex = globalIndex / entitiesPerChunk;
         indexInChunk = globalIndex % entitiesPerChunk;
     }
@@ -238,7 +237,7 @@ public sealed class Archetype<TBits, TRegistry>
     private void TrimEmptyChunksLocked()
     {
         // Free trailing empty chunks
-        int entitiesPerChunk = _layout.EntitiesPerChunk;
+        int entitiesPerChunk = Layout.EntitiesPerChunk;
         int entityCount = _entityCount;
         int neededChunks = (entityCount + entitiesPerChunk - 1) / entitiesPerChunk;
         var chunks = _chunks;
