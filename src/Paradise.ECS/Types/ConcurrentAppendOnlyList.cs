@@ -143,6 +143,55 @@ public sealed class ConcurrentAppendOnlyList<T>
     }
 
     /// <summary>
+    /// Adds a range of values to the list. Thread-safe.
+    /// Guarantees that when this method returns, all elements are committed and readable.
+    /// More efficient than calling Add multiple times as it reserves all slots atomically.
+    /// </summary>
+    /// <param name="values">The values to add.</param>
+    /// <returns>The starting index at which the values were stored.</returns>
+    public int AddRange(ReadOnlySpan<T> values)
+    {
+        if (values.IsEmpty)
+            return _committedCount;
+
+        int length = values.Length;
+
+        // Reserve slots atomically
+        int startIndex = Interlocked.Add(ref _count, length) - length;
+        int endChunkIndex = (startIndex + length - 1) >> _chunkShift;
+
+        // Ensure all needed chunks exist
+        EnsureChunk(endChunkIndex);
+
+        // Write all values to their slots
+        var chunks = _chunks;
+        for (int i = 0; i < length; i++)
+        {
+            int index = startIndex + i;
+            int chunkIndex = index >> _chunkShift;
+            int indexInChunk = index & _chunkMask;
+            chunks[chunkIndex][indexInChunk] = values[i];
+        }
+
+        // Mark all slots as ready in bitmap (processes 64 bits at a time)
+        MarkSlotsReady(startIndex, length);
+
+        // Try to advance committed count
+        TryAdvanceCommittedCount();
+
+        // Wait until all our slots are committed
+        int lastIndex = startIndex + length - 1;
+        SpinWait spinWait = default;
+        while (_committedCount <= lastIndex)
+        {
+            TryAdvanceCommittedCount();
+            spinWait.SpinOnce(-1);
+        }
+
+        return startIndex;
+    }
+
+    /// <summary>
     /// Atomically marks a slot as ready in the bitmap.
     /// Retries if the bitmap array is replaced during the operation.
     /// </summary>
@@ -160,6 +209,62 @@ public sealed class ConcurrentAppendOnlyList<T>
 
             // Verify bitmap wasn't replaced during the operation.
             // If it was, retry to ensure the bit is set in the current bitmap.
+            if (ReferenceEquals(bitmap, _readyBitmap))
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Atomically marks a contiguous range of slots as ready in the bitmap.
+    /// More efficient than calling MarkSlotReady in a loop as it processes 64 bits at a time.
+    /// </summary>
+    /// <param name="startIndex">The first slot index to mark (inclusive).</param>
+    /// <param name="count">The number of slots to mark.</param>
+    private void MarkSlotsReady(int startIndex, int count)
+    {
+        if (count <= 0)
+            return;
+
+        int endIndex = startIndex + count - 1;
+        int startWord = startIndex >> BitsPerWordShift;
+        int endWord = endIndex >> BitsPerWordShift;
+        int startBit = startIndex & BitsPerWordMask;
+        int endBit = endIndex & BitsPerWordMask;
+
+        while (true)
+        {
+            var bitmap = _readyBitmap;
+
+            if (startWord == endWord)
+            {
+                // All bits in a single word: create mask from startBit to endBit
+                // e.g., startBit=2, endBit=5 -> bits 2,3,4,5 -> mask = 0b00111100
+                // Use right-shift of ~0UL to avoid undefined behavior when bitCount=64
+                int bitCount = endBit - startBit + 1;
+                ulong mask = (~0UL >> (64 - bitCount)) << startBit;
+                Interlocked.Or(ref bitmap[startWord], mask);
+            }
+            else
+            {
+                // First word: set bits from startBit to 63
+                // e.g., startBit=10 -> ~((1<<10)-1) = bits 10-63 set
+                ulong firstMask = ~((1UL << startBit) - 1);
+                Interlocked.Or(ref bitmap[startWord], firstMask);
+
+                // Middle words: set all 64 bits
+                for (int word = startWord + 1; word < endWord; word++)
+                {
+                    Interlocked.Or(ref bitmap[word], ~0UL);
+                }
+
+                // Last word: set bits from 0 to endBit
+                // e.g., endBit=5 -> bits 0-5 set
+                // Use right-shift of ~0UL to avoid undefined behavior when endBit=63
+                ulong lastMask = ~0UL >> (63 - endBit);
+                Interlocked.Or(ref bitmap[endWord], lastMask);
+            }
+
+            // Verify bitmap wasn't replaced during the operation
             if (ReferenceEquals(bitmap, _readyBitmap))
                 return;
         }
@@ -285,7 +390,7 @@ public sealed class ConcurrentAppendOnlyList<T>
         // Grow chunks array if needed (only copies pointers, not data)
         if (chunkIndex >= _chunks.Length)
         {
-            int newLength = Math.Max(_chunks.Length * 2, chunkIndex + 1);
+            int newLength = chunkIndex + 1;
             var newChunks = new T[newLength][];
             Array.Copy(_chunks, newChunks, _chunkCount);
             _chunks = newChunks;
@@ -298,8 +403,7 @@ public sealed class ConcurrentAppendOnlyList<T>
         // Grow bitmap if needed
         if (requiredBitmapWords > _readyBitmap.Length)
         {
-            int newBitmapLength = Math.Max(_readyBitmap.Length * 2, requiredBitmapWords);
-            var newBitmap = new ulong[newBitmapLength];
+            var newBitmap = new ulong[requiredBitmapWords];
             Array.Copy(_readyBitmap, newBitmap, _readyBitmap.Length);
             _readyBitmap = newBitmap;
         }
