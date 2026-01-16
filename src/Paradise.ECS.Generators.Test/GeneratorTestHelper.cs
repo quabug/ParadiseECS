@@ -36,10 +36,10 @@ public static class GeneratorTestHelper
             references.Add(MetadataReference.CreateFromFile(netstandardPath));
         }
 
-        // Add Paradise.ECS reference if requested
+        // Add Paradise.ECS.Concurrent reference if requested
         if (includeEcsReferences)
         {
-            references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.ComponentAttribute).Assembly.Location));
+            references.Add(MetadataReference.CreateFromFile(typeof(Concurrent.ComponentAttribute).Assembly.Location));
         }
 
         var compilation = CSharpCompilation.Create(

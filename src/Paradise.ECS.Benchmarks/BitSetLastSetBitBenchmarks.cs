@@ -1,7 +1,7 @@
 ﻿using System.Numerics;
 using BenchmarkDotNet.Attributes;
 
-namespace Paradise.ECS.Benchmarks;
+namespace Paradise.ECS.Concurrent.Benchmarks;
 
 [Config(typeof(NativeAotConfig))]
 public class BitSetLastSetBitBenchmarks

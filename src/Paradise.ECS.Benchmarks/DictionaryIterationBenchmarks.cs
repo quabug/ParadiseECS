@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using BenchmarkDotNet.Attributes;
 
-namespace Paradise.ECS.Benchmarks;
+namespace Paradise.ECS.Concurrent.Benchmarks;
 
 /// <summary>
 /// Benchmarks comparing performance between Dictionary, ConcurrentDictionary, FrozenDictionary, List, and Array.
