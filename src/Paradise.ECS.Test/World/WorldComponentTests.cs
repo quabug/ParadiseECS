@@ -5,16 +5,20 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class WorldComponentTests : IDisposable
 {
+    private readonly ChunkManager _chunkManager = new();
     private readonly World<Bit64, ComponentRegistry> _world;
 
     public WorldComponentTests()
     {
-        _world = new World<Bit64, ComponentRegistry>();
+        _world = new World<Bit64, ComponentRegistry>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared,
+            _chunkManager);
     }
 
     public void Dispose()
     {
         _world.Dispose();
+        _chunkManager.Dispose();
     }
 
     #region HasComponent Tests

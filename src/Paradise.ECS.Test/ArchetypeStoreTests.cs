@@ -3,7 +3,7 @@ namespace Paradise.ECS.Test;
 public sealed class ArchetypeStoreTests : IDisposable
 {
     private readonly ChunkManager _chunkManager;
-    private readonly List<ImmutableArchetypeLayout<Bit64, ComponentRegistry>> _layouts = [];
+    private readonly List<nint> _layoutDataList = [];
     private int _nextEntityId;
 
     public ArchetypeStoreTests()
@@ -13,9 +13,9 @@ public sealed class ArchetypeStoreTests : IDisposable
 
     public void Dispose()
     {
-        foreach (var layout in _layouts)
+        foreach (var layoutData in _layoutDataList)
         {
-            layout.Dispose();
+            ImmutableArchetypeLayout<Bit64, ComponentRegistry>.Free(NativeMemoryAllocator.Shared, layoutData);
         }
         _chunkManager?.Dispose();
     }
@@ -27,9 +27,9 @@ public sealed class ArchetypeStoreTests : IDisposable
         {
             mask = mask.Set(comp.Id.Value);
         }
-        var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(mask);
-        _layouts.Add(layout);
-        return new Archetype<Bit64, ComponentRegistry>(_layouts.Count - 1, layout, _chunkManager);
+        var layoutData = ImmutableArchetypeLayout<Bit64, ComponentRegistry>.Create(NativeMemoryAllocator.Shared, mask);
+        _layoutDataList.Add(layoutData);
+        return new Archetype<Bit64, ComponentRegistry>(_layoutDataList.Count - 1, layoutData, _chunkManager);
     }
 
     private Entity CreateTestEntity()
@@ -232,8 +232,12 @@ public sealed class ArchetypeStoreTests : IDisposable
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
         var layout = store.Layout;
 
-        await Assert.That(layout.ComponentCount).IsEqualTo(1);
-        await Assert.That(layout.HasComponent<TestPosition>()).IsTrue();
+        // Extract values before await (ref struct can't cross await boundary)
+        int componentCount = layout.ComponentCount;
+        bool hasPosition = layout.HasComponent<TestPosition>();
+
+        await Assert.That(componentCount).IsEqualTo(1);
+        await Assert.That(hasPosition).IsTrue();
     }
 
     [Test]

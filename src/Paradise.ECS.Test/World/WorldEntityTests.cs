@@ -5,16 +5,20 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class WorldEntityTests : IDisposable
 {
+    private readonly ChunkManager _chunkManager = new();
     private readonly World<Bit64, ComponentRegistry> _world;
 
     public WorldEntityTests()
     {
-        _world = new World<Bit64, ComponentRegistry>();
+        _world = new World<Bit64, ComponentRegistry>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared,
+            _chunkManager);
     }
 
     public void Dispose()
     {
         _world.Dispose();
+        _chunkManager.Dispose();
     }
 
     [Test]
@@ -120,7 +124,11 @@ public sealed class WorldEntityTests : IDisposable
     public async Task Spawn_ExceedsInitialCapacity_ExpandsAutomatically()
     {
         // Create world with small capacity
-        using var world = new World<Bit64, ComponentRegistry>(initialEntityCapacity: 4);
+        using var chunkManager = new ChunkManager();
+        using var world = new World<Bit64, ComponentRegistry>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared,
+            chunkManager,
+            initialEntityCapacity: 4);
 
         // Spawn more entities than initial capacity
         var entities = new Entity[10];

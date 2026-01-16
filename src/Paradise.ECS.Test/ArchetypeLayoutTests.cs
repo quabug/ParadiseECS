@@ -3,8 +3,25 @@ namespace Paradise.ECS.Test;
 [Component(Id = 4)]
 public partial struct TestTag; // Zero-size component for layout tests
 
-public class ArchetypeLayoutTests
+public sealed class ArchetypeLayoutTests : IDisposable
 {
+    private readonly List<nint> _layoutDataList = [];
+
+    public void Dispose()
+    {
+        foreach (var data in _layoutDataList)
+        {
+            ImmutableArchetypeLayout<Bit64, ComponentRegistry>.Free(NativeMemoryAllocator.Shared, data);
+        }
+    }
+
+    private ImmutableArchetypeLayout<Bit64, ComponentRegistry> CreateLayout(ImmutableBitSet<Bit64> mask)
+    {
+        var data = ImmutableArchetypeLayout<Bit64, ComponentRegistry>.Create(NativeMemoryAllocator.Shared, mask);
+        _layoutDataList.Add(data);
+        return new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(data);
+    }
+
     private static ImmutableBitSet<Bit64> MakeMask(params int[] componentIds)
     {
         var mask = ImmutableBitSet<Bit64>.Empty;
@@ -18,87 +35,108 @@ public class ArchetypeLayoutTests
     [Test]
     public async Task Constructor_WithEmptyComponents_CreatesValidLayout()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(ImmutableBitSet<Bit64>.Empty);
+        var layout = CreateLayout(ImmutableBitSet<Bit64>.Empty);
 
         // Even empty archetypes need entity ID storage (4 bytes per entity)
-        await Assert.That(layout.EntitiesPerChunk).IsEqualTo(Chunk.ChunkSize / sizeof(int));
-        await Assert.That(layout.ComponentCount).IsEqualTo(0);
+        int entitiesPerChunk = layout.EntitiesPerChunk;
+        int componentCount = layout.ComponentCount;
+
+        await Assert.That(entitiesPerChunk).IsEqualTo(Chunk.ChunkSize / sizeof(int));
+        await Assert.That(componentCount).IsEqualTo(0);
     }
 
     [Test]
     public async Task Constructor_WithSingleComponent_CalculatesCorrectLayout()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value));
 
-        await Assert.That(layout.ComponentCount).IsEqualTo(1);
+        int componentCount = layout.ComponentCount;
+        int entitiesPerChunk = layout.EntitiesPerChunk;
+        int baseOffset = layout.GetBaseOffset<TestPosition>();
+
+        await Assert.That(componentCount).IsEqualTo(1);
         // Base offset is after entity IDs (entitiesPerChunk * 4 bytes)
-        int expectedBaseOffset = layout.EntitiesPerChunk * sizeof(int);
-        await Assert.That(layout.GetBaseOffset<TestPosition>()).IsEqualTo(expectedBaseOffset);
+        int expectedBaseOffset = entitiesPerChunk * sizeof(int);
+        await Assert.That(baseOffset).IsEqualTo(expectedBaseOffset);
     }
 
     [Test]
     public async Task Constructor_WithMultipleComponents_CalculatesSoALayout()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value, TestHealth.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value, TestHealth.TypeId.Value));
 
-        await Assert.That(layout.ComponentCount).IsEqualTo(2);
-
-        // Both base offsets should be non-negative
-        await Assert.That(layout.GetBaseOffset<TestPosition>()).IsGreaterThanOrEqualTo(0);
-        await Assert.That(layout.GetBaseOffset<TestHealth>()).IsGreaterThanOrEqualTo(0);
-
-        // In SoA, base offsets should be different (each component has its own array)
+        int componentCount = layout.ComponentCount;
         int posBase = layout.GetBaseOffset<TestPosition>();
         int healthBase = layout.GetBaseOffset<TestHealth>();
+
+        await Assert.That(componentCount).IsEqualTo(2);
+
+        // Both base offsets should be non-negative
+        await Assert.That(posBase).IsGreaterThanOrEqualTo(0);
+        await Assert.That(healthBase).IsGreaterThanOrEqualTo(0);
+
+        // In SoA, base offsets should be different (each component has its own array)
         await Assert.That(posBase).IsNotEqualTo(healthBase);
     }
 
     [Test]
     public async Task Constructor_WithTagComponent_HandlesZeroSize()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value, TestTag.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value, TestTag.TypeId.Value));
 
-        await Assert.That(layout.ComponentCount).IsEqualTo(2);
-        await Assert.That(layout.HasComponent<TestTag>()).IsTrue();
-        await Assert.That(layout.GetBaseOffset<TestTag>()).IsEqualTo(0); // Tags have offset 0
+        int componentCount = layout.ComponentCount;
+        bool hasTag = layout.HasComponent<TestTag>();
+        int tagOffset = layout.GetBaseOffset<TestTag>();
+
+        await Assert.That(componentCount).IsEqualTo(2);
+        await Assert.That(hasTag).IsTrue();
+        await Assert.That(tagOffset).IsEqualTo(0); // Tags have offset 0
     }
 
     [Test]
     public async Task GetBaseOffset_NonExistentComponent_ReturnsNegativeOne()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value));
 
-        await Assert.That(layout.GetBaseOffset<TestVelocity>()).IsEqualTo(-1);
+        int offset = layout.GetBaseOffset<TestVelocity>();
+
+        await Assert.That(offset).IsEqualTo(-1);
     }
 
     [Test]
     public async Task GetBaseOffset_OutOfRangeComponentId_ReturnsNegativeOne()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(ImmutableBitSet<Bit64>.Empty);
+        var layout = CreateLayout(ImmutableBitSet<Bit64>.Empty);
 
-        await Assert.That(layout.GetBaseOffset(new ComponentId(100))).IsEqualTo(-1);
+        int offset = layout.GetBaseOffset(new ComponentId(100));
+
+        await Assert.That(offset).IsEqualTo(-1);
     }
 
     [Test]
     public async Task HasComponent_ExistingComponent_ReturnsTrue()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value));
 
-        await Assert.That(layout.HasComponent<TestPosition>()).IsTrue();
+        bool hasComponent = layout.HasComponent<TestPosition>();
+
+        await Assert.That(hasComponent).IsTrue();
     }
 
     [Test]
     public async Task HasComponent_NonExistentComponent_ReturnsFalse()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value));
 
-        await Assert.That(layout.HasComponent<TestVelocity>()).IsFalse();
+        bool hasComponent = layout.HasComponent<TestVelocity>();
+
+        await Assert.That(hasComponent).IsFalse();
     }
 
     [Test]
     public async Task GetEntityComponentOffset_SoALayout_ReturnsCorrectOffset()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value));
 
         int baseOffset = layout.GetBaseOffset<TestPosition>();
         int size = TestPosition.Size;
@@ -116,37 +154,43 @@ public class ArchetypeLayoutTests
     [Test]
     public async Task GetEntityComponentOffset_NonExistentComponent_ReturnsNegativeOne()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value));
 
-        await Assert.That(layout.GetEntityComponentOffset<TestVelocity>(0)).IsEqualTo(-1);
+        int offset = layout.GetEntityComponentOffset<TestVelocity>(0);
+
+        await Assert.That(offset).IsEqualTo(-1);
     }
 
     [Test]
     public async Task EntitiesPerChunk_CalculatesCorrectly()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value));
+
+        int entitiesPerChunk = layout.EntitiesPerChunk;
 
         // With SoA + entity IDs: entities_per_chunk = ChunkSize / (entity_id_size + sum(component_sizes))
         int totalSizePerEntity = sizeof(int) + TestPosition.Size;
         int expected = Chunk.ChunkSize / totalSizePerEntity;
-        await Assert.That(layout.EntitiesPerChunk).IsEqualTo(expected);
+        await Assert.That(entitiesPerChunk).IsEqualTo(expected);
     }
 
     [Test]
     public async Task EntitiesPerChunk_MultipleComponents_CalculatesCorrectly()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value, TestHealth.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value, TestHealth.TypeId.Value));
+
+        int entitiesPerChunk = layout.EntitiesPerChunk;
 
         // With SoA + entity IDs: entities_per_chunk = ChunkSize / (entity_id_size + sum(component_sizes))
         int totalSizePerEntity = sizeof(int) + TestPosition.Size + TestHealth.Size;
         int expected = Chunk.ChunkSize / totalSizePerEntity;
-        await Assert.That(layout.EntitiesPerChunk).IsEqualTo(expected);
+        await Assert.That(entitiesPerChunk).IsEqualTo(expected);
     }
 
     [Test]
     public async Task ComponentMask_EnumeratesInSortedOrder()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value, TestVelocity.TypeId.Value, TestHealth.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value, TestVelocity.TypeId.Value, TestHealth.TypeId.Value));
 
         // Capture enumeration results before await boundary
         int count = 0;
@@ -170,10 +214,9 @@ public class ArchetypeLayoutTests
     [Test]
     public async Task SoALayout_ComponentArraysAreContiguous()
     {
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestPosition.TypeId.Value, TestHealth.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestPosition.TypeId.Value, TestHealth.TypeId.Value));
 
         int entitiesPerChunk = layout.EntitiesPerChunk;
-
         int posBase = layout.GetBaseOffset<TestPosition>();
         int healthBase = layout.GetBaseOffset<TestHealth>();
 
@@ -188,36 +231,27 @@ public class ArchetypeLayoutTests
 
         await Assert.That(posAfterHealth || healthAfterPos).IsTrue();
     }
-
-    [Test]
-    public async Task Dispose_ThrowsOnSubsequentAccess()
-    {
-        var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(ImmutableBitSet<Bit64>.Empty);
-        layout.Dispose();
-
-        await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
-        {
-            _ = layout.EntitiesPerChunk;
-            await Task.CompletedTask.ConfigureAwait(false);
-        });
-    }
-
-    [Test]
-    public async Task Dispose_CanBeCalledMultipleTimes()
-    {
-        var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(ImmutableBitSet<Bit64>.Empty);
-
-        // Should not throw
-        layout.Dispose();
-        layout.Dispose();
-        layout.Dispose();
-
-        await Task.CompletedTask.ConfigureAwait(false);
-    }
 }
 
-public class ArchetypeLayoutAlignmentTests
+public sealed class ArchetypeLayoutAlignmentTests : IDisposable
 {
+    private readonly List<nint> _layoutDataList = [];
+
+    public void Dispose()
+    {
+        foreach (var data in _layoutDataList)
+        {
+            ImmutableArchetypeLayout<Bit64, ComponentRegistry>.Free(NativeMemoryAllocator.Shared, data);
+        }
+    }
+
+    private ImmutableArchetypeLayout<Bit64, ComponentRegistry> CreateLayout(ImmutableBitSet<Bit64> mask)
+    {
+        var data = ImmutableArchetypeLayout<Bit64, ComponentRegistry>.Create(NativeMemoryAllocator.Shared, mask);
+        _layoutDataList.Add(data);
+        return new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(data);
+    }
+
     private static ImmutableBitSet<Bit64> MakeMask(params int[] componentIds)
     {
         var mask = ImmutableBitSet<Bit64>.Empty;
@@ -232,7 +266,7 @@ public class ArchetypeLayoutAlignmentTests
     public async Task Layout_SortsComponentsByAlignment_LargestFirst()
     {
         // Create components with different alignments
-        using var layout = new ImmutableArchetypeLayout<Bit64, ComponentRegistry>(MakeMask(TestHealth.TypeId.Value, TestPosition.TypeId.Value));
+        var layout = CreateLayout(MakeMask(TestHealth.TypeId.Value, TestPosition.TypeId.Value));
 
         // Both components should have valid base offsets
         int posOffset = layout.GetBaseOffset<TestPosition>();
