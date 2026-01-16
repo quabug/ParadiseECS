@@ -84,17 +84,22 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
             return new Query<TBits, TRegistry>(slot);
         }
 
-        // Get matched archetype IDs from shared metadata and create local archetype instances
+        // Get matched archetype IDs from shared metadata and add only locally existing archetypes
         var matchedIds = _sharedMetadata.GetMatchedArchetypeIds(queryId);
         int matchedCount = matchedIds.Count;
         var archetypes = new List<Archetype<TBits, TRegistry>>(matchedCount);
 
+        int localArchetypeCount = _archetypes.Count;
         for (int i = 0; i < matchedCount; i++)
         {
             int archetypeId = matchedIds[i];
-            // GetOrCreateByIdNoLock will create the archetype if it doesn't exist locally
-            // Note: This won't cause recursion as NotifyQueries only updates existing query caches
-            archetypes.Add(GetOrCreateByIdNoLock(archetypeId));
+            // Only add archetypes that already exist in this world
+            // New archetypes will be added via NotifyQueries when created
+            if ((uint)archetypeId < (uint)localArchetypeCount &&
+                _archetypes[archetypeId] is { } archetype)
+            {
+                archetypes.Add(archetype);
+            }
         }
 
         slot = archetypes;
