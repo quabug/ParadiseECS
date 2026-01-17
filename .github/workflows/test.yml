@@ -9,9 +9,9 @@ on:
       - '*.slnx'
       - '.editorconfig'
       - '.github/workflows/test.yml'
-  # Note: For pull_request events, we use dorny/paths-filter instead of the built-in
-  # paths filter because the built-in filter checks ALL files in the PR, not just
-  # the files changed in the latest push.
+  # Note: For pull_request events, we use git diff instead of the built-in paths
+  # filter because the built-in filter checks ALL files in the PR, not just the
+  # files changed in the latest push.
   pull_request:
     branches: [main]
 
@@ -20,19 +20,28 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
-      - uses: dorny/paths-filter@v3
-        id: filter
+      - uses: actions/checkout@v4
         with:
-          filters: |
-            code:
-              - 'src/**'
-              - '*.slnx'
-              - '.editorconfig'
-              - '.github/workflows/test.yml'
+          fetch-depth: 0
+      - name: Check for code changes in this push
+        id: filter
+        run: |
+          if [[ "${{ github.event.action }}" == "opened" ]]; then
+            # First push to PR - always run tests
+            echo "code=true" >> $GITHUB_OUTPUT
+          else
+            # Subsequent pushes - check only the new commits
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }} -- \
+              'src/**' '*.slnx' '.editorconfig' '.github/workflows/test.yml' || true)
+            if [[ -n "$CHANGED" ]]; then
+              echo "code=true" >> $GITHUB_OUTPUT
+            else
+              echo "code=false" >> $GITHUB_OUTPUT
+            fi
+          fi
 
   test:
     needs: changes
