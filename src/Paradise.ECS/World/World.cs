@@ -58,6 +58,7 @@ public sealed class World<TBits, TRegistry>
     /// The entity is placed in the empty archetype.
     /// </summary>
     /// <returns>The created entity handle.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Spawn()
     {
         var entity = _entityManager.Create();
@@ -237,6 +238,7 @@ public sealed class World<TBits, TRegistry>
     /// </summary>
     /// <param name="entity">The entity to check.</param>
     /// <returns>True if the entity is alive.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool IsAlive(Entity entity)
     {
         if (!entity.IsValid)
@@ -250,9 +252,40 @@ public sealed class World<TBits, TRegistry>
     /// </summary>
     /// <typeparam name="T">The component type.</typeparam>
     /// <param name="entity">The entity.</param>
-    /// <returns>A ref struct wrapping the component reference.</returns>
+    /// <returns>The component value.</returns>
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
-    public ComponentRef<T> GetComponent<T>(Entity entity) where T : unmanaged, IComponent
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
+    {
+        var (handle, offset) = GetComponentLocation<T>(entity);
+        using var chunk = _chunkManager.Get(handle);
+        return chunk.GetRef<T>(offset);
+    }
+
+    /// <summary>
+    /// Sets a component value on an entity.
+    /// </summary>
+    /// <typeparam name="T">The component type.</typeparam>
+    /// <param name="entity">The entity.</param>
+    /// <param name="value">The component value.</param>
+    /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
+    {
+        var (handle, offset) = GetComponentLocation<T>(entity);
+        using var chunk = _chunkManager.Get(handle);
+        chunk.GetRef<T>(offset) = value;
+    }
+
+    /// <summary>
+    /// Gets the chunk handle and offset for accessing a component on an entity.
+    /// </summary>
+    /// <typeparam name="T">The component type.</typeparam>
+    /// <param name="entity">The entity.</param>
+    /// <returns>A tuple containing the chunk handle and the byte offset of the component.</returns>
+    /// <exception cref="InvalidOperationException">Entity is not alive or doesn't have the component.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private (ChunkHandle Handle, int Offset) GetComponentLocation<T>(Entity entity) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
         var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)
@@ -265,21 +298,7 @@ public sealed class World<TBits, TRegistry>
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
         int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
-        var chunk = _chunkManager.Get(chunkHandle);
-
-        return new ComponentRef<T>(chunk, offset);
-    }
-
-    /// <summary>
-    /// Sets a component value on an entity.
-    /// </summary>
-    /// <typeparam name="T">The component type.</typeparam>
-    /// <param name="entity">The entity.</param>
-    /// <param name="value">The component value.</param>
-    /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
-    public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
-    {
-        GetComponent<T>(entity).Value = value;
+        return (chunkHandle, offset);
     }
 
     /// <summary>
@@ -288,6 +307,7 @@ public sealed class World<TBits, TRegistry>
     /// <typeparam name="T">The component type.</typeparam>
     /// <param name="entity">The entity.</param>
     /// <returns>True if the entity has the component.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         if (!IsAlive(entity))
@@ -356,6 +376,7 @@ public sealed class World<TBits, TRegistry>
     /// Creates a query builder for this world.
     /// </summary>
     /// <returns>A new query builder.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static QueryBuilder<TBits, TRegistry> Query()
     {
         return new QueryBuilder<TBits, TRegistry>();
@@ -429,6 +450,7 @@ public sealed class World<TBits, TRegistry>
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private EntityLocation GetValidatedLocation(Entity entity)
     {
         if (!entity.IsValid)
@@ -440,6 +462,11 @@ public sealed class World<TBits, TRegistry>
         return _entityManager.GetLocation(entity.Id);
     }
 
+    /// <summary>
+    /// Removes all entities from this world.
+    /// After calling this method, all previously created entities are invalid.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
     {
         _archetypeRegistry.Clear();

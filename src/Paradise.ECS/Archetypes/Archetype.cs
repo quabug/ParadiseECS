@@ -89,7 +89,7 @@ public sealed class Archetype<TBits, TRegistry>
         int chunkIndex = globalIndex / entitiesPerChunk;
         int indexInChunk = globalIndex % entitiesPerChunk;
 
-        GetEntityIdRef(_chunks[chunkIndex], indexInChunk) = entity.Id;
+        SetEntityId(_chunks[chunkIndex], indexInChunk, entity.Id);
         EntityCount++;
 
         return globalIndex;
@@ -130,7 +130,7 @@ public sealed class Archetype<TBits, TRegistry>
         var dstChunkHandle = _chunks[dstChunkIdx];
 
         // Read the entity ID being moved from the source chunk
-        int movedEntityId = GetEntityIdRef(srcChunkHandle, srcIndexInChunk);
+        int movedEntityId = GetEntityId(srcChunkHandle, srcIndexInChunk);
 
         // With SoA, copy each component separately (including entity ID)
         using var srcChunk = _chunkManager.Get(srcChunkHandle);
@@ -233,10 +233,18 @@ public sealed class Archetype<TBits, TRegistry>
     /// Reads an entity ID from a chunk at the specified index.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref int GetEntityIdRef(ChunkHandle chunkHandle, int indexInChunk)
+    private int GetEntityId(ChunkHandle chunkHandle, int indexInChunk)
     {
         using var chunk = _chunkManager.Get(chunkHandle);
         int offset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(indexInChunk);
-        return ref chunk.GetRef<int>(offset);
+        return chunk.GetRef<int>(offset);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int SetEntityId(ChunkHandle chunkHandle, int indexInChunk, int entityId)
+    {
+        using var chunk = _chunkManager.Get(chunkHandle);
+        int offset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(indexInChunk);
+        return chunk.GetRef<int>(offset) = entityId;
     }
 }

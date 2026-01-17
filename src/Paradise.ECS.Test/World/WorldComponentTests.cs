@@ -139,11 +139,7 @@ public sealed class WorldComponentTests : IDisposable
 
         _world.AddComponent(entity, new TestVelocity { X = 1 });
 
-        TestPosition pos;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            pos = posRef.Value;
-        }
+        var pos = _world.GetComponent<TestPosition>(entity);
         await Assert.That(pos.X).IsEqualTo(10f);
         await Assert.That(pos.Y).IsEqualTo(20f);
         await Assert.That(pos.Z).IsEqualTo(30f);
@@ -209,11 +205,7 @@ public sealed class WorldComponentTests : IDisposable
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsTrue();
         await Assert.That(_world.HasComponent<TestVelocity>(entity)).IsFalse();
 
-        float posX;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            posX = posRef.Value.X;
-        }
+        var posX = _world.GetComponent<TestPosition>(entity).X;
         await Assert.That(posX).IsEqualTo(10f);
     }
 
@@ -256,16 +248,12 @@ public sealed class WorldComponentTests : IDisposable
     #region GetComponent Tests
 
     [Test]
-    public async Task GetComponent_ExistingComponent_ReturnsRef()
+    public async Task GetComponent_ExistingComponent_ReturnsValue()
     {
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestPosition { X = 10, Y = 20, Z = 30 });
 
-        TestPosition pos;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            pos = posRef.Value;
-        }
+        var pos = _world.GetComponent<TestPosition>(entity);
 
         await Assert.That(pos.X).IsEqualTo(10f);
         await Assert.That(pos.Y).IsEqualTo(20f);
@@ -277,28 +265,21 @@ public sealed class WorldComponentTests : IDisposable
     {
         var entity = _world.Spawn();
 
-        await Assert.That(() =>
-        {
-            using var _ = _world.GetComponent<TestPosition>(entity);
-        }).Throws<InvalidOperationException>();
+        await Assert.That(() => _world.GetComponent<TestPosition>(entity))
+            .Throws<InvalidOperationException>();
     }
 
     [Test]
-    public async Task GetComponent_ModifyViaRef_PersistsChange()
+    public async Task GetComponent_ModifyViaSetComponent_PersistsChange()
     {
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestPosition { X = 10 });
 
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            posRef.Value.X = 999;
-        }
+        var pos = _world.GetComponent<TestPosition>(entity);
+        pos.X = 999;
+        _world.SetComponent(entity, pos);
 
-        float posX;
-        using (var posRef2 = _world.GetComponent<TestPosition>(entity))
-        {
-            posX = posRef2.Value.X;
-        }
+        var posX = _world.GetComponent<TestPosition>(entity).X;
         await Assert.That(posX).IsEqualTo(999f);
     }
 
@@ -309,10 +290,8 @@ public sealed class WorldComponentTests : IDisposable
         _world.AddComponent(entity, new TestPosition { X = 10 });
         _world.Despawn(entity);
 
-        await Assert.That(() =>
-        {
-            using var _ = _world.GetComponent<TestPosition>(entity);
-        }).Throws<InvalidOperationException>();
+        await Assert.That(() => _world.GetComponent<TestPosition>(entity))
+            .Throws<InvalidOperationException>();
     }
 
     #endregion
@@ -327,11 +306,7 @@ public sealed class WorldComponentTests : IDisposable
 
         _world.SetComponent(entity, new TestPosition { X = 50, Y = 60, Z = 70 });
 
-        TestPosition pos;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            pos = posRef.Value;
-        }
+        var pos = _world.GetComponent<TestPosition>(entity);
         await Assert.That(pos.X).IsEqualTo(50f);
         await Assert.That(pos.Y).IsEqualTo(60f);
         await Assert.That(pos.Z).IsEqualTo(70f);
@@ -370,15 +345,8 @@ public sealed class WorldComponentTests : IDisposable
         _world.AddComponent(e1, new TestPosition { X = 100 });
         _world.AddComponent(e2, new TestPosition { X = 200 });
 
-        float posX1, posX2;
-        using (var ref1 = _world.GetComponent<TestPosition>(e1))
-        {
-            posX1 = ref1.Value.X;
-        }
-        using (var ref2 = _world.GetComponent<TestPosition>(e2))
-        {
-            posX2 = ref2.Value.X;
-        }
+        var posX1 = _world.GetComponent<TestPosition>(e1).X;
+        var posX2 = _world.GetComponent<TestPosition>(e2).X;
 
         await Assert.That(posX1).IsEqualTo(100f);
         await Assert.That(posX2).IsEqualTo(200f);
@@ -396,11 +364,7 @@ public sealed class WorldComponentTests : IDisposable
         _world.Despawn(e1);
 
         await Assert.That(_world.IsAlive(e2)).IsTrue();
-        float posX2;
-        using (var ref2 = _world.GetComponent<TestPosition>(e2))
-        {
-            posX2 = ref2.Value.X;
-        }
+        var posX2 = _world.GetComponent<TestPosition>(e2).X;
         await Assert.That(posX2).IsEqualTo(200f);
     }
 
@@ -418,11 +382,7 @@ public sealed class WorldComponentTests : IDisposable
 
         for (int i = 0; i < count; i++)
         {
-            float posX;
-            using (var posRef = _world.GetComponent<TestPosition>(entities[i]))
-            {
-                posX = posRef.Value.X;
-            }
+            var posX = _world.GetComponent<TestPosition>(entities[i]).X;
             await Assert.That(posX).IsEqualTo((float)i);
         }
     }

@@ -406,9 +406,15 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Default_Chunk_IsInvalid()
     {
-        var chunk = default(Chunk);
+        // Note: default Chunk has null ChunkManager, so Dispose() is a safe no-op
+        bool isValid;
+        {
+            var chunk = default(Chunk);
+            isValid = chunk.IsValid;
+            chunk.Dispose();
+        }
 
-        await Assert.That(chunk.IsValid).IsFalse();
+        await Assert.That(isValid).IsFalse();
     }
 
     [Test]

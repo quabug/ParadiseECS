@@ -207,19 +207,9 @@ public sealed class WorldEntityTests : IDisposable
         await Assert.That(_world.IsAlive(entityD)).IsTrue();
 
         // The critical test: entityC's location should be updated after swap-remove
-        float posB, posC, posD;
-        using (var refB = _world.GetComponent<TestPosition>(entityB))
-        {
-            posB = refB.Value.X;
-        }
-        using (var refC = _world.GetComponent<TestPosition>(entityC))
-        {
-            posC = refC.Value.X;
-        }
-        using (var refD = _world.GetComponent<TestPosition>(entityD))
-        {
-            posD = refD.Value.X;
-        }
+        var posB = _world.GetComponent<TestPosition>(entityB).X;
+        var posC = _world.GetComponent<TestPosition>(entityC).X;
+        var posD = _world.GetComponent<TestPosition>(entityD).X;
 
         await Assert.That(posB).IsEqualTo(200f);
         await Assert.That(posC).IsEqualTo(300f);

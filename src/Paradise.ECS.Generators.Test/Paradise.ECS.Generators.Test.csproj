@@ -9,12 +9,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Allow underscore naming convention in test methods -->
     <!-- CA1515: Test classes need to be public for TUnit discovery -->
-    <NoWarn>$(NoWarn);CA1707;CA1515</NoWarn>
+    <!-- CA2007: ConfigureAwait is not relevant for test code -->
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA2007</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="TUnit" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
 
   <ItemGroup>

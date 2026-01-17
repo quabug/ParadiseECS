@@ -40,11 +40,7 @@ public sealed class EntityBuilderTests : IDisposable
         await Assert.That(entity.IsValid).IsTrue();
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsTrue();
 
-        TestPosition pos;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            pos = posRef.Value;
-        }
+        var pos = _world.GetComponent<TestPosition>(entity);
         await Assert.That(pos.X).IsEqualTo(10f);
         await Assert.That(pos.Y).IsEqualTo(20f);
         await Assert.That(pos.Z).IsEqualTo(30f);
@@ -72,16 +68,8 @@ public sealed class EntityBuilderTests : IDisposable
             .Add(new TestVelocity { X = 4, Y = 5, Z = 6 })
             .Build(_world);
 
-        TestPosition pos;
-        TestVelocity vel;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            pos = posRef.Value;
-        }
-        using (var velRef = _world.GetComponent<TestVelocity>(entity))
-        {
-            vel = velRef.Value;
-        }
+        var pos = _world.GetComponent<TestPosition>(entity);
+        var vel = _world.GetComponent<TestVelocity>(entity);
 
         await Assert.That(pos.X).IsEqualTo(1f);
         await Assert.That(pos.Y).IsEqualTo(2f);
@@ -112,15 +100,8 @@ public sealed class EntityBuilderTests : IDisposable
             .Add(new TestPosition { X = 200 })
             .Build(_world);
 
-        float posX1, posX2;
-        using (var ref1 = _world.GetComponent<TestPosition>(e1))
-        {
-            posX1 = ref1.Value.X;
-        }
-        using (var ref2 = _world.GetComponent<TestPosition>(e2))
-        {
-            posX2 = ref2.Value.X;
-        }
+        var posX1 = _world.GetComponent<TestPosition>(e1).X;
+        var posX2 = _world.GetComponent<TestPosition>(e2).X;
 
         await Assert.That(posX1).IsEqualTo(100f);
         await Assert.That(posX2).IsEqualTo(200f);
@@ -146,11 +127,7 @@ public sealed class EntityBuilderTests : IDisposable
             .AddTo(entity, _world);
 
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsTrue();
-        float posX;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            posX = posRef.Value.X;
-        }
+        var posX = _world.GetComponent<TestPosition>(entity).X;
         await Assert.That(posX).IsEqualTo(50f);
     }
 
@@ -181,11 +158,7 @@ public sealed class EntityBuilderTests : IDisposable
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsTrue();
         await Assert.That(_world.HasComponent<TestVelocity>(entity)).IsTrue();
 
-        float posX;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            posX = posRef.Value.X;
-        }
+        var posX = _world.GetComponent<TestPosition>(entity).X;
         await Assert.That(posX).IsEqualTo(10f);
     }
 

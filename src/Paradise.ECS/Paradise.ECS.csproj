@@ -5,4 +5,8 @@
     <InternalsVisibleTo Include="Paradise.ECS.Concurrent" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Paradise.ECS.Generators\Paradise.ECS.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

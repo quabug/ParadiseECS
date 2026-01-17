@@ -90,4 +90,16 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "The total number of components (including manual ID assignments) must not exceed the maximum component type ID limit imposed by the archetype graph edge key packing.");
+
+    /// <summary>
+    /// PECS008: Disposable ref struct must be disposed.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DisposableRefStructNotDisposed = new(
+        id: "PECS008",
+        title: "Disposable ref struct must be disposed",
+        messageFormat: "Disposable ref struct '{0}' must be disposed before going out of scope. Use a 'using' statement or call Dispose() explicitly.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Ref structs with a Dispose method manage resources that must be released. Failing to dispose them can lead to resource leaks such as unreleased chunk borrows.");
 }
