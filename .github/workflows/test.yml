@@ -9,6 +9,9 @@ on:
       - '*.slnx'
       - '.editorconfig'
       - '.github/workflows/test.yml'
+  # Note: For pull_request events, we use dorny/paths-filter instead of the built-in
+  # paths filter because the built-in filter checks ALL files in the PR, not just
+  # the files changed in the latest push.
   pull_request:
     branches: [main]
 
