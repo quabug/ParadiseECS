@@ -5,7 +5,7 @@ public static class ArchetypeRegistryExtension
     extension<TBits, TRegistry, TConfig>(ArchetypeRegistry<TBits, TRegistry, TConfig> registry)
         where TBits : unmanaged, IStorage
         where TRegistry : IComponentRegistry
-        where TConfig : IWorldConfig
+        where TConfig : IConfig
     {
         public Archetype<TBits, TRegistry, TConfig> GetOrCreate(ImmutableBitSet<TBits> mask)
         {
@@ -21,14 +21,14 @@ public static class ArchetypeRegistryExtension
 
 public class ArchetypeRegistryTests : IDisposable
 {
-    private readonly ChunkManager<DefaultWorldConfig> _chunkManager;
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig> _registry;
+    private readonly ChunkManager<DefaultConfig> _chunkManager;
+    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
 
     public ArchetypeRegistryTests()
     {
-        _chunkManager = new ChunkManager<DefaultWorldConfig>(initialCapacity: 16);
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>.Shared, _chunkManager);
+        _chunkManager = new ChunkManager<DefaultConfig>(initialCapacity: 16);
+        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared, _chunkManager);
     }
 
     public void Dispose()
@@ -266,17 +266,17 @@ public class ArchetypeRegistryTests : IDisposable
 
 public class ArchetypeRegistryConcurrencyTests : IDisposable
 {
-    private readonly ChunkManager<DefaultWorldConfig> _chunkManager;
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig> _registry;
+    private readonly ChunkManager<DefaultConfig> _chunkManager;
+    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
 
     // Number of test components available in ComponentRegistry (0-4)
     private const int TestComponentCount = 5;
 
     public ArchetypeRegistryConcurrencyTests()
     {
-        _chunkManager = new ChunkManager<DefaultWorldConfig>(initialCapacity: 64);
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>.Shared, _chunkManager);
+        _chunkManager = new ChunkManager<DefaultConfig>(initialCapacity: 64);
+        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared, _chunkManager);
     }
 
     public void Dispose()
@@ -290,7 +290,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
 
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultWorldConfig>>[10];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreate(mask));
@@ -310,7 +310,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreate_DifferentMasks_CreatesMultipleArchetypes()
     {
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultWorldConfig>>[TestComponentCount];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int bitIndex = i;
@@ -334,7 +334,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultWorldConfig>>[10];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId));
@@ -357,7 +357,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var empty = ImmutableBitSet<Bit64>.Empty;
         var source = _registry.GetOrCreate(empty);
 
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultWorldConfig>>[TestComponentCount];
+        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int componentId = i;

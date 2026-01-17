@@ -5,11 +5,11 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class SharedArchetypeMetadataTests : IDisposable
 {
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig> _metadata;
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _metadata;
 
     public SharedArchetypeMetadataTests()
     {
-        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>(NativeMemoryAllocator.Shared);
+        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(NativeMemoryAllocator.Shared);
     }
 
     public void Dispose()
@@ -168,7 +168,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_ReturnsValidId()
     {
-        var description = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
+        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -181,7 +181,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_SameDescription_ReturnsSameId()
     {
-        var description = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
+        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -196,7 +196,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
     public async Task GetMatchedArchetypeIds_ReturnsMatchingArchetypes()
     {
         // Create a query first
-        var description = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
+        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;

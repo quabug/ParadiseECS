@@ -14,7 +14,7 @@ namespace Paradise.ECS.Concurrent;
 public sealed class Archetype<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     private const int InitialChunkCapacity = 4;
 

@@ -13,7 +13,7 @@ namespace Paradise.ECS.Concurrent;
 public readonly ref struct QueryBuilder<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     private readonly ImmutableQueryDescription<TBits> _description;
 

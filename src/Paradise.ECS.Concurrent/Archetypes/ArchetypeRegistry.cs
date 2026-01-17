@@ -13,7 +13,7 @@ namespace Paradise.ECS.Concurrent;
 public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     /// <summary>
     /// Thread-local temporary list for collecting matched query IDs during archetype operations.

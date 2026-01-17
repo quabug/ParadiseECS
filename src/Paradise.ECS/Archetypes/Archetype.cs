@@ -13,7 +13,7 @@ namespace Paradise.ECS;
 public sealed class Archetype<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     private readonly nint _layoutData;
     private readonly ChunkManager<TConfig> _chunkManager;

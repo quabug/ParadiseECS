@@ -5,13 +5,13 @@ namespace Paradise.ECS.Concurrent.Test;
 /// </summary>
 public sealed class QueryTests : IDisposable
 {
-    private readonly ChunkManager<DefaultWorldConfig> _chunkManager = new();
-    private readonly World<Bit64, ComponentRegistry, DefaultWorldConfig> _world;
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new();
+    private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public QueryTests()
     {
-        _world = new World<Bit64, ComponentRegistry, DefaultWorldConfig>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>.Shared,
+        _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
             _chunkManager);
     }
 
@@ -26,7 +26,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task EntityCount_EmptyWorld_ReturnsZero()
     {
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -43,7 +43,7 @@ public sealed class QueryTests : IDisposable
             _world.AddComponent<TestPosition>(entity);
         }
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -69,7 +69,7 @@ public sealed class QueryTests : IDisposable
         }
 
         // Query for Position should match both archetypes
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -84,7 +84,7 @@ public sealed class QueryTests : IDisposable
         _world.AddComponent<TestPosition>(entity1);
         _world.AddComponent<TestPosition>(entity2);
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -103,7 +103,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task IsEmpty_EmptyWorld_ReturnsTrue()
     {
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -116,7 +116,7 @@ public sealed class QueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -129,7 +129,7 @@ public sealed class QueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestVelocity>(entity);
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -142,7 +142,7 @@ public sealed class QueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -161,7 +161,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task ArchetypeCount_NoMatches_ReturnsZero()
     {
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -174,7 +174,7 @@ public sealed class QueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -198,7 +198,7 @@ public sealed class QueryTests : IDisposable
         _world.AddComponent<TestPosition>(e3);
         _world.AddComponent<TestHealth>(e3);
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -212,7 +212,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task GetEnumerator_EmptyQuery_NoIterations()
     {
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -236,11 +236,11 @@ public sealed class QueryTests : IDisposable
         _world.AddComponent<TestPosition>(e2);
         _world.AddComponent<TestVelocity>(e2);
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
-        var archetypes = new List<Archetype<Bit64, ComponentRegistry, DefaultWorldConfig>>();
+        var archetypes = new List<Archetype<Bit64, ComponentRegistry, DefaultConfig>>();
         foreach (var archetype in query)
         {
             archetypes.Add(archetype);
@@ -255,7 +255,7 @@ public sealed class QueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -279,11 +279,11 @@ public sealed class QueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
-        var query2 = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query2 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -300,7 +300,7 @@ public sealed class QueryTests : IDisposable
         _world.AddComponent<TestPosition>(e1);
 
         // Build query
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -338,7 +338,7 @@ public sealed class QueryTests : IDisposable
         _world.AddComponent<TestVelocity>(e3);
 
         // Query for Position + Velocity
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .With<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
@@ -360,7 +360,7 @@ public sealed class QueryTests : IDisposable
         _world.AddComponent<TestVelocity>(e2);
 
         // Query for Position without Velocity
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
@@ -385,7 +385,7 @@ public sealed class QueryTests : IDisposable
         _world.AddComponent<TestHealth>(e3);
 
         // Query for any of Position or Velocity
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .WithAny<TestPosition>()
             .WithAny<TestVelocity>()
             .Build(_world.ArchetypeRegistry);

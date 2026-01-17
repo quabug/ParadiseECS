@@ -5,13 +5,13 @@ namespace Paradise.ECS.Concurrent.Test;
 /// </summary>
 public sealed class EntityBuilderTests : IDisposable
 {
-    private readonly ChunkManager<DefaultWorldConfig> _chunkManager = new();
-    private readonly World<Bit64, ComponentRegistry, DefaultWorldConfig> _world;
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new();
+    private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public EntityBuilderTests()
     {
-        _world = new World<Bit64, ComponentRegistry, DefaultWorldConfig>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>.Shared,
+        _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
             _chunkManager);
     }
 

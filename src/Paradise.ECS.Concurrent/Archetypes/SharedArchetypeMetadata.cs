@@ -14,7 +14,7 @@ namespace Paradise.ECS.Concurrent;
 public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     /// <summary>
     /// Gets the shared singleton instance for this TBits/TRegistry/TConfig combination.

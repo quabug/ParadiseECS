@@ -30,15 +30,15 @@ internal readonly struct EdgeKey : IEquatable<EdgeKey>
 
     public static EdgeKey ForAdd(int archetypeId, int componentId)
     {
-        Debug.Assert(archetypeId >= 0 && archetypeId <= IWorldConfig.MaxArchetypeId);
-        Debug.Assert(componentId >= 0 && componentId <= IWorldConfig.MaxComponentTypeId);
+        Debug.Assert(archetypeId >= 0 && archetypeId <= IConfig.MaxArchetypeId);
+        Debug.Assert(componentId >= 0 && componentId <= IConfig.MaxComponentTypeId);
         return new EdgeKey(((uint)archetypeId << TypeBits) | (uint)componentId);
     }
 
     public static EdgeKey ForRemove(int archetypeId, int componentId)
     {
-        Debug.Assert(archetypeId >= 0 && archetypeId <= IWorldConfig.MaxArchetypeId);
-        Debug.Assert(componentId >= 0 && componentId <= IWorldConfig.MaxComponentTypeId);
+        Debug.Assert(archetypeId >= 0 && archetypeId <= IConfig.MaxArchetypeId);
+        Debug.Assert(componentId >= 0 && componentId <= IConfig.MaxComponentTypeId);
         return new EdgeKey(((uint)archetypeId << TypeBits) | (uint)componentId | RemoveFlag);
     }
 

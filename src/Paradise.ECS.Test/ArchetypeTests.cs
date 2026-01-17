@@ -5,13 +5,13 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class ArchetypeTests : IDisposable
 {
-    private readonly ChunkManager<DefaultWorldConfig> _chunkManager = new(NativeMemoryAllocator.Shared);
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig> _sharedMetadata = new(NativeMemoryAllocator.Shared);
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig> _registry;
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(NativeMemoryAllocator.Shared);
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(NativeMemoryAllocator.Shared);
+    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
 
     public ArchetypeTests()
     {
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig>(_sharedMetadata, _chunkManager);
+        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
     }
 
     public void Dispose()

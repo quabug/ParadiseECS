@@ -11,7 +11,7 @@ namespace Paradise.ECS.Concurrent;
 public readonly struct Query<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     private readonly List<Archetype<TBits, TRegistry, TConfig>> _matchingArchetypes;
 

@@ -33,7 +33,7 @@ internal static class ThrowHelper
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfExceedsChunkSize<TConfig>(int totalBytes)
-        where TConfig : IWorldConfig
+        where TConfig : IConfig
         => ThrowIfGreaterThan(totalBytes, TConfig.ChunkSize);
 
     /// <summary>
@@ -42,7 +42,7 @@ internal static class ThrowHelper
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ValidateChunkRange<TConfig>(int byteOffset, int size)
-        where TConfig : IWorldConfig
+        where TConfig : IConfig
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(size);
@@ -55,7 +55,7 @@ internal static class ThrowHelper
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ValidateChunkRange<TConfig>(int byteOffset, int count, int elementSize)
-        where TConfig : IWorldConfig
+        where TConfig : IConfig
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(count);
@@ -70,7 +70,7 @@ internal static class ThrowHelper
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ValidateChunkSize<TConfig>(int size)
-        where TConfig : IWorldConfig
+        where TConfig : IConfig
     {
         ThrowIfNegative(size);
         ThrowIfGreaterThan(size, TConfig.ChunkSize);
@@ -141,12 +141,28 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfArchetypeIdExceedsLimit(int archetypeId)
     {
-        if (archetypeId > IWorldConfig.MaxArchetypeId)
+        if (archetypeId > IConfig.MaxArchetypeId)
             ThrowArchetypeIdExceedsLimit();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowArchetypeIdExceedsLimit()
         => throw new InvalidOperationException(
-            $"Archetype count exceeded maximum of {IWorldConfig.MaxArchetypeId}.");
+            $"Archetype count exceeded maximum of {IConfig.MaxArchetypeId}.");
+
+    /// <summary>
+    /// Throws if the entity ID exceeds what can be stored in EntityIdByteSize bytes.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ThrowIfEntityIdExceedsLimit<TConfig>(int entityId)
+        where TConfig : IConfig
+    {
+        if (entityId > Config<TConfig>.MaxEntityId)
+            ThrowEntityIdExceedsLimit(entityId, Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowEntityIdExceedsLimit(int entityId, int maxEntityId, int byteSize)
+        => throw new InvalidOperationException(
+            $"Entity ID {entityId} exceeds maximum of {maxEntityId} for EntityIdByteSize={byteSize}.");
 }

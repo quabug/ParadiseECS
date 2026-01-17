@@ -11,7 +11,7 @@ namespace Paradise.ECS;
 public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     private readonly SharedArchetypeMetadata<TBits, TRegistry, TConfig> _sharedMetadata;
     private readonly ChunkManager<TConfig> _chunkManager;

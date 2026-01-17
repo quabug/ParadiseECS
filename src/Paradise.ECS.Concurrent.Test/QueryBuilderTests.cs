@@ -7,13 +7,13 @@ namespace Paradise.ECS.Concurrent.Test;
 /// </summary>
 public sealed class QueryBuilderTests : IDisposable
 {
-    private readonly ChunkManager<DefaultWorldConfig> _chunkManager = new();
-    private readonly World<Bit64, ComponentRegistry, DefaultWorldConfig> _world;
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new();
+    private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public QueryBuilderTests()
     {
-        _world = new World<Bit64, ComponentRegistry, DefaultWorldConfig>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>.Shared,
+        _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
             _chunkManager);
     }
 
@@ -29,7 +29,7 @@ public sealed class QueryBuilderTests : IDisposable
     public async Task With_ReturnsNewBuilder()
     {
         // Capture descriptions before await (QueryBuilder is ref struct)
-        var builder1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>();
+        var builder1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>();
         var desc1 = builder1.Description;
 
         var builder2 = builder1.With<TestPosition>();
@@ -44,7 +44,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Without_ReturnsNewBuilder()
     {
-        var builder1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>();
+        var builder1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>();
         var desc1 = builder1.Description;
 
         var builder2 = builder1.Without<TestPosition>();
@@ -57,7 +57,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task WithAny_ReturnsNewBuilder()
     {
-        var builder1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>();
+        var builder1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>();
         var desc1 = builder1.Description;
 
         var builder2 = builder1.WithAny<TestPosition>();
@@ -74,7 +74,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Chaining_PreservesAllConstraints()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .With<TestVelocity>()
             .Without<TestHealth>()
@@ -89,7 +89,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Chaining_AllConstraintTypes()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .WithAny<TestHealth>()
@@ -103,7 +103,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Chaining_SameComponentTwice_SetsBitOnce()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .With<TestPosition>() // Adding same component again
             .Description;
@@ -123,7 +123,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task With_Generic_AddsToAll()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Description;
 
@@ -133,7 +133,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task With_ComponentId_AddsToAll()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With(TestPosition.TypeId.Value)
             .Description;
 
@@ -143,7 +143,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task With_Type_AddsToAll()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With(typeof(TestPosition))
             .Description;
 
@@ -156,7 +156,7 @@ public sealed class QueryBuilderTests : IDisposable
         bool threw = false;
         try
         {
-            _ = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>().With(typeof(string));
+            _ = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>().With(typeof(string));
         }
         catch (InvalidOperationException)
         {
@@ -173,7 +173,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Without_Generic_AddsToNone()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .Without<TestPosition>()
             .Description;
 
@@ -183,7 +183,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Without_ComponentId_AddsToNone()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .Without(TestPosition.TypeId.Value)
             .Description;
 
@@ -193,7 +193,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Without_Type_AddsToNone()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .Without(typeof(TestPosition))
             .Description;
 
@@ -206,7 +206,7 @@ public sealed class QueryBuilderTests : IDisposable
         bool threw = false;
         try
         {
-            _ = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>().Without(typeof(int));
+            _ = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>().Without(typeof(int));
         }
         catch (InvalidOperationException)
         {
@@ -223,7 +223,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task WithAny_Generic_AddsToAny()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .WithAny<TestPosition>()
             .Description;
 
@@ -233,7 +233,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task WithAny_ComponentId_AddsToAny()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .WithAny(TestPosition.TypeId.Value)
             .Description;
 
@@ -243,7 +243,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task WithAny_Type_AddsToAny()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .WithAny(typeof(TestPosition))
             .Description;
 
@@ -256,7 +256,7 @@ public sealed class QueryBuilderTests : IDisposable
         bool threw = false;
         try
         {
-            _ = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>().WithAny(typeof(object));
+            _ = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>().WithAny(typeof(object));
         }
         catch (InvalidOperationException)
         {
@@ -273,7 +273,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Build_EmptyBuilder_ReturnsValidQuery()
     {
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .Build(_world.ArchetypeRegistry);
 
         // Empty query should have valid archetype count
@@ -288,7 +288,7 @@ public sealed class QueryBuilderTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -302,11 +302,11 @@ public sealed class QueryBuilderTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
-        var query2 = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var query2 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -324,7 +324,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task ImplicitConversion_ToDescription_Works()
     {
-        ImmutableQueryDescription<Bit64> description = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        ImmutableQueryDescription<Bit64> description = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>();
 
         await Assert.That(description.All.Get(TestPosition.TypeId.Value)).IsTrue();
@@ -337,7 +337,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Description_DefaultBuilder_ReturnsEmptyDescription()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>().Description;
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>().Description;
 
         await Assert.That(desc.All.IsEmpty).IsTrue();
         await Assert.That(desc.None.IsEmpty).IsTrue();
@@ -347,7 +347,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Description_AfterChaining_ReturnsAccumulatedConstraints()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .WithAny<TestHealth>()
@@ -369,7 +369,7 @@ public sealed class QueryBuilderTests : IDisposable
     [Test]
     public async Task Branching_FromSameBase_CreatesIndependentBuilders()
     {
-        var baseBuilder = new QueryBuilder<Bit64, ComponentRegistry, DefaultWorldConfig>()
+        var baseBuilder = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>();
         var baseDesc = baseBuilder.Description;
 

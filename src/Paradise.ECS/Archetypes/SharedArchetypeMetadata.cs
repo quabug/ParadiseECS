@@ -13,7 +13,7 @@ namespace Paradise.ECS;
 public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     private readonly IAllocator _allocator;
     private readonly Dictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();

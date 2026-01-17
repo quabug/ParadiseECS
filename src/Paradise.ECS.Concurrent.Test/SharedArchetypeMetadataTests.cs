@@ -2,13 +2,13 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public class SharedArchetypeMetadataTests : IDisposable
 {
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig> _metadata;
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _metadata;
     private readonly bool _ownsMetadata;
 
     public SharedArchetypeMetadataTests()
     {
         // Create a fresh instance for isolated testing (not the global Shared instance)
-        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>();
+        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>();
         _ownsMetadata = true;
     }
 
@@ -21,8 +21,8 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task SharedProperty_ReturnsSingleton()
     {
-        var shared1 = SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>.Shared;
-        var shared2 = SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>.Shared;
+        var shared1 = SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared;
+        var shared2 = SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared;
 
         await Assert.That(shared1).IsSameReferenceAs(shared2);
     }
@@ -234,7 +234,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task Dispose_PreventsNewOperations()
     {
-        var localMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>();
+        var localMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>();
         localMetadata.Dispose();
 
         var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
@@ -245,7 +245,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task Dispose_MultipleTimes_DoesNotThrow()
     {
-        using var localMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>();
+        using var localMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>();
 
         await Assert.That(() =>
         {
@@ -257,13 +257,13 @@ public class SharedArchetypeMetadataTests : IDisposable
 
 public class SharedArchetypeMetadataConcurrencyTests : IDisposable
 {
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig> _metadata;
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _metadata;
 
     private const int TestComponentCount = 5;
 
     public SharedArchetypeMetadataConcurrencyTests()
     {
-        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig>();
+        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>();
     }
 
     public void Dispose()

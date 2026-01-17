@@ -11,15 +11,15 @@ public sealed class ArchetypeLayoutTests : IDisposable
     {
         foreach (var data in _layoutDataList)
         {
-            ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultWorldConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
-    private ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultWorldConfig> CreateLayout(ImmutableBitSet<Bit64> mask)
+    private ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig> CreateLayout(ImmutableBitSet<Bit64> mask)
     {
-        var data = ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultWorldConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
         _layoutDataList.Add(data);
-        return new ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultWorldConfig>(data);
+        return new ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>(data);
     }
 
     private static ImmutableBitSet<Bit64> MakeMask(params int[] componentIds)
@@ -41,7 +41,7 @@ public sealed class ArchetypeLayoutTests : IDisposable
         int entitiesPerChunk = layout.EntitiesPerChunk;
         int componentCount = layout.ComponentCount;
 
-        await Assert.That(entitiesPerChunk).IsEqualTo(DefaultWorldConfig.ChunkSize / sizeof(int));
+        await Assert.That(entitiesPerChunk).IsEqualTo(DefaultConfig.ChunkSize / sizeof(int));
         await Assert.That(componentCount).IsEqualTo(0);
     }
 
@@ -170,7 +170,7 @@ public sealed class ArchetypeLayoutTests : IDisposable
 
         // With SoA + entity IDs: entities_per_chunk = ChunkSize / (entity_id_size + sum(component_sizes))
         int totalSizePerEntity = sizeof(int) + TestPosition.Size;
-        int expected = DefaultWorldConfig.ChunkSize / totalSizePerEntity;
+        int expected = DefaultConfig.ChunkSize / totalSizePerEntity;
         await Assert.That(entitiesPerChunk).IsEqualTo(expected);
     }
 
@@ -183,7 +183,7 @@ public sealed class ArchetypeLayoutTests : IDisposable
 
         // With SoA + entity IDs: entities_per_chunk = ChunkSize / (entity_id_size + sum(component_sizes))
         int totalSizePerEntity = sizeof(int) + TestPosition.Size + TestHealth.Size;
-        int expected = DefaultWorldConfig.ChunkSize / totalSizePerEntity;
+        int expected = DefaultConfig.ChunkSize / totalSizePerEntity;
         await Assert.That(entitiesPerChunk).IsEqualTo(expected);
     }
 
@@ -241,15 +241,15 @@ public sealed class ArchetypeLayoutAlignmentTests : IDisposable
     {
         foreach (var data in _layoutDataList)
         {
-            ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultWorldConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
-    private ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultWorldConfig> CreateLayout(ImmutableBitSet<Bit64> mask)
+    private ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig> CreateLayout(ImmutableBitSet<Bit64> mask)
     {
-        var data = ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultWorldConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
         _layoutDataList.Add(data);
-        return new ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultWorldConfig>(data);
+        return new ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>(data);
     }
 
     private static ImmutableBitSet<Bit64> MakeMask(params int[] componentIds)

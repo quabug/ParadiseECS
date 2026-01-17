@@ -13,7 +13,7 @@ namespace Paradise.ECS;
 public sealed class World<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     private readonly ChunkManager<TConfig> _chunkManager;
     private readonly ArchetypeRegistry<TBits, TRegistry, TConfig> _archetypeRegistry;
@@ -64,6 +64,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     public Entity Spawn()
     {
         var entity = _entityManager.Create();
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(entity.Id);
         int globalIndex = _emptyArchetype.AllocateEntity(entity);
         _entityManager.SetLocation(entity.Id, new EntityLocation(entity.Version, _emptyArchetype.Id, globalIndex));
         return entity;
@@ -84,6 +85,7 @@ public sealed class World<TBits, TRegistry, TConfig>
 
         // Create entity and place in target archetype (returns empty archetype if mask is empty)
         var entity = _entityManager.Create();
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(entity.Id);
         var archetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)mask);
         PlaceEntityWithComponents(entity, archetype, builder);
 

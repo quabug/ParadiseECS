@@ -17,7 +17,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 public sealed unsafe class ChunkManager<TConfig> : IDisposable
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     /// <summary>
     /// Metadata for a single chunk slot.

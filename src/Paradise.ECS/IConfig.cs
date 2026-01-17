@@ -4,7 +4,7 @@ namespace Paradise.ECS;
 /// Static configuration interface for World parameters.
 /// Uses static abstract members for compile-time resolution and JIT optimization.
 /// </summary>
-public interface IWorldConfig
+public interface IConfig
 {
     /// <summary>
     /// Maximum supported archetype ID (20 bits = 1,048,575).
@@ -45,10 +45,25 @@ public interface IWorldConfig
 }
 
 /// <summary>
+/// Computed configuration values derived from <typeparamref name="T"/>.
+/// </summary>
+/// <typeparam name="T">The world configuration type.</typeparam>
+public static class Config<T> where T : IConfig
+{
+    /// <summary>
+    /// Maximum entity ID that can be stored in EntityIdByteSize bytes.
+    /// </summary>
+    // ReSharper disable once StaticMemberInGenericType
+    public static int MaxEntityId { get; } = T.EntityIdByteSize >= sizeof(int)
+        ? int.MaxValue
+        : (1 << (T.EntityIdByteSize * 8)) - 1;
+}
+
+/// <summary>
 /// Default configuration optimized for typical game scenarios.
 /// 16KB chunks sized for L1 cache, 1024 initial entity capacity.
 /// </summary>
-public readonly struct DefaultWorldConfig : IWorldConfig
+public readonly struct DefaultConfig : IConfig
 {
     /// <inheritdoc />
     public static int ChunkSize { get; } = 16 * 1024;

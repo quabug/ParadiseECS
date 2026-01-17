@@ -47,56 +47,56 @@ public class ThrowHelperTests
     [Test]
     public async Task ThrowIfExceedsChunkSize_WithExceedingValue_Throws()
     {
-        await Assert.That(() => ThrowHelper.ThrowIfExceedsChunkSize<DefaultWorldConfig>(DefaultWorldConfig.ChunkSize + 1))
+        await Assert.That(() => ThrowHelper.ThrowIfExceedsChunkSize<DefaultConfig>(DefaultConfig.ChunkSize + 1))
             .Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
     public async Task ThrowIfExceedsChunkSize_WithChunkSize_DoesNotThrow()
     {
-        await Assert.That(() => ThrowHelper.ThrowIfExceedsChunkSize<DefaultWorldConfig>(DefaultWorldConfig.ChunkSize))
+        await Assert.That(() => ThrowHelper.ThrowIfExceedsChunkSize<DefaultConfig>(DefaultConfig.ChunkSize))
             .ThrowsNothing();
     }
 
     [Test]
     public async Task ValidateChunkRange_TwoParams_WithNegativeOffset_Throws()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultWorldConfig>(-1, 100))
+        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultConfig>(-1, 100))
             .Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
     public async Task ValidateChunkRange_TwoParams_WithNegativeSize_Throws()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultWorldConfig>(0, -1))
+        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultConfig>(0, -1))
             .Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
     public async Task ValidateChunkRange_TwoParams_WithExceedingRange_Throws()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultWorldConfig>(100, DefaultWorldConfig.ChunkSize))
+        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultConfig>(100, DefaultConfig.ChunkSize))
             .Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
     public async Task ValidateChunkRange_TwoParams_WithValidRange_DoesNotThrow()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultWorldConfig>(0, DefaultWorldConfig.ChunkSize))
+        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultConfig>(0, DefaultConfig.ChunkSize))
             .ThrowsNothing();
     }
 
     [Test]
     public async Task ValidateChunkRange_ThreeParams_WithNegativeOffset_Throws()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultWorldConfig>(-1, 10, 4))
+        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultConfig>(-1, 10, 4))
             .Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
     public async Task ValidateChunkRange_ThreeParams_WithNegativeCount_Throws()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultWorldConfig>(0, -1, 4))
+        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultConfig>(0, -1, 4))
             .Throws<ArgumentOutOfRangeException>();
     }
 
@@ -104,36 +104,36 @@ public class ThrowHelperTests
     public async Task ValidateChunkRange_ThreeParams_WithExceedingCount_Throws()
     {
         // At offset 0, with element size 4, max count is ChunkSize / 4
-        int maxCount = DefaultWorldConfig.ChunkSize / 4;
-        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultWorldConfig>(0, maxCount + 1, 4))
+        int maxCount = DefaultConfig.ChunkSize / 4;
+        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultConfig>(0, maxCount + 1, 4))
             .Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
     public async Task ValidateChunkRange_ThreeParams_WithValidRange_DoesNotThrow()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultWorldConfig>(0, 100, 4))
+        await Assert.That(() => ThrowHelper.ValidateChunkRange<DefaultConfig>(0, 100, 4))
             .ThrowsNothing();
     }
 
     [Test]
     public async Task ValidateChunkSize_WithNegativeSize_Throws()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkSize<DefaultWorldConfig>(-1))
+        await Assert.That(() => ThrowHelper.ValidateChunkSize<DefaultConfig>(-1))
             .Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
     public async Task ValidateChunkSize_WithExceedingSize_Throws()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkSize<DefaultWorldConfig>(DefaultWorldConfig.ChunkSize + 1))
+        await Assert.That(() => ThrowHelper.ValidateChunkSize<DefaultConfig>(DefaultConfig.ChunkSize + 1))
             .Throws<ArgumentOutOfRangeException>();
     }
 
     [Test]
     public async Task ValidateChunkSize_WithValidSize_DoesNotThrow()
     {
-        await Assert.That(() => ThrowHelper.ValidateChunkSize<DefaultWorldConfig>(DefaultWorldConfig.ChunkSize))
+        await Assert.That(() => ThrowHelper.ValidateChunkSize<DefaultConfig>(DefaultConfig.ChunkSize))
             .ThrowsNothing();
     }
 

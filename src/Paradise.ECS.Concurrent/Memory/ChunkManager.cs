@@ -18,7 +18,7 @@ namespace Paradise.ECS.Concurrent;
 /// </summary>
 /// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
 public sealed unsafe class ChunkManager<TConfig> : IDisposable
-    where TConfig : IWorldConfig
+    where TConfig : IConfig
 {
     /// <summary>
     /// Metadata for a single chunk slot.
