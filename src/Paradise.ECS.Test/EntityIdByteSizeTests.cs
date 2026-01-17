@@ -284,4 +284,160 @@ public sealed class EntityIdByteSizeTests
     }
 
     #endregion
+
+    #region EntityId Storage Correctness Tests (Regression for sizeof(int) overwrite bug)
+
+    [Test]
+    public async Task ByteConfig_MultipleEntityIdsStoredCorrectly_NoDataCorruption()
+    {
+        // This test verifies that entity IDs are stored using EntityIdByteSize bytes,
+        // not sizeof(int). If sizeof(int) is used, writing entity ID at index N
+        // would overwrite entity ID at index N+1/N+2/N+3, corrupting data.
+        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
+        var registry = new ArchetypeRegistry<Bit64, ComponentRegistry, ByteEntityIdConfig>(sharedMetadata, chunkManager);
+
+        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
+        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var archetype = registry.GetOrCreateArchetype(hashedKey);
+
+        // Allocate multiple entities with consecutive IDs
+        var entities = new Entity[10];
+        for (int i = 0; i < 10; i++)
+        {
+            entities[i] = new Entity(i, 1);
+            archetype.AllocateEntity(entities[i]);
+        }
+
+        // Verify all entity IDs are stored correctly by removing entities
+        // and checking returned movedEntityId
+        // Remove first entity - entity 9 should be moved to position 0
+        int movedId = archetype.RemoveEntity(0);
+        await Assert.That(movedId).IsEqualTo(9);
+
+        // Remove second entity (was at index 1, now holds entity 1) - entity 8 should be moved
+        movedId = archetype.RemoveEntity(1);
+        await Assert.That(movedId).IsEqualTo(8);
+
+        // Verify count
+        await Assert.That(archetype.EntityCount).IsEqualTo(8);
+    }
+
+    [Test]
+    public async Task ShortConfig_MultipleEntityIdsStoredCorrectly_NoDataCorruption()
+    {
+        // Similar test for 2-byte EntityIdByteSize
+        using var chunkManager = new ChunkManager<ShortEntityIdConfig>(new ShortEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ShortEntityIdConfig>(new ShortEntityIdConfig());
+        var registry = new ArchetypeRegistry<Bit64, ComponentRegistry, ShortEntityIdConfig>(sharedMetadata, chunkManager);
+
+        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
+        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var archetype = registry.GetOrCreateArchetype(hashedKey);
+
+        // Allocate multiple entities with consecutive IDs
+        var entities = new Entity[20];
+        for (int i = 0; i < 20; i++)
+        {
+            entities[i] = new Entity(i, 1);
+            archetype.AllocateEntity(entities[i]);
+        }
+
+        // Remove first entity - entity 19 should be moved to position 0
+        int movedId = archetype.RemoveEntity(0);
+        await Assert.That(movedId).IsEqualTo(19);
+
+        // Verify correct swap-remove behavior
+        movedId = archetype.RemoveEntity(1);
+        await Assert.That(movedId).IsEqualTo(18);
+
+        await Assert.That(archetype.EntityCount).IsEqualTo(18);
+    }
+
+    [Test]
+    public async Task ByteConfig_SwapRemoveCopiesCorrectBytes_NoDataCorruption()
+    {
+        // Test specifically for the swap-remove copy path using sizeof(int)
+        // When entity at middle is removed, last entity's ID should be copied correctly
+        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
+        var registry = new ArchetypeRegistry<Bit64, ComponentRegistry, ByteEntityIdConfig>(sharedMetadata, chunkManager);
+
+        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
+        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var archetype = registry.GetOrCreateArchetype(hashedKey);
+
+        // Allocate 5 entities
+        for (int i = 0; i < 5; i++)
+        {
+            archetype.AllocateEntity(new Entity(i, 1));
+        }
+
+        // Remove entity at index 2 (entity ID 2), entity 4 should move to index 2
+        int movedId = archetype.RemoveEntity(2);
+        await Assert.That(movedId).IsEqualTo(4);
+
+        // Remove entity at index 1 (entity ID 1), entity 3 should move to index 1
+        movedId = archetype.RemoveEntity(1);
+        await Assert.That(movedId).IsEqualTo(3);
+
+        // Now we have entities [0, 3, 4] at indices [0, 1, 2]
+        // Remove entity at index 0, entity at index 2 (entity ID 4) should move
+        movedId = archetype.RemoveEntity(0);
+        await Assert.That(movedId).IsEqualTo(4);
+
+        await Assert.That(archetype.EntityCount).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task ByteConfig_EntityIdOffsetCalculation_IsCorrect()
+    {
+        // Verify that GetEntityIdOffset uses EntityIdByteSize
+        // ByteConfig: EntityIdByteSize = 1
+        // Expected offsets: entity 0 -> 0, entity 1 -> 1, entity 2 -> 2, etc.
+        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
+        var layoutData = ImmutableArchetypeLayout<Bit64, ComponentRegistry, ByteEntityIdConfig>.Create(
+            NativeMemoryAllocator.Shared, mask);
+        try
+        {
+            int offset0 = ImmutableArchetypeLayout<Bit64, ComponentRegistry, ByteEntityIdConfig>.GetEntityIdOffset(0);
+            int offset1 = ImmutableArchetypeLayout<Bit64, ComponentRegistry, ByteEntityIdConfig>.GetEntityIdOffset(1);
+            int offset2 = ImmutableArchetypeLayout<Bit64, ComponentRegistry, ByteEntityIdConfig>.GetEntityIdOffset(2);
+
+            await Assert.That(offset0).IsEqualTo(0);
+            await Assert.That(offset1).IsEqualTo(1); // ByteEntityIdConfig.EntityIdByteSize = 1
+            await Assert.That(offset2).IsEqualTo(2);
+        }
+        finally
+        {
+            ImmutableArchetypeLayout<Bit64, ComponentRegistry, ByteEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
+        }
+    }
+
+    [Test]
+    public async Task ShortConfig_EntityIdOffsetCalculation_IsCorrect()
+    {
+        // Verify that GetEntityIdOffset uses EntityIdByteSize
+        // ShortConfig: EntityIdByteSize = 2
+        // Expected offsets: entity 0 -> 0, entity 1 -> 2, entity 2 -> 4, etc.
+        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
+        var layoutData = ImmutableArchetypeLayout<Bit64, ComponentRegistry, ShortEntityIdConfig>.Create(
+            NativeMemoryAllocator.Shared, mask);
+        try
+        {
+            int offset0 = ImmutableArchetypeLayout<Bit64, ComponentRegistry, ShortEntityIdConfig>.GetEntityIdOffset(0);
+            int offset1 = ImmutableArchetypeLayout<Bit64, ComponentRegistry, ShortEntityIdConfig>.GetEntityIdOffset(1);
+            int offset2 = ImmutableArchetypeLayout<Bit64, ComponentRegistry, ShortEntityIdConfig>.GetEntityIdOffset(2);
+
+            await Assert.That(offset0).IsEqualTo(0);
+            await Assert.That(offset1).IsEqualTo(2); // ShortEntityIdConfig.EntityIdByteSize = 2
+            await Assert.That(offset2).IsEqualTo(4);
+        }
+        finally
+        {
+            ImmutableArchetypeLayout<Bit64, ComponentRegistry, ShortEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
+        }
+    }
+
+    #endregion
 }

@@ -103,7 +103,7 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
         var chunkHandle = Volatile.Read(ref _chunks)[chunkIndex];
 
         // Write entity ID to chunk
-        GetEntityIdRef(chunkHandle, indexInChunk) = entity.Id;
+        SetEntityId(chunkHandle, indexInChunk, entity.Id);
 
         Volatile.Write(ref _entityCount, currentCount + 1);
 
@@ -149,7 +149,7 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
         var dstChunkHandle = chunks[dstChunkIdx];
 
         // Read the entity ID being moved from the source chunk
-        int movedEntityId = GetEntityIdRef(srcChunkHandle, srcIndexInChunk);
+        int movedEntityId = GetEntityId(srcChunkHandle, srcIndexInChunk);
 
         // With SoA, copy each component separately (including entity ID)
         using var srcChunk = _chunkManager.Get(srcChunkHandle);
@@ -158,8 +158,8 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
         // Copy entity ID
         int srcEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(srcIndexInChunk);
         int dstEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(dstIndexInChunk);
-        var srcEntityIdData = srcChunk.GetBytesAt(srcEntityIdOffset, sizeof(int));
-        var dstEntityIdData = dstChunk.GetBytesAt(dstEntityIdOffset, sizeof(int));
+        var srcEntityIdData = srcChunk.GetBytesAt(srcEntityIdOffset, TConfig.EntityIdByteSize);
+        var dstEntityIdData = dstChunk.GetBytesAt(dstEntityIdOffset, TConfig.EntityIdByteSize);
         srcEntityIdData.CopyTo(dstEntityIdData);
 
         // Iterate from min to max component ID in this archetype's layout
@@ -257,10 +257,38 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
     /// Reads an entity ID from a chunk at the specified index.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref int GetEntityIdRef(ChunkHandle chunkHandle, int indexInChunk)
+    private int GetEntityId(ChunkHandle chunkHandle, int indexInChunk)
     {
         using var chunk = _chunkManager.Get(chunkHandle);
         int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
-        return ref chunk.GetRef<int>(offset);
+        return TConfig.EntityIdByteSize switch
+        {
+            1 => chunk.GetRef<byte>(offset),
+            2 => chunk.GetRef<ushort>(offset),
+            4 => chunk.GetRef<int>(offset),
+            _ => ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize)
+        };
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void SetEntityId(ChunkHandle chunkHandle, int indexInChunk, int entityId)
+    {
+        using var chunk = _chunkManager.Get(chunkHandle);
+        int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
+        switch (TConfig.EntityIdByteSize)
+        {
+            case 1:
+                chunk.GetRef<byte>(offset) = (byte)entityId;
+                break;
+            case 2:
+                chunk.GetRef<ushort>(offset) = (ushort)entityId;
+                break;
+            case 4:
+                chunk.GetRef<int>(offset) = entityId;
+                break;
+            default:
+                ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize);
+                break;
+        }
     }
 }

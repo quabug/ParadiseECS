@@ -141,8 +141,8 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
         // Copy entity ID
         int srcEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(srcIndexInChunk);
         int dstEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(dstIndexInChunk);
-        var srcEntityIdData = srcChunk.GetBytesAt(srcEntityIdOffset, sizeof(int));
-        var dstEntityIdData = dstChunk.GetBytesAt(dstEntityIdOffset, sizeof(int));
+        var srcEntityIdData = srcChunk.GetBytesAt(srcEntityIdOffset, TConfig.EntityIdByteSize);
+        var dstEntityIdData = dstChunk.GetBytesAt(dstEntityIdOffset, TConfig.EntityIdByteSize);
         srcEntityIdData.CopyTo(dstEntityIdData);
 
         // Iterate from min to max component ID in this archetype's layout
@@ -239,7 +239,13 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
     {
         using var chunk = _chunkManager.Get(chunkHandle);
         int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
-        return chunk.GetRef<int>(offset);
+        return TConfig.EntityIdByteSize switch
+        {
+            1 => chunk.GetRef<byte>(offset),
+            2 => chunk.GetRef<ushort>(offset),
+            4 => chunk.GetRef<int>(offset),
+            _ => ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize)
+        };
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -247,6 +253,20 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
     {
         using var chunk = _chunkManager.Get(chunkHandle);
         int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
-        chunk.GetRef<int>(offset) = entityId;
+        switch (TConfig.EntityIdByteSize)
+        {
+            case 1:
+                chunk.GetRef<byte>(offset) = (byte)entityId;
+                break;
+            case 2:
+                chunk.GetRef<ushort>(offset) = (ushort)entityId;
+                break;
+            case 4:
+                chunk.GetRef<int>(offset) = entityId;
+                break;
+            default:
+                ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize);
+                break;
+        }
     }
 }

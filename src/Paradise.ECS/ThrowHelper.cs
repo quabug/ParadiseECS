@@ -165,4 +165,13 @@ internal static class ThrowHelper
     private static void ThrowEntityIdExceedsLimit(int entityId, int maxEntityId, int byteSize)
         => throw new InvalidOperationException(
             $"Entity ID {entityId} exceeds maximum of {maxEntityId} for EntityIdByteSize={byteSize}.");
+
+    /// <summary>
+    /// Throws an exception for an invalid EntityIdByteSize value.
+    /// Returns T to allow use in switch expressions.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static T ThrowInvalidEntityIdByteSize<T>(int entityIdByteSize)
+        => throw new InvalidOperationException(
+            $"Invalid EntityIdByteSize: {entityIdByteSize}. Supported values are 1, 2, and 4.");
 }

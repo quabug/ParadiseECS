@@ -153,4 +153,13 @@ internal static class ThrowHelper
     private static void ThrowArchetypeIdExceedsLimit()
         => throw new InvalidOperationException(
             $"Archetype count exceeded maximum of {IConfig.MaxArchetypeId}.");
+
+    /// <summary>
+    /// Throws an exception for an invalid EntityIdByteSize value.
+    /// Returns T to allow use in switch expressions.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static T ThrowInvalidEntityIdByteSize<T>(int entityIdByteSize)
+        => throw new InvalidOperationException(
+            $"Invalid EntityIdByteSize: {entityIdByteSize}. Supported values are 1, 2, and 4.");
 }
