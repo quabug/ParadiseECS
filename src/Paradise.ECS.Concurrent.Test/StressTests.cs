@@ -7,21 +7,25 @@ namespace Paradise.ECS.Concurrent.Test;
 [Category("Stress")]
 public sealed class StressTests : IDisposable
 {
+    private static readonly DefaultConfig s_config = new();
     private ChunkManager<DefaultConfig>? _chunkManager;
+    private SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>? _sharedMetadata;
     private World<Bit64, ComponentRegistry, DefaultConfig>? _world;
 
     public void Dispose()
     {
         _world?.Dispose();
+        _sharedMetadata?.Dispose();
         _chunkManager?.Dispose();
     }
 
     private void CreateWorld()
     {
-        _chunkManager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        _chunkManager = new ChunkManager<DefaultConfig>(s_config);
+        _sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
         _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
-            new DefaultConfig(),
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
+            s_config,
+            _sharedMetadata,
             _chunkManager);
     }
 

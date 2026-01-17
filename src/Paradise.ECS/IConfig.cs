@@ -17,8 +17,6 @@ public interface IConfig
     /// </summary>
     public const int MaxComponentTypeId = (1 << EdgeKey.ComponentBits) - 1;
 
-    #region Static Abstract Members (Compile-time Structural Constraints)
-
     /// <summary>
     /// Chunk memory block size in bytes.
     /// Should be a power of 2 for optimal memory alignment.
@@ -38,29 +36,7 @@ public interface IConfig
     /// Only the Entity.Id is stored, not the full Entity struct.
     /// Default: 4 bytes (sizeof(int)).
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Each chunk stores entity IDs at the beginning, followed by component data arrays.
-    /// The chunk layout is: [EntityIds × N][Component1 × N][Component2 × N]...
-    /// </para>
-    /// <para>
-    /// Smaller values allow more entities per chunk but limit maximum entity count:
-    /// <list type="bullet">
-    ///   <item>1 byte: max 255 entities, 4KB chunk fits 4096 empty entities</item>
-    ///   <item>2 bytes: max 65,535 entities, 4KB chunk fits 2048 empty entities</item>
-    ///   <item>4 bytes: max ~2 billion entities, 16KB chunk fits 4096 empty entities</item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// The maximum entity ID is computed as: (1 &lt;&lt; (EntityIdByteSize * 8)) - 1,
-    /// available via <see cref="Config{T}.MaxEntityId"/>.
-    /// </para>
-    /// </remarks>
     static abstract int EntityIdByteSize { get; }
-
-    #endregion
-
-    #region Instance Members (Runtime Configuration)
 
     /// <summary>
     /// Initial capacity for chunk storage (number of chunk slots to pre-allocate meta blocks for).
@@ -76,7 +52,26 @@ public interface IConfig
     /// </summary>
     int DefaultEntityCapacity { get; }
 
-    #endregion
+    /// <summary>
+    /// Memory allocator for chunk memory operations in <see cref="ChunkManager{TConfig}"/>.
+    /// This is a runtime configuration that can vary per instance.
+    /// Default: <see cref="NativeMemoryAllocator.Shared"/>.
+    /// </summary>
+    IAllocator ChunkAllocator { get; }
+
+    /// <summary>
+    /// Memory allocator for archetype metadata operations in <see cref="SharedArchetypeMetadata{TBits,TRegistry,TConfig}"/>.
+    /// This is a runtime configuration that can vary per instance.
+    /// Default: <see cref="NativeMemoryAllocator.Shared"/>.
+    /// </summary>
+    IAllocator MetadataAllocator { get; }
+
+    /// <summary>
+    /// Memory allocator for archetype layout data in <see cref="ImmutableArchetypeLayout{TBits,TRegistry,TConfig}"/>.
+    /// This is a runtime configuration that can vary per instance.
+    /// Default: <see cref="NativeMemoryAllocator.Shared"/>.
+    /// </summary>
+    IAllocator LayoutAllocator { get; }
 }
 
 /// <summary>
@@ -105,8 +100,6 @@ public readonly struct DefaultConfig : IConfig
     /// </summary>
     public DefaultConfig() { }
 
-    #region Static Abstract Implementations (Compile-time Constraints)
-
     /// <inheritdoc />
     public static int ChunkSize => 16 * 1024;
 
@@ -115,10 +108,6 @@ public readonly struct DefaultConfig : IConfig
 
     /// <inheritdoc />
     public static int EntityIdByteSize => sizeof(int);
-
-    #endregion
-
-    #region Instance Members (Runtime Configuration)
 
     /// <summary>
     /// Initial capacity for entity storage. Default: 1024.
@@ -130,5 +119,18 @@ public readonly struct DefaultConfig : IConfig
     /// </summary>
     public int DefaultChunkCapacity { get; init; } = 256;
 
-    #endregion
+    /// <summary>
+    /// Memory allocator for chunk memory operations. Default: <see cref="NativeMemoryAllocator.Shared"/>.
+    /// </summary>
+    public IAllocator ChunkAllocator { get; init; } = NativeMemoryAllocator.Shared;
+
+    /// <summary>
+    /// Memory allocator for archetype metadata operations. Default: <see cref="NativeMemoryAllocator.Shared"/>.
+    /// </summary>
+    public IAllocator MetadataAllocator { get; init; } = NativeMemoryAllocator.Shared;
+
+    /// <summary>
+    /// Memory allocator for archetype layout data. Default: <see cref="NativeMemoryAllocator.Shared"/>.
+    /// </summary>
+    public IAllocator LayoutAllocator { get; init; } = NativeMemoryAllocator.Shared;
 }

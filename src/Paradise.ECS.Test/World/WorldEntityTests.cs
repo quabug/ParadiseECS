@@ -5,13 +5,14 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class WorldEntityTests : IDisposable
 {
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(new DefaultConfig(), NativeMemoryAllocator.Shared);
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(NativeMemoryAllocator.Shared);
+    private static readonly DefaultConfig s_config = new();
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
     private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public WorldEntityTests()
     {
-        _world = new World<Bit64, ComponentRegistry, DefaultConfig>(new DefaultConfig(), _sharedMetadata, _chunkManager);
+        _world = new World<Bit64, ComponentRegistry, DefaultConfig>(s_config, _sharedMetadata, _chunkManager);
     }
 
     public void Dispose()
@@ -56,8 +57,8 @@ public sealed class WorldEntityTests : IDisposable
     public async Task Spawn_ExceedsInitialCapacity_ExpandsAutomatically()
     {
         var config = new DefaultConfig { DefaultEntityCapacity = 4 };
-        using var chunkManager = new ChunkManager<DefaultConfig>(config, NativeMemoryAllocator.Shared);
-        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(NativeMemoryAllocator.Shared);
+        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         var world = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager);
 
         var entities = new Entity[10];

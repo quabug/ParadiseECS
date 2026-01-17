@@ -209,6 +209,16 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Integration with ECS systems for reusable component data
   - Configurable pool sizes and growth strategies
 
+- [ ] **Memory Allocation Strategies**
+  - Extend existing `IAllocator` interface with additional implementations
+  - **Arena Allocator**: Fast bump-pointer allocation with bulk deallocation, ideal for frame-temporary data
+  - **Virtual Memory Allocator**: Reserve large contiguous address space, commit pages on demand for sparse data
+  - **Stack Allocator**: LIFO allocation pattern for temporary allocations within a scope
+  - **Pool Allocator**: Fixed-size block allocation for uniform objects (complement to Object Pool)
+  - Consider alignment requirements for SIMD operations
+  - Memory budget tracking and diagnostics integration
+  - Hot-swappable allocator strategies per World or subsystem
+
 ---
 
 ## Open Issues Summary

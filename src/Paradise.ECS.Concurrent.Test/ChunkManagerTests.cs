@@ -313,9 +313,10 @@ public class ChunkManagerExceptionTests : IDisposable
 public class ChunkManagerConstructorTests
 {
     [Test]
-    public async Task Constructor_WithNullAllocator_ThrowsArgumentNullException()
+    public async Task Constructor_WithNullChunkAllocator_ThrowsArgumentNullException()
     {
-        await Assert.That(() => new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 }, null!)).Throws<ArgumentNullException>();
+        var configWithNullAllocator = new DefaultConfig { DefaultChunkCapacity = 16, ChunkAllocator = null! };
+        await Assert.That(() => new ChunkManager<DefaultConfig>(configWithNullAllocator)).Throws<ArgumentNullException>();
     }
 
     [Test]

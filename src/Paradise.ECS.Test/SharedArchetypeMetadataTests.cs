@@ -9,7 +9,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
 
     public SharedArchetypeMetadataTests()
     {
-        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(NativeMemoryAllocator.Shared);
+        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(new DefaultConfig());
     }
 
     public void Dispose()

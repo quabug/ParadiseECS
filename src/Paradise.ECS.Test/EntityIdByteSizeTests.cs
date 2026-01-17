@@ -15,6 +15,9 @@ public readonly struct ByteEntityIdConfig : IConfig
     // Instance members (runtime configuration)
     public int DefaultEntityCapacity { get; init; } = 64;
     public int DefaultChunkCapacity { get; init; } = 16;
+    public IAllocator ChunkAllocator { get; init; } = NativeMemoryAllocator.Shared;
+    public IAllocator MetadataAllocator { get; init; } = NativeMemoryAllocator.Shared;
+    public IAllocator LayoutAllocator { get; init; } = NativeMemoryAllocator.Shared;
 }
 
 /// <summary>
@@ -32,6 +35,9 @@ public readonly struct ShortEntityIdConfig : IConfig
     // Instance members (runtime configuration)
     public int DefaultEntityCapacity { get; init; } = 256;
     public int DefaultChunkCapacity { get; init; } = 32;
+    public IAllocator ChunkAllocator { get; init; } = NativeMemoryAllocator.Shared;
+    public IAllocator MetadataAllocator { get; init; } = NativeMemoryAllocator.Shared;
+    public IAllocator LayoutAllocator { get; init; } = NativeMemoryAllocator.Shared;
 }
 
 /// <summary>
@@ -72,8 +78,8 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ByteConfig_SpawnUpToLimit_Succeeds()
     {
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig(), NativeMemoryAllocator.Shared);
-        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(NativeMemoryAllocator.Shared);
+        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities (IDs 0-255)
@@ -90,8 +96,8 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ByteConfig_SpawnBeyondLimit_ThrowsInvalidOperationException()
     {
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig(), NativeMemoryAllocator.Shared);
-        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(NativeMemoryAllocator.Shared);
+        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities (IDs 0-255) - this should succeed
@@ -108,8 +114,8 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ByteConfig_SpawnAfterDespawn_ReusesIdWithinLimit()
     {
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig(), NativeMemoryAllocator.Shared);
-        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(NativeMemoryAllocator.Shared);
+        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities
@@ -137,8 +143,8 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ShortConfig_SpawnWithinLimit_Succeeds()
     {
-        using var chunkManager = new ChunkManager<ShortEntityIdConfig>(new ShortEntityIdConfig(), NativeMemoryAllocator.Shared);
-        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ShortEntityIdConfig>(NativeMemoryAllocator.Shared);
+        using var chunkManager = new ChunkManager<ShortEntityIdConfig>(new ShortEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ShortEntityIdConfig>(new ShortEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ShortEntityIdConfig>(new ShortEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 1000 entities - well within the 65535 limit
@@ -157,8 +163,8 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ByteConfig_CreateEntityBeyondLimit_ThrowsInvalidOperationException()
     {
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig(), NativeMemoryAllocator.Shared);
-        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(NativeMemoryAllocator.Shared);
+        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities (IDs 0-255)

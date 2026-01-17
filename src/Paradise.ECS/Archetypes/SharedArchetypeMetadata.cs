@@ -15,7 +15,8 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     where TRegistry : IComponentRegistry
     where TConfig : IConfig
 {
-    private readonly IAllocator _allocator;
+    private readonly IAllocator _metadataAllocator;
+    private readonly IAllocator _layoutAllocator;
     private readonly Dictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
     private readonly List<nint/* ArchetypeLayout* */> _layouts = new();
     private readonly Dictionary<EdgeKey, int> _edges = new();
@@ -46,10 +47,11 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// <summary>
     /// Creates a new shared archetype metadata instance.
     /// </summary>
-    /// <param name="allocator">The memory allocator to use. If null, uses <see cref="NativeMemoryAllocator.Shared"/>.</param>
-    public SharedArchetypeMetadata(IAllocator? allocator = null)
+    /// <param name="config">The configuration instance with runtime settings including the allocators.</param>
+    public SharedArchetypeMetadata(TConfig config)
     {
-        _allocator = allocator ?? NativeMemoryAllocator.Shared;
+        _metadataAllocator = config.MetadataAllocator ?? throw new ArgumentNullException(nameof(config), "Config.MetadataAllocator cannot be null");
+        _layoutAllocator = config.LayoutAllocator ?? throw new ArgumentNullException(nameof(config), "Config.LayoutAllocator cannot be null");
     }
 
     /// <summary>
@@ -72,7 +74,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
             return existingId;
         }
 
-        var layoutData = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Create(_allocator, mask);
+        var layoutData = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Create(_layoutAllocator, mask);
         int newId = _layouts.Count;
         _layouts.Add(layoutData);
         ThrowHelper.ThrowIfArchetypeIdExceedsLimit(newId);
@@ -311,7 +313,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
         // Free all layouts
         for (int i = 0; i < _layouts.Count; i++)
         {
-            ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Free(_allocator, _layouts[i]);
+            ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Free(_layoutAllocator, _layouts[i]);
         }
 
         _layouts.Clear();

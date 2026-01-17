@@ -17,18 +17,14 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     where TConfig : IConfig
 {
     /// <summary>
-    /// Gets the shared singleton instance for this TBits/TRegistry/TConfig combination.
-    /// </summary>
-    public static SharedArchetypeMetadata<TBits, TRegistry, TConfig> Shared { get; } = new();
-
-    /// <summary>
     /// Thread-local temporary list for collecting matched query IDs during archetype operations.
     /// Reused to avoid allocations on each operation.
     /// </summary>
     [ThreadStatic]
     private static List<int>? s_tempMatchedQueries;
 
-    private readonly IAllocator _allocator;
+    private readonly IAllocator _metadataAllocator;
+    private readonly IAllocator _layoutAllocator;
     private readonly ConcurrentDictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
     private readonly ConcurrentAppendOnlyList<nint/* ArchetypeLayout* */> _layouts = new();
     private readonly ConcurrentDictionary<EdgeKey, int> _edges = new();
@@ -66,10 +62,11 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// <summary>
     /// Creates a new shared archetype metadata instance.
     /// </summary>
-    /// <param name="allocator">The memory allocator to use. If null, uses <see cref="NativeMemoryAllocator.Shared"/>.</param>
-    public SharedArchetypeMetadata(IAllocator? allocator = null)
+    /// <param name="config">The configuration instance with runtime settings including the allocator.</param>
+    public SharedArchetypeMetadata(TConfig config)
     {
-        _allocator = allocator ?? NativeMemoryAllocator.Shared;
+        _metadataAllocator = config.MetadataAllocator ?? throw new ArgumentNullException(nameof(config), "Config.MetadataAllocator cannot be null");
+        _layoutAllocator = config.LayoutAllocator ?? throw new ArgumentNullException(nameof(config), "Config.LayoutAllocator cannot be null");
     }
 
     /// <summary>
@@ -117,7 +114,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
             return existingId;
         }
 
-        var layoutData = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Create(_allocator, mask);
+        var layoutData = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Create(_layoutAllocator, mask);
         int newId = _layouts.Add(layoutData);
         ThrowHelper.ThrowIfArchetypeIdExceedsLimit(newId);
         _maskToArchetypeId[mask] = newId;
@@ -389,7 +386,6 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
 
     /// <summary>
     /// Releases all resources used by this instance.
-    /// Note: The static <see cref="Shared"/> instance should typically not be disposed.
     /// </summary>
     public void Dispose()
     {
@@ -399,7 +395,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
         // Free all layouts
         for (int i = 0; i < _layouts.Count; i++)
         {
-            ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Free(_allocator, _layouts[i]);
+            ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Free(_layoutAllocator, _layouts[i]);
         }
     }
 }

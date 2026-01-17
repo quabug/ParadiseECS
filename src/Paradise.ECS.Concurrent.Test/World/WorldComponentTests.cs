@@ -5,20 +5,23 @@ namespace Paradise.ECS.Concurrent.Test;
 /// </summary>
 public sealed class WorldComponentTests : IDisposable
 {
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(new DefaultConfig());
+    private static readonly DefaultConfig s_config = new();
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
     private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public WorldComponentTests()
     {
         _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
-            new DefaultConfig(),
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
+            s_config,
+            _sharedMetadata,
             _chunkManager);
     }
 
     public void Dispose()
     {
         _world.Dispose();
+        _sharedMetadata.Dispose();
         _chunkManager.Dispose();
     }
 

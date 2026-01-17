@@ -5,20 +5,23 @@ namespace Paradise.ECS.Concurrent.Test;
 /// </summary>
 public sealed class EdgeCaseTests : IDisposable
 {
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(new DefaultConfig());
+    private static readonly DefaultConfig s_config = new();
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
     private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public EdgeCaseTests()
     {
         _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
-            new DefaultConfig(),
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
+            s_config,
+            _sharedMetadata,
             _chunkManager);
     }
 
     public void Dispose()
     {
         _world.Dispose();
+        _sharedMetadata.Dispose();
         _chunkManager.Dispose();
     }
 
@@ -356,10 +359,12 @@ public sealed class EdgeCaseTests : IDisposable
     [Test]
     public async Task World_Disposed_SpawnThrows()
     {
-        using var cm = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var config = new DefaultConfig();
+        using var cm = new ChunkManager<DefaultConfig>(config);
+        using var sm = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         var world = new World<Bit64, ComponentRegistry, DefaultConfig>(
-            new DefaultConfig(),
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
+            config,
+            sm,
             cm);
         world.Dispose();
 
@@ -369,10 +374,12 @@ public sealed class EdgeCaseTests : IDisposable
     [Test]
     public async Task World_Disposed_HasComponentDoesNotThrow()
     {
-        using var cm = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var config = new DefaultConfig();
+        using var cm = new ChunkManager<DefaultConfig>(config);
+        using var sm = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         var world = new World<Bit64, ComponentRegistry, DefaultConfig>(
-            new DefaultConfig(),
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
+            config,
+            sm,
             cm);
         var entity = world.Spawn();
         world.Dispose();

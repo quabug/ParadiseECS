@@ -5,8 +5,9 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class ArchetypeRegistryTests : IDisposable
 {
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(new DefaultConfig(), NativeMemoryAllocator.Shared);
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(NativeMemoryAllocator.Shared);
+    private static readonly DefaultConfig s_config = new();
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
     private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
 
     public ArchetypeRegistryTests()

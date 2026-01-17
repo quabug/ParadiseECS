@@ -8,7 +8,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Create_WithDefaultCapacity_DisposeSucceeds()
     {
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         manager.Dispose();
 
         await Assert.That(manager).IsNotNull();
@@ -18,7 +18,7 @@ public sealed class ChunkManagerTests
     public async Task Create_WithDefaultCapacity_DisposeSucceeds2()
     {
         // TConfig.DefaultChunkCapacity is now used automatically
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         manager.Dispose();
 
         await Assert.That(manager).IsNotNull();
@@ -27,7 +27,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Allocate_ReturnsValidHandle()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
 
         var handle = manager.Allocate();
 
@@ -37,7 +37,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Allocate_MultipleHandles_ReturnsDistinctIds()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
 
         var handle1 = manager.Allocate();
         var handle2 = manager.Allocate();
@@ -51,7 +51,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Get_ValidHandle_ReturnsValidChunk()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         bool isValid;
@@ -66,7 +66,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Get_InvalidHandle_ReturnsInvalidChunk()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
 
         bool isValid;
         {
@@ -80,7 +80,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Get_StaleHandle_ReturnsInvalidChunk()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
         manager.Free(handle);
 
@@ -96,7 +96,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_ValidHandle_InvalidatesHandle()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         manager.Free(handle);
@@ -112,7 +112,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_InvalidHandle_DoesNotThrow()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
 
         manager.Free(ChunkHandle.Invalid);
 
@@ -122,7 +122,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_StaleHandle_DoesNotThrow()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
         manager.Free(handle);
 
@@ -134,7 +134,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_WhileBorrowed_ThrowsInvalidOperationException()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         Exception? caught = null;
@@ -156,7 +156,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_AfterBorrowReleased_Succeeds()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         {
@@ -177,7 +177,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Allocate_AfterFree_ReusesSlot()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle1 = manager.Allocate();
         var id1 = handle1.Id;
         manager.Free(handle1);
@@ -191,7 +191,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetSpan_ReturnsWritableMemory()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         int[] captured;
@@ -213,7 +213,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetSpan_PersistsAcrossGet()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         // Write data
@@ -242,7 +242,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetRef_ReturnsWritableReference()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         int value;
@@ -259,7 +259,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetDataBytes_ReturnsFullChunkSize()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         int length;
@@ -275,7 +275,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetDataBytes_WithSize_ReturnsSpecifiedSize()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         int length;
@@ -291,7 +291,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetRawBytes_ReturnsChunkSize()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         int length;
@@ -307,7 +307,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetBytesAt_ReturnsCorrectSlice()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         int length;
@@ -323,7 +323,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task MultipleBorrows_AllValid()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         bool valid1, valid2, valid3;
@@ -344,7 +344,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task ManyAllocations_AllValid()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handles = new ChunkHandle[100];
 
         for (int i = 0; i < 100; i++)
@@ -368,7 +368,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Dispose_InvalidatesFurtherAllocations()
     {
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         manager.Dispose();
 
         var caught = false;
@@ -387,7 +387,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Dispose_InvalidatesFurtherGet()
     {
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
         manager.Dispose();
 
@@ -421,7 +421,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task StructTypes_WorkCorrectly()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig(), NativeMemoryAllocator.Shared);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var handle = manager.Allocate();
 
         TestStruct captured;

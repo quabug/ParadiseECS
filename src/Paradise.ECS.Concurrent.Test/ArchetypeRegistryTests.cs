@@ -21,19 +21,23 @@ public static class ArchetypeRegistryExtension
 
 public class ArchetypeRegistryTests : IDisposable
 {
+    private static readonly DefaultConfig s_config = new() { DefaultChunkCapacity = 16 };
     private readonly ChunkManager<DefaultConfig> _chunkManager;
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata;
     private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
 
     public ArchetypeRegistryTests()
     {
-        _chunkManager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 });
+        _chunkManager = new ChunkManager<DefaultConfig>(s_config);
+        _sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
         _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared, _chunkManager);
+            _sharedMetadata, _chunkManager);
     }
 
     public void Dispose()
     {
         _registry?.Dispose();
+        _sharedMetadata?.Dispose();
         _chunkManager?.Dispose();
     }
 
@@ -266,7 +270,9 @@ public class ArchetypeRegistryTests : IDisposable
 
 public class ArchetypeRegistryConcurrencyTests : IDisposable
 {
+    private static readonly DefaultConfig s_config = new() { DefaultChunkCapacity = 64 };
     private readonly ChunkManager<DefaultConfig> _chunkManager;
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata;
     private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
 
     // Number of test components available in ComponentRegistry (0-4)
@@ -274,14 +280,16 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
 
     public ArchetypeRegistryConcurrencyTests()
     {
-        _chunkManager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 64 });
+        _chunkManager = new ChunkManager<DefaultConfig>(s_config);
+        _sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
         _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared, _chunkManager);
+            _sharedMetadata, _chunkManager);
     }
 
     public void Dispose()
     {
         _registry?.Dispose();
+        _sharedMetadata?.Dispose();
         _chunkManager?.Dispose();
     }
 
