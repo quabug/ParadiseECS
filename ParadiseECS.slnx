@@ -7,4 +7,5 @@
   <Project Path="src/Paradise.ECS/Paradise.ECS.csproj" />
   <Project Path="src/Paradise.ECS.Concurrent/Paradise.ECS.Concurrent.csproj" />
   <Project Path="src/Paradise.ECS.CoyoteTest/Paradise.ECS.CoyoteTest.csproj" />
+  <Project Path="src/Paradise.ECS.IntegrationTest/Paradise.ECS.IntegrationTest.csproj" />
 </Solution>

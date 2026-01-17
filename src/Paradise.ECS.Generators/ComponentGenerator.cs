@@ -15,7 +15,9 @@ public class ComponentGenerator : IIncrementalGenerator
 {
     private const string ComponentAttributeFullName = "Paradise.ECS.ComponentAttribute";
     private const string RegistryNamespaceAttributeFullName = "Paradise.ECS.ComponentRegistryNamespaceAttribute";
+    private const string DefaultConfigAttributeFullName = "Paradise.ECS.DefaultConfigAttribute";
     private const string EdgeKeyFullName = "Paradise.ECS.EdgeKey";
+    private const string IConfigFullName = "Paradise.ECS.IConfig";
 
     // Default fallback value if EdgeKey is not found (11 bits = 2047)
     private const int DefaultMaxComponentTypeId = (1 << 11) - 1;
@@ -70,14 +72,25 @@ public class ComponentGenerator : IIncrementalGenerator
                 return DefaultMaxComponentTypeId;
             });
 
-        // Collect all components and combine with root namespace and max ID
+        // Find all types with [DefaultConfig] attribute
+        var defaultConfigTypes = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                DefaultConfigAttributeFullName,
+                predicate: static (node, _) => node is StructDeclarationSyntax or ClassDeclarationSyntax,
+                transform: static (ctx, _) => GetDefaultConfigInfo(ctx))
+            .Where(static x => x is not null)
+            .Select(static (x, _) => x!.Value)
+            .Collect();
+
+        // Collect all components and combine with root namespace, max ID, and DefaultConfig types
         var collected = componentTypes.Collect();
         var collectedWithConfig = collected
             .Combine(rootNamespace)
-            .Combine(maxComponentTypeId);
+            .Combine(maxComponentTypeId)
+            .Combine(defaultConfigTypes);
 
         context.RegisterSourceOutput(collectedWithConfig, static (ctx, data) =>
-            GenerateComponentCode(ctx, data.Left.Left, data.Left.Right, data.Right));
+            GenerateComponentCode(ctx, data.Left.Left.Left, data.Left.Left.Right, data.Left.Right, data.Right));
     }
 
     private static ComponentInfo? GetComponentInfo(GeneratorAttributeSyntaxContext context)
@@ -195,14 +208,44 @@ public class ComponentGenerator : IIncrementalGenerator
             manualId);
     }
 
+    private static DefaultConfigInfo? GetDefaultConfigInfo(GeneratorAttributeSyntaxContext context)
+    {
+        if (context.TargetSymbol is not INamedTypeSymbol typeSymbol)
+            return null;
+
+        var fullyQualifiedName = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (fullyQualifiedName.StartsWith("global::", StringComparison.Ordinal))
+            fullyQualifiedName = fullyQualifiedName.Substring(8);
+
+        // Verify the type implements IConfig
+        var implementsIConfig = typeSymbol.AllInterfaces
+            .Any(iface => iface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::" + IConfigFullName);
+
+        return new DefaultConfigInfo(
+            fullyQualifiedName,
+            typeSymbol.Locations.FirstOrDefault() ?? Location.None,
+            implementsIConfig);
+    }
+
     private static void GenerateComponentCode(
         SourceProductionContext context,
         ImmutableArray<ComponentInfo> components,
         string rootNamespace,
-        int maxComponentTypeId)
+        int maxComponentTypeId,
+        ImmutableArray<DefaultConfigInfo> defaultConfigs)
     {
+        // Validate and get the default config type
+        var configType = ValidateDefaultConfig(context, defaultConfigs);
+
         if (components.IsEmpty)
+        {
+            // Still generate aliases if DefaultConfig is specified
+            if (configType != null)
+            {
+                GenerateGlobalUsings(context, 0, rootNamespace, configType);
+            }
             return;
+        }
 
         // Sort by fully qualified name for deterministic ID assignment
         var sorted = components
@@ -316,8 +359,8 @@ public class ComponentGenerator : IIncrementalGenerator
             GeneratePartialStruct(context, component);
         }
 
-        // Generate global using aliases for the optimal bit storage type
-        GenerateGlobalUsings(context, validComponents.Count);
+        // Generate global using aliases for the optimal bit storage type and World alias
+        GenerateGlobalUsings(context, validComponents.Count, rootNamespace, configType);
 
         // Generate component registry with module initializer for runtime ID assignment
         GenerateComponentRegistry(context, validComponents, rootNamespace);
@@ -356,15 +399,33 @@ public class ComponentGenerator : IIncrementalGenerator
         context.AddSource($"{typeName}.g.cs", sb.ToString());
     }
 
-    private static void GenerateGlobalUsings(SourceProductionContext context, int componentCount)
+    private static void GenerateGlobalUsings(
+        SourceProductionContext context,
+        int componentCount,
+        string rootNamespace,
+        string? configType)
     {
+        // Always auto-determine bit type from component count
         var bitType = GetOptimalBitStorageType(componentCount);
+        var bitTypeFullyQualified = $"global::Paradise.ECS.{bitType}";
+
+        // Always use generated ComponentRegistry
+        var registryType = $"{rootNamespace}.ComponentRegistry";
 
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
         sb.AppendLine($"// Component count: {componentCount} → using {bitType}");
         sb.AppendLine();
-        sb.AppendLine($"global using ComponentMask = global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.{bitType}>;");
+        sb.AppendLine($"global using ComponentMask = global::Paradise.ECS.ImmutableBitSet<{bitTypeFullyQualified}>;");
+
+        // Generate World-related aliases if DefaultConfig is specified
+        if (configType != null)
+        {
+            sb.AppendLine($"global using ChunkManager = global::Paradise.ECS.ChunkManager<global::{configType}>;");
+            sb.AppendLine($"global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
+            sb.AppendLine($"global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
+            sb.AppendLine($"global using World = global::Paradise.ECS.World<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
+        }
 
         context.AddSource("ComponentAliases.g.cs", sb.ToString());
     }
@@ -656,6 +717,62 @@ public class ComponentGenerator : IIncrementalGenerator
         {
             Name = name;
             Keyword = keyword;
+        }
+    }
+
+    /// <summary>
+    /// Validates DefaultConfig types and returns the config type name.
+    /// Reports diagnostics for invalid configurations.
+    /// </summary>
+    private static string? ValidateDefaultConfig(
+        SourceProductionContext context,
+        ImmutableArray<DefaultConfigInfo> defaultConfigs)
+    {
+        var validConfigs = new List<DefaultConfigInfo>();
+
+        foreach (var info in defaultConfigs)
+        {
+            if (!info.ImplementsIConfig)
+            {
+                // Type doesn't implement IConfig
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.DefaultConfigInvalidType,
+                    info.Location,
+                    info.FullyQualifiedName));
+                continue;
+            }
+
+            validConfigs.Add(info);
+        }
+
+        if (validConfigs.Count == 0)
+            return null;
+
+        if (validConfigs.Count > 1)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.MultipleDefaultConfigs,
+                validConfigs[0].Location,
+                string.Join(", ", validConfigs.Select(t => t.FullyQualifiedName))));
+        }
+
+        return validConfigs[0].FullyQualifiedName;
+    }
+
+    /// <summary>
+    /// Information about a type marked with [DefaultConfig].
+    /// </summary>
+    private readonly struct DefaultConfigInfo
+    {
+        public string FullyQualifiedName { get; }
+        public Location Location { get; }
+        public bool ImplementsIConfig { get; }
+
+        public DefaultConfigInfo(string fullyQualifiedName, Location location, bool implementsIConfig)
+        {
+            FullyQualifiedName = fullyQualifiedName;
+            Location = location;
+            ImplementsIConfig = implementsIConfig;
         }
     }
 }

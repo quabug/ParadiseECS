@@ -18,11 +18,11 @@ dotnet test
 # Run a specific test project
 dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj
 
-# Run a specific test class (TUnit uses --treenode-filter after --)
-dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -- --treenode-filter "*ChunkManagerTests*"
+# Run a specific test class (TUnit uses --treenode-filter with /<Assembly>/<Namespace>/<Class>/<Test> format)
+dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -- --treenode-filter "/Paradise.ECS.Test/Paradise.ECS.Test/ChunkManagerTests/*"
 
 # Run a single test
-dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -- --treenode-filter "*ChunkManagerTests*/*Allocate_ReturnsValidHandle*"
+dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -- --treenode-filter "/Paradise.ECS.Test/Paradise.ECS.Test/ChunkManagerTests/Allocate_ReturnsValidHandle"
 
 # AOT publish (verify AOT compatibility)
 dotnet publish src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -c Release

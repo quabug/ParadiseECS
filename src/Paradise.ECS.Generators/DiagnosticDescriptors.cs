@@ -102,4 +102,28 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Ref structs with a Dispose method manage resources that must be released. Failing to dispose them can lead to resource leaks such as unreleased chunk borrows.");
+
+    /// <summary>
+    /// PECS009: Multiple types marked as DefaultConfig.
+    /// </summary>
+    public static readonly DiagnosticDescriptor MultipleDefaultConfigs = new(
+        id: "PECS009",
+        title: "Multiple DefaultConfig attributes",
+        messageFormat: "Multiple types marked with [DefaultConfig]: {0}. Only one type is allowed.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Only one type can be marked with [DefaultConfig] per assembly.");
+
+    /// <summary>
+    /// PECS010: Type marked with DefaultConfig doesn't implement IConfig.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DefaultConfigInvalidType = new(
+        id: "PECS010",
+        title: "DefaultConfig type must implement IConfig",
+        messageFormat: "Type '{0}' is marked with [DefaultConfig] but does not implement IConfig",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Types marked with [DefaultConfig] must implement the IConfig interface.");
 }
