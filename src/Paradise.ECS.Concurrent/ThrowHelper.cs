@@ -158,6 +158,7 @@ internal static class ThrowHelper
     /// Throws if the entity ID exceeds the maximum allowed for the configuration.
     /// </summary>
     /// <typeparam name="TConfig">The world configuration type that determines entity ID limits.</typeparam>
+    /// <param name="entityId">The entity ID to validate.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfEntityIdExceedsLimit<TConfig>(int entityId)
         where TConfig : IConfig
