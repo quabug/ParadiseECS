@@ -15,9 +15,9 @@ public class ComponentGenerator : IIncrementalGenerator
 {
     private const string ComponentAttributeFullName = "Paradise.ECS.ComponentAttribute";
     private const string RegistryNamespaceAttributeFullName = "Paradise.ECS.ComponentRegistryNamespaceAttribute";
-    private const string EcsLimitsFullName = "Paradise.ECS.EcsLimits";
+    private const string EdgeKeyFullName = "Paradise.ECS.EdgeKey";
 
-    // Default fallback value if EcsLimits is not found (11 bits = 2047)
+    // Default fallback value if EdgeKey is not found (11 bits = 2047)
     private const int DefaultMaxComponentTypeId = (1 << 11) - 1;
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -54,14 +54,14 @@ public class ComponentGenerator : IIncrementalGenerator
             .Combine(rootNamespaceFromBuildProperty)
             .Select(static (pair, _) => pair.Left ?? pair.Right ?? "Paradise.ECS");
 
-        // Get maxComponentTypeId from EcsLimits class
+        // Get maxComponentTypeId from EdgeKey class
         var maxComponentTypeId = context.CompilationProvider
             .Select((compilation, _) =>
             {
-                var ecsLimitsType = compilation.GetTypeByMetadataName(EcsLimitsFullName);
-                if (ecsLimitsType != null)
+                var edgeKeyType = compilation.GetTypeByMetadataName(EdgeKeyFullName);
+                if (edgeKeyType != null)
                 {
-                    var field = ecsLimitsType.GetMembers("MaxComponentTypeId")
+                    var field = edgeKeyType.GetMembers("MaxComponentTypeId")
                         .OfType<IFieldSymbol>()
                         .FirstOrDefault();
                     if (field is { HasConstantValue: true, ConstantValue: int value })

@@ -62,12 +62,6 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
     where TRegistry : IComponentRegistry
     where TConfig : IWorldConfig
 {
-    /// <summary>
-    /// Size in bytes of an entity ID stored in chunk memory.
-    /// Only the <see cref="Entity.Id"/> (int) is stored, not the full Entity struct.
-    /// </summary>
-    public const int EntityIdSize = sizeof(int);
-
     private readonly byte* _data;
 
     /// <summary>
@@ -190,23 +184,23 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
         // Empty archetype still needs entity ID storage
         if (componentMask.IsEmpty)
         {
-            header.EntitiesPerChunk = TConfig.ChunkSize / EntityIdSize;
+            header.EntitiesPerChunk = TConfig.ChunkSize / TConfig.EntityIdByteSize;
             return;
         }
 
         var typeInfos = TRegistry.TypeInfos;
 
         // Calculate total size per entity (entity ID + components, without alignment)
-        int totalSizePerEntity = EntityIdSize;
+        int totalSizePerEntity = TConfig.EntityIdByteSize;
         foreach (int componentId in componentMask)
         {
             totalSizePerEntity += typeInfos[componentId].Size;
         }
 
         // Tag-only archetype: only entity IDs
-        if (totalSizePerEntity == EntityIdSize)
+        if (totalSizePerEntity == TConfig.EntityIdByteSize)
         {
-            header.EntitiesPerChunk = TConfig.ChunkSize / EntityIdSize;
+            header.EntitiesPerChunk = TConfig.ChunkSize / TConfig.EntityIdByteSize;
             // Mark all tag components as present (offset after entity IDs, but size 0)
             foreach (int componentId in componentMask)
             {
@@ -246,7 +240,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
         int entitiesPerChunk)
     {
         // Start after entity ID array (aligned to 4 bytes, which entity IDs naturally are)
-        int currentOffset = entitiesPerChunk * EntityIdSize;
+        int currentOffset = entitiesPerChunk * TConfig.EntityIdByteSize;
 
         foreach (int componentId in componentMask)
         {
@@ -393,7 +387,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int GetEntityIdOffset(int entityIndex)
     {
-        return entityIndex * EntityIdSize;
+        return entityIndex * TConfig.EntityIdByteSize;
     }
 
     /// <summary>

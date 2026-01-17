@@ -145,12 +145,12 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfArchetypeIdExceedsLimit(int archetypeId)
     {
-        if (archetypeId > EcsLimits.MaxArchetypeId)
+        if (archetypeId > IWorldConfig.MaxArchetypeId)
             ThrowArchetypeIdExceedsLimit();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowArchetypeIdExceedsLimit()
         => throw new InvalidOperationException(
-            $"Archetype count exceeded maximum of {EcsLimits.MaxArchetypeId}.");
+            $"Archetype count exceeded maximum of {IWorldConfig.MaxArchetypeId}.");
 }

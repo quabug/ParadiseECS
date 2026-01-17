@@ -243,10 +243,10 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int SetEntityId(ChunkHandle chunkHandle, int indexInChunk, int entityId)
+    private void SetEntityId(ChunkHandle chunkHandle, int indexInChunk, int entityId)
     {
         using var chunk = _chunkManager.Get(chunkHandle);
         int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
-        return chunk.GetRef<int>(offset) = entityId;
+        chunk.GetRef<int>(offset) = entityId;
     }
 }
