@@ -84,7 +84,8 @@ public sealed class Archetype<TBits, TRegistry> : IDisposable
         if (EntityCount >= _chunkCount * entitiesPerChunk)
         {
             EnsureChunkCapacity();
-            _chunks[_chunkCount++] = _chunkManager.Allocate();
+            _chunks[_chunkCount] = _chunkManager.Allocate();
+            _chunkCount++;
         }
 
         int chunkIndex = EntityCount / entitiesPerChunk;
