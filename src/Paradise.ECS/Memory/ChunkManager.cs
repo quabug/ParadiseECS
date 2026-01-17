@@ -18,28 +18,13 @@ public sealed unsafe class ChunkManager : IDisposable
 {
     /// <summary>
     /// Metadata for a single chunk slot.
-    /// Version uses lower 48 bits, ShareCount uses upper 16 bits.
+    /// Uses PackedVersion for Version (40 bits) and ShareCount (24 bits).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct ChunkMeta
     {
         public ulong Pointer;             // 8 bytes - pointer to data chunk memory
-        public ulong VersionAndShareCount; // 8 bytes - packed version (48 bits) + share count (16 bits)
-
-        private const int ShareCountShift = 48;
-        private const ulong VersionMask = (1UL << ShareCountShift) - 1;
-
-        public ulong Version
-        {
-            readonly get => VersionAndShareCount & VersionMask;
-            set => VersionAndShareCount = (VersionAndShareCount & ~VersionMask) | (value & VersionMask);
-        }
-
-        public int ShareCount
-        {
-            readonly get => (int)(VersionAndShareCount >> ShareCountShift);
-            set => VersionAndShareCount = (VersionAndShareCount & VersionMask) | ((ulong)value << ShareCountShift);
-        }
+        public ulong VersionAndShareCount; // 8 bytes - PackedVersion raw value
     }
 
     private const int MetaSize = 16; // sizeof(ChunkMeta): 8 + 8
@@ -55,16 +40,7 @@ public sealed unsafe class ChunkManager : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Creates a new ChunkManager with the default <see cref="NativeMemoryAllocator"/>.
-    /// </summary>
-    /// <param name="initialCapacity">Initial number of chunk slots to allocate.</param>
-    public ChunkManager(int initialCapacity = 256)
-        : this(NativeMemoryAllocator.Shared, initialCapacity)
-    {
-    }
-
-    /// <summary>
-    /// Creates a new ChunkManager with a custom allocator.
+    /// Creates a new ChunkManager with the specified allocator.
     /// </summary>
     /// <param name="allocator">The allocator to use for memory operations.</param>
     /// <param name="initialCapacity">Initial number of chunk slots to pre-allocate meta blocks for.</param>
@@ -101,12 +77,7 @@ public sealed unsafe class ChunkManager : IDisposable
     {
         ThrowHelper.ThrowIfDisposed(_disposed, this);
 
-        int id;
-        if (_freeSlots.TryPop(out int freeId))
-        {
-            id = freeId;
-        }
-        else
+        if (!_freeSlots.TryPop(out int id))
         {
             // No free slot available, allocate a new one
             id = _nextSlotId++;
@@ -126,10 +97,10 @@ public sealed unsafe class ChunkManager : IDisposable
         {
             meta.Pointer = (ulong)_allocator.AllocateZeroed(Chunk.ChunkSize);
             // Initialize version to 1 for new slots (version 0 indicates invalid handle)
-            meta.Version = 1;
+            meta.VersionAndShareCount = new PackedVersion(version: 1, index: 0).Value;
         }
 
-        return new ChunkHandle(id, meta.Version);
+        return new ChunkHandle(id, new PackedVersion(meta.VersionAndShareCount).Version);
     }
 
     /// <summary>
@@ -154,17 +125,18 @@ public sealed unsafe class ChunkManager : IDisposable
         if (handle.Id >= _nextSlotId) return;
 
         ref var meta = ref GetMeta(handle.Id);
+        var packed = new PackedVersion(meta.VersionAndShareCount);
 
         // Check version - if stale, nothing to do
-        if (meta.Version != handle.Version)
+        if (packed.Version != handle.Version)
             return; // Already freed or stale handle
 
         // Check if chunk is borrowed
-        if (meta.ShareCount != 0)
+        if (packed.Index != 0)
             ThrowChunkInUse(handle);
 
         // Increment version to invalidate all existing handles
-        meta.Version++;
+        meta.VersionAndShareCount = new PackedVersion(packed.Version + 1, 0).Value;
 
         // Safe to clear memory
         if (meta.Pointer != 0)
@@ -190,12 +162,13 @@ public sealed unsafe class ChunkManager : IDisposable
             return default;
 
         ref var meta = ref GetMeta(handle.Id);
+        var packed = new PackedVersion(meta.VersionAndShareCount);
 
-        if (meta.Version != handle.Version)
+        if (packed.Version != handle.Version)
             return default; // Stale handle
 
-        meta.ShareCount++;
-        return new Chunk(this, handle.Id, (void*)meta.Pointer);
+        meta.VersionAndShareCount = new PackedVersion(packed.Version, packed.Index + 1).Value;
+        return new Chunk(this, handle.Id, (nint)meta.Pointer);
     }
 
     /// <summary>
@@ -208,7 +181,8 @@ public sealed unsafe class ChunkManager : IDisposable
         if (id >= _nextSlotId) return;
 
         ref var meta = ref GetMeta(id);
-        meta.ShareCount--;
+        var packed = new PackedVersion(meta.VersionAndShareCount);
+        meta.VersionAndShareCount = new PackedVersion(packed.Version, packed.Index - 1).Value;
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

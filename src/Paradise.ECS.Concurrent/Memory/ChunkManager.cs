@@ -291,6 +291,7 @@ public sealed unsafe class ChunkManager : IDisposable
             _metaBlocks[blockIndex] = 0;
         }
 
+        _freeSlots.Clear();
         _nextSlotId = 0;
     }
 }

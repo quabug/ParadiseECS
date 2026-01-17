@@ -17,14 +17,14 @@ public readonly unsafe ref struct Chunk : IDisposable
 
     private readonly ChunkManager? _manager;
     private readonly int _id;
-    private readonly void* _memory;
+    private readonly nint _memory;
 
     /// <summary>
     /// Creates a Chunk view that borrows memory from the manager.
     /// </summary>
-    internal Chunk(ChunkManager manager, int id, void* memory)
+    internal Chunk(ChunkManager manager, int id, nint memory)
     {
-        ThrowHelper.ThrowIfNull(memory);
+        ThrowHelper.ThrowIfNull((void*)memory);
         _manager = manager;
         _id = id;
         _memory = memory;
@@ -33,7 +33,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     public bool IsValid
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _memory != null && _manager != null;
+        get => _memory != 0 && _manager != null;
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     /// Gets the raw bytes of the entire data area.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetDataBytes() => new(_memory, ChunkSize);
+    public Span<byte> GetDataBytes() => new((void*)_memory, ChunkSize);
 
     /// <summary>
     /// Gets the raw bytes of the data area up to a specified size.
@@ -82,7 +82,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     public Span<byte> GetDataBytes(int size)
     {
         ThrowHelper.ValidateChunkSize(size);
-        return new(_memory, size);
+        return new((void*)_memory, size);
     }
 
     /// <summary>
@@ -99,5 +99,5 @@ public readonly unsafe ref struct Chunk : IDisposable
     /// Gets the entire chunk memory as raw bytes.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetRawBytes() => new(_memory, ChunkSize);
+    public Span<byte> GetRawBytes() => new((void*)_memory, ChunkSize);
 }
