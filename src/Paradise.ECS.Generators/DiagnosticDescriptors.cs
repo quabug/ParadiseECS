@@ -14,7 +14,7 @@ internal static class DiagnosticDescriptors
         id: "PECS001",
         title: "Component must be unmanaged",
         messageFormat: "Type '{0}' marked with [Component] must be an unmanaged struct",
-        category: "Paradise.ECS.Concurrent",
+        category: "Paradise.ECS",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Component types must be unmanaged structs to be stored efficiently in ECS chunks.");
@@ -26,7 +26,7 @@ internal static class DiagnosticDescriptors
         id: "PECS002",
         title: "Component count exceeds built-in capacity",
         messageFormat: "Project has {0} components which exceeds built-in Bit1024 capacity. Generating custom {1} storage type.",
-        category: "Paradise.ECS.Concurrent",
+        category: "Paradise.ECS",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "The number of component types exceeds the largest built-in bit storage type (Bit1024). A custom storage type will be generated.");
@@ -38,7 +38,7 @@ internal static class DiagnosticDescriptors
         id: "PECS003",
         title: "Component must be a struct",
         messageFormat: "Type '{0}' marked with [Component] must be a struct, not a class or record class",
-        category: "Paradise.ECS.Concurrent",
+        category: "Paradise.ECS",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Component types must be value types (structs) for efficient storage.");
@@ -50,7 +50,7 @@ internal static class DiagnosticDescriptors
         id: "PECS004",
         title: "Invalid GUID format",
         messageFormat: "Component '{0}' has invalid GUID format '{1}'",
-        category: "Paradise.ECS.Concurrent",
+        category: "Paradise.ECS",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "The GUID provided to [Component] attribute must be a valid GUID format (e.g., '12345678-1234-1234-1234-123456789012').");
@@ -62,7 +62,7 @@ internal static class DiagnosticDescriptors
         id: "PECS005",
         title: "Component nested in generic type",
         messageFormat: "Component '{0}' is nested inside '{1}' which is {2}. Components cannot be nested inside generic types.",
-        category: "Paradise.ECS.Concurrent",
+        category: "Paradise.ECS",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Component types cannot be nested inside generic types because the source generator cannot infer type parameters.");
@@ -74,7 +74,7 @@ internal static class DiagnosticDescriptors
         id: "PECS006",
         title: "Component type ID exceeds maximum",
         messageFormat: "Component '{0}' has ID {1} which exceeds the maximum allowed component type ID of {2}",
-        category: "Paradise.ECS.Concurrent",
+        category: "Paradise.ECS",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Component type IDs must not exceed the maximum limit imposed by the archetype graph edge key packing (11 bits = 2047).");
@@ -86,8 +86,20 @@ internal static class DiagnosticDescriptors
         id: "PECS007",
         title: "Too many components",
         messageFormat: "Project has {0} components which would result in IDs exceeding the maximum allowed component type ID of {1}",
-        category: "Paradise.ECS.Concurrent",
+        category: "Paradise.ECS",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "The total number of components (including manual ID assignments) must not exceed the maximum component type ID limit imposed by the archetype graph edge key packing.");
+
+    /// <summary>
+    /// PECS008: Disposable ref struct must be disposed.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DisposableRefStructNotDisposed = new(
+        id: "PECS008",
+        title: "Disposable ref struct must be disposed",
+        messageFormat: "Disposable ref struct '{0}' must be disposed before going out of scope. Use a 'using' statement or call Dispose() explicitly.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Ref structs with a Dispose method manage resources that must be released. Failing to dispose them can lead to resource leaks such as unreleased chunk borrows.");
 }

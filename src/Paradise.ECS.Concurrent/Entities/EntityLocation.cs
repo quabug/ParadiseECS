@@ -4,46 +4,48 @@ namespace Paradise.ECS.Concurrent;
 
 /// <summary>
 /// Tracks where an entity's component data is stored.
-/// Maps an entity to its archetype and position within a chunk.
+/// Maps an entity to its archetype and global index within the archetype.
+/// Thread-safe version with mutable fields for Volatile/Interlocked operations.
 /// </summary>
 /// <remarks>
 /// This struct is stored in an array indexed by Entity.Id for O(1) lookups.
-/// The Version field allows detecting stale entity handles.
+/// The Version field allows detecting stale entity handles and supports atomic CAS operations.
+/// Fields are mutable to allow Volatile.Read/Write and Interlocked operations.
 /// </remarks>
 public struct EntityLocation
 {
     /// <summary>
-    /// The version of the entity at this slot.
-    /// Used to validate entity handles are not stale.
+    /// The version of the entity at this slot. Used to validate entity handles are not stale.
     /// </summary>
     public uint Version;
 
     /// <summary>
-    /// The archetype ID this entity belongs to.
-    /// -1 indicates the entity is not alive or has no archetype.
+    /// The archetype ID this entity belongs to. -1 indicates the entity is not alive or has no archetype.
     /// </summary>
     public int ArchetypeId;
 
     /// <summary>
-    /// The chunk handle where this entity's data is stored.
+    /// The global index of this entity within the archetype.
     /// </summary>
-    public ChunkHandle ChunkHandle;
-
-    /// <summary>
-    /// The index of this entity within the chunk.
-    /// </summary>
-    public int IndexInChunk;
+    public int GlobalIndex;
 
     /// <summary>
     /// An invalid/empty entity location.
     /// </summary>
-    public static readonly EntityLocation Invalid = new()
+    public static readonly EntityLocation Invalid = new() { Version = 0, ArchetypeId = -1, GlobalIndex = -1 };
+
+    /// <summary>
+    /// Creates a new entity location with the specified values.
+    /// </summary>
+    /// <param name="version">The entity version.</param>
+    /// <param name="archetypeId">The archetype ID.</param>
+    /// <param name="globalIndex">The global index in the archetype.</param>
+    public EntityLocation(uint version, int archetypeId, int globalIndex)
     {
-        Version = 0,
-        ArchetypeId = -1,
-        ChunkHandle = ChunkHandle.Invalid,
-        IndexInChunk = -1
-    };
+        Version = version;
+        ArchetypeId = archetypeId;
+        GlobalIndex = globalIndex;
+    }
 
     /// <summary>
     /// Gets whether this location is valid (has a valid archetype).
@@ -68,7 +70,7 @@ public struct EntityLocation
     public override readonly string ToString()
     {
         return IsValid
-            ? $"EntityLocation(Ver: {Version}, Arch: {ArchetypeId}, Chunk: {ChunkHandle.Id}, Index: {IndexInChunk})"
+            ? $"EntityLocation(Ver: {Version}, Arch: {ArchetypeId}, Index: {GlobalIndex})"
             : "EntityLocation(Invalid)";
     }
 }

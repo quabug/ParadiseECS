@@ -25,7 +25,40 @@ dotnet test --filter "FullyQualifiedName~ChunkManagerTests.Allocate_ReturnsValid
 dotnet publish src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -c Release
 ```
 
+## Project Structure
+
+- **Paradise.ECS** - Single-threaded core implementation
+- **Paradise.ECS.Concurrent** - Multi-threaded variants with thread-safe operations
+- **Paradise.ECS.Generators** - Source generators for component registration
+- **Paradise.ECS.Test** - Main test suite
+- **Paradise.ECS.Concurrent.Test** - Concurrent implementation tests
+- **Paradise.ECS.CoyoteTest** - Formal verification tests
+- **Paradise.ECS.Benchmarks** - Performance benchmarks
+
 ## Architecture
+
+### High-Level API (src/Paradise.ECS/World/)
+
+- **World\<TBits, TRegistry\>**: Primary user-facing API for single-threaded ECS operations. Owns three core subsystems: `ChunkManager`, `ArchetypeRegistry`, and `EntityManager`.
+  - Entity CRUD: `Spawn()`, `Despawn()`, `IsAlive()`
+  - Component operations: `GetComponent<T>()`, `SetComponent<T>()`, `HasComponent<T>()`, `AddComponent<T>()`, `RemoveComponent<T>()`
+  - Builder-based creation: `CreateEntity<TBuilder>()`, `OverwriteEntity<TBuilder>()`, `AddComponents<TBuilder>()`
+  - Query factory: `World.Query()` static method
+- **ComponentRef\<T\>**: Ref struct providing safe access to component data in chunks. Must be disposed to release chunk borrow.
+- **EntityBuilder**: Fluent builder for zero-allocation entity creation.
+  - **IComponentsBuilder**: Interface with `CollectTypes<TBits>()` and `WriteComponents<TBits, TRegistry>()` methods
+  - Extension method `builder.Add<T>(value)` for fluent chaining
+  - Tag component optimization: skips writes for zero-size components
+
+### Entity Management (src/Paradise.ECS/Entities/)
+
+- **Entity**: Readonly record struct with `Id` (int) and `Version` (uint) for handle safety. `IsValid` checks Version > 0.
+- **EntityLocation**: Tracks where entity data is stored with `Version`, `ArchetypeId`, and `GlobalIndex`. Used to derive ChunkIndex via archetype.
+- **EntityManager**: Centralized entity lifecycle and location tracking.
+  - O(1) lookups via List indexed by Entity.Id
+  - Version-based stale handle detection
+  - Free slot reuse via Stack for efficient ID recycling
+  - Methods: `Create()`, `Destroy()`, `IsAlive()`, `GetLocation()`, `SetLocation()`
 
 ### Memory Management (src/Paradise.ECS/Memory/)
 
@@ -43,17 +76,53 @@ The ECS uses a custom memory management system optimized for cache-friendly iter
 - **IBitSet\<TSelf\>**: Interface defining bitset operations (And, Or, ContainsAll, etc.)
 - **HashedKey\<T\>**: Wrapper that pre-computes and caches hash code for dictionary keys. Use explicit cast to convert from value types.
 
-### Archetypes (src/Paradise.ECS/Components/)
+### Archetypes (src/Paradise.ECS/Archetypes/)
 
 - **Archetype**: Stores entities with a specific component combination. Identified by component mask.
-- **ArchetypeRegistry**: Manages archetype creation/lookup with caching. Uses graph edges for O(1) structural changes (add/remove component). Also owns query caches.
+- **ArchetypeRegistry\<TBits, TRegistry\>**: Manages local archetype instances and query cache. Uses graph edges for O(1) structural changes (add/remove component).
+- **SharedArchetypeMetadata\<TBits, TRegistry\>**: Enables multiple worlds to share archetype metadata. Manages mask-to-ID mappings, layouts, graph edges, and query registrations.
 - **ImmutableArchetypeLayout**: Describes component layout within an archetype (offsets, sizes).
+- **EdgeKey**: Packed 32-bit key for O(1) archetype graph traversal.
+  - 20 bits for archetype ID (max 1,048,575)
+  - 11 bits for component ID (max 2,047)
+  - 1 bit for add/remove flag
+  - Factory methods: `ForAdd()` and `ForRemove()`
 
 ### Query System (src/Paradise.ECS/Query/)
 
 - **Query\<TBits, TRegistry\>**: Lightweight readonly struct view over matching archetypes. Wraps a list owned by ArchetypeRegistry. Zero-allocation when passed by value.
 - **QueryBuilder**: Immutable ref struct builder for creating queries with fluent API (With, Without, WithAny).
 - **ImmutableQueryDescription**: Record struct defining query constraints (All, None, Any masks). Cached in registry with HashedKey for fast lookup.
+
+### Global Limits & Validation
+
+- **EcsLimits**: Defines system-wide maximums.
+  - `MaxArchetypeId = (1 << 20) - 1` = 1,048,575 archetypes
+  - `MaxComponentTypeId = (1 << 11) - 1` = 2,047 component types
+- **ThrowHelper**: Centralized validation utilities.
+  - Chunk validation: `ValidateChunkRange()`, `ValidateChunkSize()`, `ThrowIfExceedsChunkSize()`
+  - Component/Archetype validation: `ThrowIfComponentIdExceedsCapacity()`, `ThrowIfArchetypeIdExceedsLimit()`
+  - General helpers: `ThrowIfNegative()`, `ThrowIfGreaterThan()`, `ThrowIfDisposed()`, `ThrowIfNull()`
+  - Hot paths use `[MethodImpl(MethodImplOptions.AggressiveInlining)]`, cold paths use `NoInlining`
+
+## Source Generators (src/Paradise.ECS.Generators/)
+
+### ComponentGenerator
+
+IIncrementalGenerator that processes `[Component]` attributes:
+1. Finds all structs with `[Component]` attribute
+2. Assigns TypeIds based on alphabetical ordering of fully qualified names
+3. Generates IComponentRegistry implementation with `TypeInfos` array
+4. Validates components don't exceed `EcsLimits.MaxComponentTypeId` (2,047)
+
+**Configuration** (priority order):
+1. `[ComponentRegistryNamespaceAttribute]` on assembly
+2. RootNamespace build property
+3. Default: "Paradise.ECS"
+
+### Generator Code Style
+- **Global Type Paths**: Always use fully qualified type names with `global::` prefix in generated code (e.g., `global::System.Int32`, `global::Paradise.ECS.ComponentType`) to avoid namespace conflicts and ambiguity.
+- **GUID Generation**: When adding GUIDs to components, always use `uuidgen` (macOS/Linux) or `[guid]::NewGuid()` (PowerShell) to generate valid GUIDs. Never guess or fabricate GUIDs.
 
 ## Code Style
 
@@ -69,10 +138,6 @@ The ECS uses a custom memory management system optimized for cache-friendly iter
 - **File-scoped Namespaces**: Always use `namespace Paradise.ECS;` style
 - **Allman Braces**: Opening braces on new line, 4-space indentation
 - **TUnit Framework**: Tests use TUnit (AOT-compatible), not xUnit/NUnit
-
-### Source Generators
-- **Global Type Paths**: Always use fully qualified type names with `global::` prefix in generated code (e.g., `global::System.Int32`, `global::Paradise.ECS.ComponentType`) to avoid namespace conflicts and ambiguity.
-- **GUID Generation**: When adding GUIDs to components, always use `uuidgen` (macOS/Linux) or `[guid]::NewGuid()` (PowerShell) to generate valid GUIDs. Never guess or fabricate GUIDs.
 
 ### XML Documentation
 All public APIs require XML docs with `<summary>`, `<param>`, `<returns>`, and `<typeparam>` tags.

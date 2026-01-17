@@ -51,9 +51,12 @@ public sealed class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        var (chunkHandle, indexInChunk) = store.AllocateEntity(CreateTestEntity());
+        int globalIndex = store.AllocateEntity(CreateTestEntity());
+        var (chunkIndex, indexInChunk) = store.GetChunkLocation(globalIndex);
+        var chunkHandle = store.GetChunk(chunkIndex);
 
         await Assert.That(chunkHandle.IsValid).IsTrue();
+        await Assert.That(globalIndex).IsEqualTo(0);
         await Assert.That(indexInChunk).IsEqualTo(0);
         await Assert.That(store.EntityCount).IsEqualTo(1);
         await Assert.That(store.ChunkCount).IsEqualTo(1);
@@ -64,17 +67,20 @@ public sealed class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        var (chunk1, idx1) = store.AllocateEntity(CreateTestEntity());
-        var (chunk2, idx2) = store.AllocateEntity(CreateTestEntity());
-        var (chunk3, idx3) = store.AllocateEntity(CreateTestEntity());
+        int idx1 = store.AllocateEntity(CreateTestEntity());
+        int idx2 = store.AllocateEntity(CreateTestEntity());
+        int idx3 = store.AllocateEntity(CreateTestEntity());
 
         await Assert.That(idx1).IsEqualTo(0);
         await Assert.That(idx2).IsEqualTo(1);
         await Assert.That(idx3).IsEqualTo(2);
 
         // All in same chunk since we have room
-        await Assert.That(chunk1.Id).IsEqualTo(chunk2.Id);
-        await Assert.That(chunk2.Id).IsEqualTo(chunk3.Id);
+        var (chunk1Idx, _) = store.GetChunkLocation(idx1);
+        var (chunk2Idx, _) = store.GetChunkLocation(idx2);
+        var (chunk3Idx, _) = store.GetChunkLocation(idx3);
+        await Assert.That(chunk1Idx).IsEqualTo(chunk2Idx);
+        await Assert.That(chunk2Idx).IsEqualTo(chunk3Idx);
     }
 
     [Test]
@@ -95,10 +101,11 @@ public sealed class ArchetypeStoreTests : IDisposable
         await Assert.That(store.ChunkCount).IsEqualTo(1);
 
         // Allocate one more - should trigger new chunk
-        var (_, newIndex) = store.AllocateEntity(CreateTestEntity());
+        int globalIndex = store.AllocateEntity(CreateTestEntity());
+        var (_, newIndexInChunk) = store.GetChunkLocation(globalIndex);
 
         await Assert.That(store.ChunkCount).IsEqualTo(2);
-        await Assert.That(newIndex).IsEqualTo(0); // First in new chunk
+        await Assert.That(newIndexInChunk).IsEqualTo(0); // First in new chunk
     }
 
     [Test]
@@ -187,7 +194,9 @@ public sealed class ArchetypeStoreTests : IDisposable
     {
         var store = CreateStore(ComponentTypeInfo.Create<TestPosition>());
 
-        var (allocatedChunk, _) = store.AllocateEntity(CreateTestEntity());
+        int globalIndex = store.AllocateEntity(CreateTestEntity());
+        var (chunkIndex, _) = store.GetChunkLocation(globalIndex);
+        var allocatedChunk = store.GetChunk(chunkIndex);
 
         var retrievedChunk = store.GetChunk(0);
 
@@ -217,11 +226,11 @@ public sealed class ArchetypeStoreTests : IDisposable
 
         int entitiesPerChunk = layout.EntitiesPerChunk;
 
-        store.GetChunkLocation(5, out int chunkIdx, out int indexInChunk);
+        var (chunkIdx, indexInChunk) = store.GetChunkLocation(5);
         await Assert.That(chunkIdx).IsEqualTo(0);
         await Assert.That(indexInChunk).IsEqualTo(5);
 
-        store.GetChunkLocation(entitiesPerChunk + 5, out chunkIdx, out indexInChunk);
+        (chunkIdx, indexInChunk) = store.GetChunkLocation(entitiesPerChunk + 5);
         await Assert.That(chunkIdx).IsEqualTo(1);
         await Assert.That(indexInChunk).IsEqualTo(5);
     }

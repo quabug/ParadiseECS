@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Paradise.ECS.Test" />
+    <InternalsVisibleTo Include="Paradise.ECS.Concurrent" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Paradise.ECS.Generators\Paradise.ECS.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

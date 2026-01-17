@@ -32,7 +32,7 @@ public readonly struct HashedKey<T> : IEquatable<HashedKey<T>> where T : IEquata
     public HashedKey(T value)
     {
         _value = value;
-        _cachedHash = EqualityComparer<T>.Default.GetHashCode(value);
+        _cachedHash = value.GetHashCode();
     }
 
     /// <summary>

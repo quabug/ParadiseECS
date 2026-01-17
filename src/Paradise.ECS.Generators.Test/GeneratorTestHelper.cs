@@ -3,6 +3,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 
+#pragma warning disable RS1035 // Do not use banned APIs
+
 namespace Paradise.ECS.Generators.Test;
 
 /// <summary>
@@ -36,10 +38,10 @@ public static class GeneratorTestHelper
             references.Add(MetadataReference.CreateFromFile(netstandardPath));
         }
 
-        // Add Paradise.ECS.Concurrent reference if requested
+        // Add Paradise.ECS reference if requested
         if (includeEcsReferences)
         {
-            references.Add(MetadataReference.CreateFromFile(typeof(Concurrent.ComponentAttribute).Assembly.Location));
+            references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.ComponentAttribute).Assembly.Location));
         }
 
         var compilation = CSharpCompilation.Create(
@@ -152,5 +154,61 @@ public static class GeneratorTestHelper
             Source: t.GetText().ToString()
         ));
         return sources.FirstOrDefault(s => s.HintName == hintName).Source;
+    }
+
+    /// <summary>
+    /// Creates a compilation with the given source code and runs the specified analyzer.
+    /// </summary>
+    public static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<TAnalyzer>(string source, bool includeEcsReferences = true)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        var syntaxTree = CSharpSyntaxTree.ParseText(source);
+
+        var references = new List<MetadataReference>
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(Attribute).Assembly.Location),
+        };
+
+        // Add System.Runtime reference
+        var runtimeAssembly = System.Reflection.Assembly.Load("System.Runtime");
+        references.Add(MetadataReference.CreateFromFile(runtimeAssembly.Location));
+
+        // Add netstandard reference if available
+        var netstandardPath = Path.Combine(
+            Path.GetDirectoryName(typeof(object).Assembly.Location)!,
+            "netstandard.dll");
+        if (File.Exists(netstandardPath))
+        {
+            references.Add(MetadataReference.CreateFromFile(netstandardPath));
+        }
+
+        // Add Paradise.ECS reference if requested
+        if (includeEcsReferences)
+        {
+            references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.ComponentAttribute).Assembly.Location));
+        }
+
+        var compilation = CSharpCompilation.Create(
+            "TestAssembly",
+            [syntaxTree],
+            references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var analyzer = new TAnalyzer();
+        var compilationWithAnalyzers = compilation.WithAnalyzers([analyzer]);
+
+        var diagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
+        return diagnostics;
+    }
+
+    /// <summary>
+    /// Gets analyzer diagnostics filtered by ID.
+    /// </summary>
+    public static async Task<ImmutableArray<Diagnostic>> GetAnalyzerDiagnosticsAsync<TAnalyzer>(string source, string diagnosticId)
+        where TAnalyzer : DiagnosticAnalyzer, new()
+    {
+        var allDiagnostics = await RunAnalyzerAsync<TAnalyzer>(source);
+        return [.. allDiagnostics.Where(d => d.Id == diagnosticId)];
     }
 }
