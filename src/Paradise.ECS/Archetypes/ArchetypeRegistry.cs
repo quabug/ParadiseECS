@@ -37,52 +37,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
     }
 
     /// <summary>
-    /// Gets or creates a query for the given description.
-    /// Queries are cached and reused for the same description.
-    /// </summary>
-    /// <param name="description">The query description defining matching criteria.</param>
-    /// <returns>The query for this description.</returns>
-    public Query<TBits, TRegistry> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description)
-    {
-        // Get or create global query ID
-        int queryId = _sharedMetadata.GetOrCreateQueryId(description);
-
-        // Fast path: query already exists in this world
-        if ((uint)queryId < (uint)_queryCache.Count && _queryCache[queryId] is { } existingList)
-        {
-            return new Query<TBits, TRegistry>(existingList);
-        }
-
-        // Grow list if needed by adding nulls
-        int requiredCount = queryId + 1;
-        _queryCache.EnsureCapacity(requiredCount);
-        for (int i = _queryCache.Count; i < requiredCount; i++)
-        {
-            _queryCache.Add(null);
-        }
-
-        // Get matched archetype IDs from shared metadata and add only locally existing archetypes
-        var matchedIds = _sharedMetadata.GetMatchedArchetypeIds(queryId);
-        int matchedCount = matchedIds.Count;
-        var archetypes = new List<Archetype<TBits, TRegistry>>(matchedCount);
-
-        int localArchetypeCount = _archetypes.Count;
-        for (int i = 0; i < matchedCount; i++)
-        {
-            int archetypeId = matchedIds[i];
-            // Only add archetypes that already exist in this world
-            // New archetypes will be added via NotifyQueries when created
-            if ((uint)archetypeId < (uint)localArchetypeCount && _archetypes[archetypeId] is { } archetype)
-            {
-                archetypes.Add(archetype);
-            }
-        }
-
-        _queryCache[queryId] = archetypes;
-        return new Query<TBits, TRegistry>(archetypes);
-    }
-
-    /// <summary>
     /// Gets or creates an archetype for the given component mask.
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>
@@ -97,58 +51,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
 
         // Get or create archetype instance in this world
         return GetOrCreateById(archetypeId, matchedQueries);
-    }
-
-    /// <summary>
-    /// Notifies matching queries about a newly created archetype.
-    /// Uses pre-computed matched query IDs for efficient iteration.
-    /// </summary>
-    /// <param name="archetype">The newly created archetype.</param>
-    /// <param name="matchedQueries">The list of matching query IDs from shared metadata.</param>
-    private void NotifyQueries(Archetype<TBits, TRegistry> archetype, List<int> matchedQueries)
-    {
-        int localQueryCount = _queryCache.Count;
-        int matchedCount = matchedQueries.Count;
-
-        for (int i = 0; i < matchedCount; i++)
-        {
-            int queryId = matchedQueries[i];
-            // Only notify queries that exist locally in this world
-            if ((uint)queryId < (uint)localQueryCount && _queryCache[queryId] is { } archetypes)
-            {
-                archetypes.Add(archetype);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Gets an archetype by its ID.
-    /// </summary>
-    /// <param name="archetypeId">The archetype ID.</param>
-    /// <returns>The archetype store, or null if not found in this world.</returns>
-    public Archetype<TBits, TRegistry>? GetById(int archetypeId)
-    {
-        return (uint)archetypeId < (uint)_archetypes.Count ? _archetypes[archetypeId] : null;
-    }
-
-    /// <summary>
-    /// Tries to get an archetype by its component mask.
-    /// </summary>
-    /// <param name="mask">The component mask.</param>
-    /// <param name="store">The archetype store if found.</param>
-    /// <returns>True if found in this world.</returns>
-    public bool TryGet(HashedKey<ImmutableBitSet<TBits>> mask, out Archetype<TBits, TRegistry>? store)
-    {
-        if (_sharedMetadata.TryGetArchetypeId(mask, out int archetypeId) &&
-            (uint)archetypeId < (uint)_archetypes.Count &&
-            _archetypes[archetypeId] is { } archetype)
-        {
-            store = archetype;
-            return true;
-        }
-
-        store = null;
-        return false;
     }
 
     /// <summary>
@@ -198,6 +100,76 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
     }
 
     /// <summary>
+    /// Gets or creates a query for the given description.
+    /// Queries are cached and reused for the same description.
+    /// </summary>
+    /// <param name="description">The query description defining matching criteria.</param>
+    /// <returns>The query for this description.</returns>
+    public Query<TBits, TRegistry> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description)
+    {
+        // Get or create global query ID
+        int queryId = _sharedMetadata.GetOrCreateQueryId(description);
+
+        // Fast path: query already exists in this world
+        if ((uint)queryId < (uint)_queryCache.Count && _queryCache[queryId] is { } existingList)
+        {
+            return new Query<TBits, TRegistry>(existingList);
+        }
+
+        // Grow list if needed by adding nulls
+        int requiredCount = queryId + 1;
+        _queryCache.EnsureCapacity(requiredCount);
+        for (int i = _queryCache.Count; i < requiredCount; i++)
+        {
+            _queryCache.Add(null);
+        }
+
+        // Get matched archetype IDs from shared metadata and add only locally existing archetypes
+        var matchedIds = _sharedMetadata.GetMatchedArchetypeIds(queryId);
+        int matchedCount = matchedIds.Count;
+        var archetypes = new List<Archetype<TBits, TRegistry>>(matchedCount);
+
+        int localArchetypeCount = _archetypes.Count;
+        for (int i = 0; i < matchedCount; i++)
+        {
+            int archetypeId = matchedIds[i];
+            // Only add archetypes that already exist in this world
+            // New archetypes will be added via NotifyQueries when created
+            if ((uint)archetypeId < (uint)localArchetypeCount && _archetypes[archetypeId] is { } archetype)
+            {
+                archetypes.Add(archetype);
+            }
+        }
+
+        _queryCache[queryId] = archetypes;
+        return new Query<TBits, TRegistry>(archetypes);
+    }
+
+    /// <summary>
+    /// Gets an archetype by its ID.
+    /// </summary>
+    /// <param name="archetypeId">The archetype ID.</param>
+    /// <returns>The archetype store, or null if not found in this world.</returns>
+    public Archetype<TBits, TRegistry>? GetArchetypeById(int archetypeId)
+    {
+        return (uint)archetypeId < (uint)_archetypes.Count ? _archetypes[archetypeId] : null;
+    }
+
+    /// <summary>
+    /// Clears all archetypes and query caches from this registry.
+    /// </summary>
+    public void Clear()
+    {
+        for (int i = 0; i < _archetypes.Count; i++)
+        {
+            _archetypes[i]?.Clear();
+        }
+        _archetypes.Clear();
+        _queryCache.Clear();
+        _tempMatchedQueries.Clear();
+    }
+
+    /// <summary>
     /// Gets or creates an archetype instance by its global ID.
     /// </summary>
     /// <param name="archetypeId">The global archetype ID.</param>
@@ -232,16 +204,24 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
     }
 
     /// <summary>
-    /// Clears all archetypes and query caches from this registry.
+    /// Notifies matching queries about a newly created archetype.
+    /// Uses pre-computed matched query IDs for efficient iteration.
     /// </summary>
-    public void Clear()
+    /// <param name="archetype">The newly created archetype.</param>
+    /// <param name="matchedQueries">The list of matching query IDs from shared metadata.</param>
+    private void NotifyQueries(Archetype<TBits, TRegistry> archetype, List<int> matchedQueries)
     {
-        for (int i = 0; i < _archetypes.Count; i++)
+        int localQueryCount = _queryCache.Count;
+        int matchedCount = matchedQueries.Count;
+
+        for (int i = 0; i < matchedCount; i++)
         {
-            _archetypes[i]?.Clear();
+            int queryId = matchedQueries[i];
+            // Only notify queries that exist locally in this world
+            if ((uint)queryId < (uint)localQueryCount && _queryCache[queryId] is { } archetypes)
+            {
+                archetypes.Add(archetype);
+            }
         }
-        _archetypes.Clear();
-        _queryCache.Clear();
-        _tempMatchedQueries.Clear();
     }
 }

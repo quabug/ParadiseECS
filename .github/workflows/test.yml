@@ -35,15 +35,15 @@ jobs:
           dotnet-version: '10.0.x'
           dotnet-quality: 'preview'
 
-      - name: Test Paradise.ECS.Concurrent (with coverage)
-        working-directory: src/Paradise.ECS.Concurrent.Test
+      - name: Test Paradise.ECS (with coverage)
+        working-directory: src/Paradise.ECS.Test
         run: |
           dotnet test -p:PublishAot=false -- \
             --coverage \
             --coverage-output-format cobertura \
             --coverage-output coverage.cobertura.xml \
-            --coverage-settings ${{ github.workspace }}/src/Paradise.ECS.Concurrent.Test/coverage.settings.xml \
-            --results-directory ${{ github.workspace }}/TestResults/ECS.Concurrent
+            --coverage-settings ${{ github.workspace }}/src/Paradise.ECS.Test/coverage.settings.xml \
+            --results-directory ${{ github.workspace }}/TestResults/ECS
 
       - name: Test Paradise.ECS.Generators (with coverage)
         working-directory: src/Paradise.ECS.Generators.Test

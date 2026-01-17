@@ -146,6 +146,13 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Parallel query iteration
   - Safety rails for data races
 
+- [ ] **Exclusive Write Constraints**
+  - Compile-time or runtime enforcement that only one system can write to a component type
+  - Enable maximum parallelization by guaranteeing no write conflicts
+  - Read-many, write-one access pattern for component types
+  - Automatic dependency graph generation based on read/write declarations
+  - Integration with System Scheduling for optimal parallel execution
+
 - [ ] **Event System**
   - Component change events
   - Entity lifecycle events

@@ -137,7 +137,7 @@ public sealed class World<TBits, TRegistry>
             return entity;
 
         // Get current mask from entity's archetype
-        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
+        var sourceArchetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
         var currentMask = sourceArchetype.Layout.ComponentMask;
 
         // Merge masks and get target archetype
@@ -200,7 +200,7 @@ public sealed class World<TBits, TRegistry>
     /// </summary>
     private void RemoveFromCurrentArchetype(EntityLocation location)
     {
-        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
+        var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
         int movedEntityId = archetype.RemoveEntity(location.GlobalIndex);
 
         // If an entity was moved during swap-remove, update its location
@@ -255,7 +255,7 @@ public sealed class World<TBits, TRegistry>
     public ComponentRef<T> GetComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)
+        var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
 
         var layout = archetype.Layout;
@@ -294,7 +294,7 @@ public sealed class World<TBits, TRegistry>
             return false;
 
         var location = _entityManager.GetLocation(entity.Id);
-        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
+        var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
         return archetype.Layout.HasComponent<T>();
     }
 
@@ -308,7 +308,7 @@ public sealed class World<TBits, TRegistry>
     public void AddComponent<T>(Entity entity, T value = default) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
+        var sourceArchetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
 
         // Check if already has component
         if (sourceArchetype.Layout.HasComponent<T>())
@@ -339,7 +339,7 @@ public sealed class World<TBits, TRegistry>
     public void RemoveComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
+        var sourceArchetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
 
         // Check if has component
         if (!sourceArchetype.Layout.HasComponent<T>())
