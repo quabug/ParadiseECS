@@ -32,9 +32,9 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
     }
 
     private const int MetaSize = 16; // sizeof(ChunkMeta): 8 + 8
-    private static int EntriesPerMetaBlock => TConfig.ChunkSize / MetaSize;
-    private static int EntriesPerMetaBlockMask => EntriesPerMetaBlock - 1;
-    private static int MaxMetaBlocks => TConfig.MaxMetaBlocks;
+    private static readonly int s_entriesPerMetaBlock = TConfig.ChunkSize / MetaSize;
+    private static readonly int s_entriesPerMetaBlockShift = System.Numerics.BitOperations.Log2((uint)s_entriesPerMetaBlock);
+    private static readonly int s_entriesPerMetaBlockMask = s_entriesPerMetaBlock - 1;
 
     private readonly IAllocator _allocator;
     private readonly nint[] _metaBlocks;
@@ -50,12 +50,12 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
     public ChunkManager(TConfig config)
     {
         _allocator = config.ChunkAllocator ?? throw new ArgumentNullException(nameof(config), "Config.ChunkAllocator cannot be null");
-        _metaBlocks = new nint[MaxMetaBlocks];
+        _metaBlocks = new nint[TConfig.MaxMetaBlocks];
 
         // Pre-allocate meta blocks for initial capacity (optional optimization)
-        int metaBlocksNeeded = (config.DefaultChunkCapacity + EntriesPerMetaBlock - 1) / EntriesPerMetaBlock;
+        int metaBlocksNeeded = (config.DefaultChunkCapacity + s_entriesPerMetaBlock - 1) / s_entriesPerMetaBlock;
         if (metaBlocksNeeded < 1) metaBlocksNeeded = 1;
-        else if (metaBlocksNeeded > MaxMetaBlocks) metaBlocksNeeded = MaxMetaBlocks;
+        else if (metaBlocksNeeded > TConfig.MaxMetaBlocks) metaBlocksNeeded = TConfig.MaxMetaBlocks;
 
         for (int i = 0; i < metaBlocksNeeded; i++)
         {
@@ -71,8 +71,8 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref ChunkMeta GetMeta(int id)
     {
-        int blockIndex = id / EntriesPerMetaBlock;
-        int indexInBlock = id % EntriesPerMetaBlock;
+        int blockIndex = id >> s_entriesPerMetaBlockShift;
+        int indexInBlock = id & s_entriesPerMetaBlockMask;
         return ref ((ChunkMeta*)_metaBlocks[blockIndex])[indexInBlock];
     }
 
@@ -90,8 +90,8 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
             // No free slot available, allocate a new one
             id = Interlocked.Increment(ref _nextSlotId) - 1;
 
-            int blockIndex = id / EntriesPerMetaBlock;
-            if (blockIndex >= MaxMetaBlocks)
+            int blockIndex = id >> s_entriesPerMetaBlockShift;
+            if (blockIndex >= TConfig.MaxMetaBlocks)
                 ThrowCapacityExceeded();
 
             // Ensure the meta block is allocated (lock-free)
@@ -253,7 +253,7 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowCapacityExceeded()
-        => throw new InvalidOperationException($"ChunkManager capacity exceeded (max {MaxMetaBlocks * EntriesPerMetaBlock} chunks)");
+        => throw new InvalidOperationException($"ChunkManager capacity exceeded (max {TConfig.MaxMetaBlocks * s_entriesPerMetaBlock} chunks)");
 
     public void Dispose()
     {
@@ -264,14 +264,14 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
         _operationGuard.WaitForCompletion();
 
         // Free all data chunks and meta blocks
-        for (int blockIndex = 0; blockIndex < MaxMetaBlocks; blockIndex++)
+        for (int blockIndex = 0; blockIndex < TConfig.MaxMetaBlocks; blockIndex++)
         {
             nint metaBlockPtr = _metaBlocks[blockIndex];
             if (metaBlockPtr == 0)
                 continue;
 
             var metaBlock = (ChunkMeta*)metaBlockPtr;
-            for (int i = 0; i < EntriesPerMetaBlock; i++)
+            for (int i = 0; i < s_entriesPerMetaBlock; i++)
             {
                 if (metaBlock[i].Pointer != 0)
                 {
