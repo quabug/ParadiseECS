@@ -13,37 +13,20 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
-    /// <summary>
-    /// Gets the shared singleton instance for this TBits/TRegistry combination.
-    /// </summary>
-    public static SharedArchetypeMetadata<TBits, TRegistry> Shared { get; } = new();
-
-    /// <summary>
-    /// Temporary list for collecting matched query IDs during archetype operations.
-    /// Reused to avoid allocations on each operation.
-    /// </summary>
-    private List<int>? _tempMatchedQueries;
-
     private readonly IAllocator _allocator;
     private readonly Dictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
-    private readonly AppendOnlyList<nint/* ArchetypeLayout* */> _layouts = new();
+    private readonly List<nint/* ArchetypeLayout* */> _layouts = new();
     private readonly Dictionary<EdgeKey, int> _edges = new();
     private readonly Dictionary<HashedKey<ImmutableQueryDescription<TBits>>, int> _queryDescToId = new();
-    private readonly AppendOnlyList<QueryData> _queries = new();
+    private readonly List<QueryData> _queries = new();
 
     /// <summary>
     /// Holds query description and its matched archetype IDs together for cache locality.
     /// </summary>
-    private readonly struct QueryData
+    private readonly struct QueryData(ImmutableQueryDescription<TBits> description)
     {
-        public readonly ImmutableQueryDescription<TBits> Description;
-        public readonly AppendOnlyList<int> MatchedArchetypeIds;
-
-        public QueryData(ImmutableQueryDescription<TBits> description)
-        {
-            Description = description;
-            MatchedArchetypeIds = new AppendOnlyList<int>();
-        }
+        public readonly ImmutableQueryDescription<TBits> Description = description;
+        public readonly List<int> MatchedArchetypeIds = new();
     }
 
     private bool _disposed;
@@ -70,19 +53,6 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// <summary>
     /// Gets or creates an archetype ID for the given component mask.
     /// Also creates and stores the layout for the archetype.
-    /// </summary>
-    /// <param name="mask">The component mask defining the archetype.</param>
-    /// <returns>The archetype ID for this mask.</returns>
-    public int GetOrCreateArchetypeId(HashedKey<ImmutableBitSet<TBits>> mask)
-    {
-        var tempList = _tempMatchedQueries ??= new List<int>();
-        tempList.Clear();
-        return GetOrCreateArchetypeId(mask, tempList);
-    }
-
-    /// <summary>
-    /// Gets or creates an archetype ID for the given component mask.
-    /// Also creates and stores the layout for the archetype.
     /// Outputs the IDs of queries that match this archetype.
     /// </summary>
     /// <typeparam name="T">A list type to collect the matching query IDs.</typeparam>
@@ -101,7 +71,8 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         }
 
         var layoutData = ImmutableArchetypeLayout<TBits, TRegistry>.Create(_allocator, mask);
-        int newId = _layouts.Add(layoutData);
+        int newId = _layouts.Count;
+        _layouts.Add(layoutData);
         if (newId > EcsLimits.MaxArchetypeId)
             throw new InvalidOperationException($"Archetype count exceeded maximum of {EcsLimits.MaxArchetypeId}.");
         _maskToArchetypeId[mask] = newId;
@@ -125,7 +96,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         int queryCount = _queries.Count;
         for (int i = 0; i < queryCount; i++)
         {
-            ref readonly var query = ref _queries.GetRef(i);
+            var query = _queries[i];
             if (query.Description.Matches(mask))
             {
                 matchedQueries.Add(i);
@@ -147,7 +118,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         int queryCount = _queries.Count;
         for (int i = 0; i < queryCount; i++)
         {
-            ref readonly var query = ref _queries.GetRef(i);
+            var query = _queries[i];
             if (query.Description.Matches(mask))
             {
                 result.Add(i);
@@ -185,20 +156,6 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// Gets the archetype ID resulting from adding a component to a source archetype.
     /// Uses cached graph edges for O(1) lookup on subsequent calls.
     /// </summary>
-    /// <param name="sourceArchetypeId">The source archetype ID.</param>
-    /// <param name="componentId">The component to add.</param>
-    /// <returns>The target archetype ID with the component added.</returns>
-    public int GetOrCreateWithAdd(int sourceArchetypeId, ComponentId componentId)
-    {
-        var tempList = _tempMatchedQueries ??= new List<int>();
-        tempList.Clear();
-        return GetOrCreateWithAdd(sourceArchetypeId, componentId, tempList);
-    }
-
-    /// <summary>
-    /// Gets the archetype ID resulting from adding a component to a source archetype.
-    /// Uses cached graph edges for O(1) lookup on subsequent calls.
-    /// </summary>
     /// <typeparam name="T">A list type to collect the matching query IDs.</typeparam>
     /// <param name="sourceArchetypeId">The source archetype ID.</param>
     /// <param name="componentId">The component to add.</param>
@@ -229,20 +186,6 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         _edges[removeKey] = sourceArchetypeId;
 
         return targetId;
-    }
-
-    /// <summary>
-    /// Gets the archetype ID resulting from removing a component from a source archetype.
-    /// Uses cached graph edges for O(1) lookup on subsequent calls.
-    /// </summary>
-    /// <param name="sourceArchetypeId">The source archetype ID.</param>
-    /// <param name="componentId">The component to remove.</param>
-    /// <returns>The target archetype ID with the component removed.</returns>
-    public int GetOrCreateWithRemove(int sourceArchetypeId, ComponentId componentId)
-    {
-        var tempList = _tempMatchedQueries ??= new List<int>();
-        tempList.Clear();
-        return GetOrCreateWithRemove(sourceArchetypeId, componentId, tempList);
     }
 
     /// <summary>
@@ -308,7 +251,8 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
             }
         }
 
-        int newId = _queries.Add(queryData);
+        int newId = _queries.Count;
+        _queries.Add(queryData);
         _queryDescToId[description] = newId;
 
         return newId;
@@ -331,13 +275,13 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// Gets the query description for the specified query ID.
     /// </summary>
     /// <param name="queryId">The query ID.</param>
-    /// <returns>A reference to the query description.</returns>
+    /// <returns>The query description.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the query ID is invalid.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref readonly ImmutableQueryDescription<TBits> GetQueryDescription(int queryId)
+    public ImmutableQueryDescription<TBits> GetQueryDescription(int queryId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed, this);
-        return ref _queries.GetRef(queryId).Description;
+        return _queries[queryId].Description;
     }
 
     /// <summary>
@@ -355,7 +299,6 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
 
     /// <summary>
     /// Releases all resources used by this instance.
-    /// Note: The static <see cref="Shared"/> instance should typically not be disposed.
     /// </summary>
     public void Dispose()
     {

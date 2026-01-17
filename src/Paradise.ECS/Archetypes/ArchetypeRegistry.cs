@@ -1,5 +1,3 @@
-using System.Buffers;
-
 namespace Paradise.ECS;
 
 /// <summary>
@@ -9,7 +7,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
-public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
+public sealed class ArchetypeRegistry<TBits, TRegistry>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
@@ -17,29 +15,24 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// Temporary list for collecting matched query IDs during archetype operations.
     /// Reused to avoid allocations on each operation.
     /// </summary>
-    private List<int>? _tempMatchedQueries;
+    private readonly List<int> _tempMatchedQueries = new();
 
     private readonly SharedArchetypeMetadata<TBits, TRegistry> _sharedMetadata;
-    private readonly AppendOnlyList<Archetype<TBits, TRegistry>?> _archetypes = new();
-    private readonly AppendOnlyList<List<Archetype<TBits, TRegistry>>?> _queryCache = new();
+    private readonly List<Archetype<TBits, TRegistry>?> _archetypes = new();
+    private readonly List<List<Archetype<TBits, TRegistry>>?> _queryCache = new();
     private readonly ChunkManager _chunkManager;
-    private readonly ArrayPool<ChunkHandle> _chunkPool;
-    private bool _disposed;
 
     /// <summary>
     /// Creates a new archetype registry using the specified shared metadata.
     /// </summary>
     /// <param name="sharedMetadata">The shared metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    /// <param name="chunkPool">The array pool for chunk handle arrays.</param>
-    public ArchetypeRegistry(SharedArchetypeMetadata<TBits, TRegistry> sharedMetadata, ChunkManager chunkManager, ArrayPool<ChunkHandle> chunkPool)
+    public ArchetypeRegistry(SharedArchetypeMetadata<TBits, TRegistry> sharedMetadata, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);
-        ArgumentNullException.ThrowIfNull(chunkPool);
         _sharedMetadata = sharedMetadata;
         _chunkManager = chunkManager;
-        _chunkPool = chunkPool;
     }
 
     /// <summary>
@@ -50,8 +43,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <returns>The query for this description.</returns>
     public Query<TBits, TRegistry> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description)
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         // Get or create global query ID
         int queryId = _sharedMetadata.GetOrCreateQueryId(description);
 
@@ -68,13 +59,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         {
             int nullsToAdd = requiredCount - currentCount;
             _queryCache.AddRange(new List<Archetype<TBits, TRegistry>>?[nullsToAdd]);
-        }
-
-        // Check again after growing
-        ref var slot = ref _queryCache.GetRef(queryId);
-        if (slot is not null)
-        {
-            return new Query<TBits, TRegistry>(slot);
         }
 
         // Get matched archetype IDs from shared metadata and add only locally existing archetypes
@@ -95,7 +79,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
             }
         }
 
-        slot = archetypes;
+        _queryCache[queryId] = archetypes;
         return new Query<TBits, TRegistry>(archetypes);
     }
 
@@ -106,9 +90,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <returns>The archetype store for this mask.</returns>
     public Archetype<TBits, TRegistry> GetOrCreate(HashedKey<ImmutableBitSet<TBits>> mask)
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
-        var matchedQueries = _tempMatchedQueries ??= new List<int>();
+        var matchedQueries = _tempMatchedQueries;
         matchedQueries.Clear();
 
         // Get or create global archetype ID and layout
@@ -148,7 +130,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <returns>The archetype store, or null if not found in this world.</returns>
     public Archetype<TBits, TRegistry>? GetById(int archetypeId)
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
         return (uint)archetypeId < (uint)_archetypes.Count ? _archetypes[archetypeId] : null;
     }
 
@@ -160,8 +141,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     /// <returns>True if found in this world.</returns>
     public bool TryGet(HashedKey<ImmutableBitSet<TBits>> mask, out Archetype<TBits, TRegistry>? store)
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         if (_sharedMetadata.TryGetArchetypeId(mask, out int archetypeId) &&
             (uint)archetypeId < (uint)_archetypes.Count &&
             _archetypes[archetypeId] is { } archetype)
@@ -185,10 +164,9 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         Archetype<TBits, TRegistry> source,
         ComponentId componentId)
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
         ArgumentNullException.ThrowIfNull(source);
 
-        var matchedQueries = _tempMatchedQueries ??= new List<int>();
+        var matchedQueries = _tempMatchedQueries;
         matchedQueries.Clear();
 
         // Get target archetype ID from shared metadata (O(1) if cached)
@@ -209,10 +187,9 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         Archetype<TBits, TRegistry> source,
         ComponentId componentId)
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
         ArgumentNullException.ThrowIfNull(source);
 
-        var matchedQueries = _tempMatchedQueries ??= new List<int>();
+        var matchedQueries = _tempMatchedQueries;
         matchedQueries.Clear();
 
         // Get target archetype ID from shared metadata (O(1) if cached)
@@ -247,15 +224,14 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
         }
 
         // Check again after growing
-        ref var slot = ref _archetypes.GetRef(archetypeId);
-        if (slot is not null)
-            return slot;
+        if (_archetypes[archetypeId] is { } existingAfterGrow)
+            return existingAfterGrow;
 
         // Create new archetype instance for this world
         var layoutData = _sharedMetadata.GetLayoutData(archetypeId);
-        var archetype = new Archetype<TBits, TRegistry>(archetypeId, layoutData, _chunkManager, _chunkPool);
+        var archetype = new Archetype<TBits, TRegistry>(archetypeId, layoutData, _chunkManager);
 
-        slot = archetype;
+        _archetypes[archetypeId] = archetype;
 
         // Notify matching queries about the new archetype using pre-computed matched query IDs
         NotifyQueries(archetype, matchedQueries);
@@ -264,17 +240,15 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
     }
 
     /// <summary>
-    /// Releases resources used by this registry.
-    /// Note: Does not dispose the shared metadata.
+    /// Clears all archetypes and query caches from this registry.
     /// </summary>
-    public void Dispose()
+    public void Clear()
     {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-
-        // Note: We don't dispose layouts here since they are owned by SharedArchetypeMetadata
-        // AppendOnlyList doesn't need clearing - GC will handle the references
+        for (int i = 0; i < _archetypes.Count; i++)
+        {
+            _archetypes[i]?.Clear();
+        }
+        _archetypes.Clear();
+        _queryCache.Clear();
     }
 }

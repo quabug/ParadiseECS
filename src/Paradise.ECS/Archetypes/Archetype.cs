@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Runtime.CompilerServices;
 
 namespace Paradise.ECS;
@@ -10,18 +9,13 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
-public sealed class Archetype<TBits, TRegistry> : IDisposable
+public sealed class Archetype<TBits, TRegistry>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
-    private const int InitialChunkCapacity = 32;
-
     private readonly nint _layoutData;
     private readonly ChunkManager _chunkManager;
-    private readonly ArrayPool<ChunkHandle> _chunkPool;
-    private ChunkHandle[] _chunks;
-    private int _chunkCount;
-    private bool _disposed;
+    private readonly List<ChunkHandle> _chunks = new();
 
     /// <summary>
     /// Gets the unique ID of this archetype.
@@ -53,59 +47,52 @@ public sealed class Archetype<TBits, TRegistry> : IDisposable
     }
 
     /// <summary>
+    /// Gets the current number of chunks in this archetype.
+    /// </summary>
+    public int ChunkCount
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunks.Count;
+    }
+
+    /// <summary>
     /// Creates a new archetype store.
     /// </summary>
     /// <param name="id">The unique archetype ID.</param>
     /// <param name="layoutData">The layout data pointer (as nint) for this archetype.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    /// <param name="chunkPool">The array pool for chunk handle arrays.</param>
-    public Archetype(int id, nint layoutData, ChunkManager chunkManager, ArrayPool<ChunkHandle> chunkPool)
+    public Archetype(int id, nint layoutData, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(chunkManager);
-        ArgumentNullException.ThrowIfNull(chunkPool);
 
         Id = id;
         _layoutData = layoutData;
         _chunkManager = chunkManager;
-        _chunkPool = chunkPool;
-        _chunks = _chunkPool.Rent(InitialChunkCapacity);
     }
 
     /// <summary>
     /// Allocates space for a new entity in this archetype.
-    /// Returns the chunk handle and index where the entity should be stored.
+    /// Returns the global index where the entity is stored.
     /// </summary>
     /// <param name="entity">The entity to allocate space for.</param>
-    /// <returns>A tuple containing the chunk handle and index within the chunk.</returns>
-    public (ChunkHandle ChunkHandle, int IndexInChunk) AllocateEntity(Entity entity)
+    /// <returns>The global index of the entity within this archetype.</returns>
+    public int AllocateEntity(Entity entity)
     {
         int entitiesPerChunk = Layout.EntitiesPerChunk;
 
-        if (EntityCount >= _chunkCount * entitiesPerChunk)
+        if (EntityCount >= _chunks.Count * entitiesPerChunk)
         {
-            EnsureChunkCapacity();
-            _chunks[_chunkCount] = _chunkManager.Allocate();
-            _chunkCount++;
+            _chunks.Add(_chunkManager.Allocate());
         }
 
-        int chunkIndex = EntityCount / entitiesPerChunk;
-        int indexInChunk = EntityCount % entitiesPerChunk;
+        int globalIndex = EntityCount;
+        int chunkIndex = globalIndex / entitiesPerChunk;
+        int indexInChunk = globalIndex % entitiesPerChunk;
 
         GetEntityIdRef(_chunks[chunkIndex], indexInChunk) = entity.Id;
         EntityCount++;
 
-        return (_chunks[chunkIndex], indexInChunk);
-    }
-
-    private void EnsureChunkCapacity()
-    {
-        if (_chunkCount < _chunks.Length)
-            return;
-
-        var newChunks = _chunkPool.Rent(_chunks.Length * 2);
-        Array.Copy(_chunks, newChunks, _chunkCount);
-        _chunkPool.Return(_chunks, clearArray: true);
-        _chunks = newChunks;
+        return globalIndex;
     }
 
     /// <summary>
@@ -195,15 +182,6 @@ public sealed class Archetype<TBits, TRegistry> : IDisposable
     }
 
     /// <summary>
-    /// Gets all chunk handles for this archetype.
-    /// </summary>
-    /// <returns>A read-only span of chunk handles.</returns>
-    public ReadOnlySpan<ChunkHandle> GetChunks()
-    {
-        return _chunks.AsSpan(0, _chunkCount);
-    }
-
-    /// <summary>
     /// Calculates the global entity index from chunk index and index within chunk.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -228,12 +206,11 @@ public sealed class Archetype<TBits, TRegistry> : IDisposable
     /// </summary>
     public void Clear()
     {
-        for (int i = 0; i < _chunkCount; i++)
+        for (int i = 0; i < _chunks.Count; i++)
         {
             _chunkManager.Free(_chunks[i]);
-            _chunks[i] = default;
         }
-        _chunkCount = 0;
+        _chunks.Clear();
         EntityCount = 0;
     }
 
@@ -244,13 +221,12 @@ public sealed class Archetype<TBits, TRegistry> : IDisposable
     {
         // Free trailing empty chunks
         int entitiesPerChunk = Layout.EntitiesPerChunk;
-        int entityCount = EntityCount;
-        int neededChunks = (entityCount + entitiesPerChunk - 1) / entitiesPerChunk;
-        while (_chunkCount > neededChunks)
+        int neededChunks = (EntityCount + entitiesPerChunk - 1) / entitiesPerChunk;
+        while (_chunks.Count > neededChunks)
         {
-            _chunkCount--;
-            _chunkManager.Free(_chunks[_chunkCount]);
-            _chunks[_chunkCount] = default;
+            int lastIndex = _chunks.Count - 1;
+            _chunkManager.Free(_chunks[lastIndex]);
+            _chunks.RemoveAt(lastIndex);
         }
     }
 
@@ -263,20 +239,5 @@ public sealed class Archetype<TBits, TRegistry> : IDisposable
         using var chunk = _chunkManager.Get(chunkHandle);
         int offset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(indexInChunk);
         return ref chunk.GetRef<int>(offset);
-    }
-
-    /// <summary>
-    /// Releases resources used by this archetype, returning the chunk array to the pool.
-    /// Note: Does not free the chunks themselves - that is handled by the ChunkManager.
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-        _chunkPool.Return(_chunks, clearArray: true);
-        _chunks = [];
-        _chunkCount = 0;
     }
 }

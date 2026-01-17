@@ -9,7 +9,7 @@ public class EntityLocationTests
 
         await Assert.That(location.IsValid).IsFalse();
         await Assert.That(location.ArchetypeId).IsEqualTo(-1);
-        await Assert.That(location.IndexInChunk).IsEqualTo(-1);
+        await Assert.That(location.GlobalIndex).IsEqualTo(-1);
     }
 
     [Test]
@@ -19,8 +19,7 @@ public class EntityLocationTests
         {
             Version = 1,
             ArchetypeId = 0,
-            ChunkHandle = new ChunkHandle(0, 1),
-            IndexInChunk = 0
+            GlobalIndex = 0
         };
 
         await Assert.That(location.IsValid).IsTrue();
@@ -34,8 +33,7 @@ public class EntityLocationTests
         {
             Version = 3,
             ArchetypeId = 0,
-            ChunkHandle = new ChunkHandle(0, 1),
-            IndexInChunk = 0
+            GlobalIndex = 0
         };
 
         await Assert.That(location.MatchesEntity(entity)).IsTrue();
@@ -49,8 +47,7 @@ public class EntityLocationTests
         {
             Version = 2, // Different version
             ArchetypeId = 0,
-            ChunkHandle = new ChunkHandle(0, 1),
-            IndexInChunk = 0
+            GlobalIndex = 0
         };
 
         await Assert.That(location.MatchesEntity(entity)).IsFalse();
@@ -64,8 +61,7 @@ public class EntityLocationTests
         {
             Version = 0,
             ArchetypeId = 0,
-            ChunkHandle = new ChunkHandle(0, 1),
-            IndexInChunk = 0
+            GlobalIndex = 0
         };
 
         // Even with matching versions, version 0 means invalid
@@ -79,15 +75,13 @@ public class EntityLocationTests
         {
             Version = 2,
             ArchetypeId = 5,
-            ChunkHandle = new ChunkHandle(3, 1),
-            IndexInChunk = 10
+            GlobalIndex = 10
         };
 
         var str = location.ToString();
 
         await Assert.That(str).Contains("5"); // ArchetypeId
-        await Assert.That(str).Contains("3"); // ChunkHandle.Id
-        await Assert.That(str).Contains("10"); // IndexInChunk
+        await Assert.That(str).Contains("10"); // GlobalIndex
     }
 
     [Test]
