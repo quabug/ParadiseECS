@@ -8,7 +8,9 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 ## Current Status
 
-**Core ECS foundation is complete.** All fundamental systems (Memory Management, Entities, Archetypes, Queries, World API, Source Generator) are implemented, tested, and production-ready. The codebase has comprehensive test coverage (5,870 LOC tests for 4,919 LOC source) with zero technical debt markers.
+**Core ECS foundation is complete.** All fundamental systems (Memory Management, Entities, Archetypes, Queries, World API, Source Generator) are implemented, tested, and production-ready. The codebase has comprehensive test coverage (5,870 LOC tests for 4,919 LOC source).
+
+**Current focus**: Single-threaded World implementation (`feature/single-thread` branch) with SharedArchetypeMetadata for multi-world scenarios.
 
 **Architecture Score: 8.5/10** - Solid foundation with clean, modular design following SOLID principles.
 
@@ -63,19 +65,23 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 - [x] **ConcurrentAppendOnlyList** ([#19](https://github.com/quabug/ParadiseECS/pull/19))
   - Chunked managed array approach
   - Lock-free Add operations
-  - Data race fix in indexer (feature/native-list branch)
+  - Data race fix in indexer
+
+- [x] **Shared Archetype Infrastructure** ([#25](https://github.com/quabug/ParadiseECS/pull/25))
+  - SharedArchetypeMetadata for multi-world archetype sharing
+  - Centralized mask-to-ID mappings, layouts, graph edges
+  - Query description caching across worlds
+  - EdgeKey-based O(1) archetype transitions
 
 ### In Progress
 
-- [~] **Shared Archetype** (feature/shared-archetype)
-  - Move archetype mask, query descriptions, and graph edges to a shared location
+- [~] **Single-Threaded World Optimization** (`feature/single-thread` branch)
+  - Simplified EntityManager without concurrent overhead
+  - Consolidated entity location storage
+  - ThrowHelper for centralized validation
+  - Refactored GetChunkLocation to return tuples
 
 ### Planned
-
-- [ ] **Shared Archetype Infrastructure**
-  - Move archetype mask, query descriptions, and graph edges to a shared location
-  - Enable multiple worlds to share archetype metadata
-  - Reduce memory overhead for multi-world scenarios
 
 - [ ] **Extensible Metadata Interface**
   - Define interface for world/archetype metadata (e.g., `IWorldMetadata`)
@@ -115,9 +121,18 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Incremental hash computation ([#14](https://github.com/quabug/ParadiseECS/issues/14))
   - FrozenDictionary vs Dictionary benchmark ([#13](https://github.com/quabug/ParadiseECS/issues/13))
   - Query archetype caching for high-frequency scenarios ([#12](https://github.com/quabug/ParadiseECS/issues/12))
+  - Hybrid edge caching for archetype transitions ([#20](https://github.com/quabug/ParadiseECS/issues/20))
+  - Inverted index for query matching optimization
 
 - [ ] **Zero-Allocation Tag Component System** ([#10](https://github.com/quabug/ParadiseECS/issues/10))
   - Design and implement tag components without storage overhead
+
+- [ ] **Reference Type Component Support**
+  - Enable managed/reference type components (classes, strings, arrays)
+  - Separate storage strategy for managed vs unmanaged components
+  - GC-aware chunk management for reference types
+  - Consider hybrid archetypes with both unmanaged and managed components
+  - Investigate pinning strategies for interop scenarios
 
 - [ ] **System Scheduling**
   - System base class/interface
@@ -179,6 +194,10 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 | Issue | Title | Category |
 |-------|-------|----------|
+| [#28](https://github.com/quabug/ParadiseECS/issues/28) | Investigate empty archetype for componentless entities | Research |
+| [#27](https://github.com/quabug/ParadiseECS/issues/27) | Investigate lazy location allocation in EntityManager | Research |
+| [#26](https://github.com/quabug/ParadiseECS/issues/26) | Review: SharedArchetypeMetadata for multi-world sharing | Review |
+| [#20](https://github.com/quabug/ParadiseECS/issues/20) | Hybrid edge caching for archetype transitions | Research |
 | [#18](https://github.com/quabug/ParadiseECS/issues/18) | Query Iteration Strategies for Structural Changes | Research |
 | [#17](https://github.com/quabug/ParadiseECS/issues/17) | GetChunkIndex O(N) linear scan | Performance |
 | [#14](https://github.com/quabug/ParadiseECS/issues/14) | Incremental hash computation | Performance |
@@ -191,7 +210,12 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 ## Technical Debt
 
-None currently tracked. Codebase is clean with zero TODO/FIXME markers.
+Minor TODOs in codebase:
+
+| Location | Description | Related Issue |
+|----------|-------------|---------------|
+| `SharedArchetypeMetadata.cs` | Optimize query matching with inverted index | - |
+| `SharedArchetypeMetadata.cs` (Concurrent) | Incremental hash computation | [#14](https://github.com/quabug/ParadiseECS/issues/14) |
 
 ---
 
@@ -207,19 +231,27 @@ None currently tracked. Codebase is clean with zero TODO/FIXME markers.
 
 4. **Zero-Allocation Queries**: Query objects are lightweight readonly structs that don't allocate.
 
+5. **Dual Implementation**: Both single-threaded (`Paradise.ECS`) and concurrent (`Paradise.ECS.Concurrent`) variants share core types while optimizing for their specific use cases.
+
 ### Next Priority
 
-1. **Shared Archetype Infrastructure** - Enables multi-world scenarios with shared metadata
+1. Complete **Single-Threaded World** optimizations (`feature/single-thread` branch)
 2. **Static World Configuration** - Provides compile-time configurable ECS parameters
 3. **Queryable Archetype/Query Source Generator** - Enables type-safe, zero-allocation query patterns
 4. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
-5. **World Clone & Snapshots** - Enables snapshots, rollback, and safe concurrent reads
-6. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
-7. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
-8. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
+5. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
+6. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
+7. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
 
 ### Recent Activity
 
+- **2026-01-17**: Single-threaded World optimizations in progress (`feature/single-thread` branch)
+  - Consolidated entity location storage into EntityManager
+  - Added ThrowHelper for centralized validation
+  - Refactored GetChunkLocation to return tuples
+- **2026-01-16**: Merged [#25](https://github.com/quabug/ParadiseECS/pull/25) - SharedArchetypeMetadata for multi-world sharing
+- **2026-01-15**: Merged [#24](https://github.com/quabug/ParadiseECS/pull/24) - Project roadmap
+- **2026-01-15**: Merged [#21](https://github.com/quabug/ParadiseECS/pull/21) - Windows test fix and ConcurrentAppendOnlyList performance
 - **2026-01-14**: Merged [#19](https://github.com/quabug/ParadiseECS/pull/19) - ConcurrentAppendOnlyList and OperationGuard refactor
 - **2026-01-13**: Merged [#16](https://github.com/quabug/ParadiseECS/pull/16) - World API with EntityBuilder
 - **2026-01-12**: Merged [#11](https://github.com/quabug/ParadiseECS/pull/11) - Query system with push-based notifications
