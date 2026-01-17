@@ -18,7 +18,7 @@ public sealed class World<TBits, TRegistry>
     private readonly ChunkManager _chunkManager;
     private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
     private readonly EntityManager _entityManager;
-    private readonly Archetype<TBits, TRegistry> _emptyArchetype;
+    private Archetype<TBits, TRegistry> _emptyArchetype;
 
     /// <summary>
     /// Gets the number of currently alive entities.
@@ -466,10 +466,13 @@ public sealed class World<TBits, TRegistry>
     /// Removes all entities from this world.
     /// After calling this method, all previously created entities are invalid.
     /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Clear()
     {
         _archetypeRegistry.Clear();
         _entityManager.Clear();
+
+        // Re-create the empty archetype for componentless entities
+        _emptyArchetype = _archetypeRegistry.GetOrCreateArchetype(
+            (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
     }
 }

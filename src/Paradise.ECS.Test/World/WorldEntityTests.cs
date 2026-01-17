@@ -232,5 +232,57 @@ public sealed class WorldEntityTests : IDisposable
         await Assert.That(_world.EntityCount).IsEqualTo(0);
     }
 
+    [Test]
+    public async Task Clear_ThenSpawn_CreatesValidEntity()
+    {
+        // Spawn initial entity
+        var e1 = _world.Spawn();
+        _world.AddComponent(e1, new TestPosition { X = 10 });
+
+        // Clear the world
+        _world.Clear();
+
+        // Spawn new entity after clear - this should work correctly
+        var e2 = _world.Spawn();
+
+        await Assert.That(_world.EntityCount).IsEqualTo(1);
+        await Assert.That(_world.IsAlive(e2)).IsTrue();
+    }
+
+    [Test]
+    public async Task Clear_ThenSpawn_CanAddComponents()
+    {
+        // Spawn initial entity with component
+        var e1 = _world.Spawn();
+        _world.AddComponent(e1, new TestPosition { X = 10 });
+
+        // Clear the world
+        _world.Clear();
+
+        // Spawn new entity and add component after clear
+        var e2 = _world.Spawn();
+        _world.AddComponent(e2, new TestPosition { X = 20 });
+
+        await Assert.That(_world.HasComponent<TestPosition>(e2)).IsTrue();
+        var pos = _world.GetComponent<TestPosition>(e2);
+        await Assert.That(pos.X).IsEqualTo(20f);
+    }
+
+    [Test]
+    public async Task Clear_ThenSpawn_HasComponentReturnsFalse()
+    {
+        // Spawn initial entity
+        var e1 = _world.Spawn();
+        _world.AddComponent(e1, new TestPosition { X = 10 });
+
+        // Clear the world
+        _world.Clear();
+
+        // Spawn new entity after clear - HasComponent should work
+        var e2 = _world.Spawn();
+
+        await Assert.That(_world.HasComponent<TestPosition>(e2)).IsFalse();
+    }
+
     #endregion
 }
