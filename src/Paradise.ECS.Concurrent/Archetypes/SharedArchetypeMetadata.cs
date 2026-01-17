@@ -117,8 +117,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
 
         var layoutData = ImmutableArchetypeLayout<TBits, TRegistry>.Create(_allocator, mask);
         int newId = _layouts.Add(layoutData);
-        if (newId > EcsLimits.MaxArchetypeId)
-            throw new InvalidOperationException($"Archetype count exceeded maximum of {EcsLimits.MaxArchetypeId}.");
+        ThrowHelper.ThrowIfArchetypeIdExceedsLimit(newId);
         _maskToArchetypeId[mask] = newId;
 
         // Notify all existing queries about the new archetype
@@ -137,6 +136,11 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// <param name="matchedQueries">The list to add matching query IDs to.</param>
     private void NotifyQueriesOfNewArchetype<T>(int archetypeId, ImmutableBitSet<TBits> mask, T matchedQueries) where T : IList<int>
     {
+        // TODO: Optimize with inverted index when query count becomes a bottleneck.
+        // Current: O(queries) linear scan over all queries.
+        // Optimization: Maintain Dictionary<ComponentId, List<int>> mapping components to query indices.
+        // When matching, find the component in the mask with fewest associated queries, then only
+        // check those candidates. Reduces to O(queries containing rarest component).
         int queryCount = _queries.Count;
         for (int i = 0; i < queryCount; i++)
         {
@@ -159,6 +163,8 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
+        // TODO: Optimize with inverted index when query count becomes a bottleneck.
+        // See NotifyQueriesOfNewArchetype for details.
         int queryCount = _queries.Count;
         for (int i = 0; i < queryCount; i++)
         {

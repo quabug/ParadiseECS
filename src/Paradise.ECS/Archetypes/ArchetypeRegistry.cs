@@ -168,7 +168,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
         matchedQueries.Clear();
 
         // Get target archetype ID from shared metadata (O(1) if cached)
-        int targetId = _sharedMetadata.GetOrCreateWithAdd(source.Id, componentId, matchedQueries);
+        int targetId = _sharedMetadata.GetOrCreateArchetypeIdWithAdd(source.Id, componentId, matchedQueries);
 
         // Get or create archetype instance in this world
         return GetOrCreateById(targetId, matchedQueries);
@@ -191,7 +191,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
         matchedQueries.Clear();
 
         // Get target archetype ID from shared metadata (O(1) if cached)
-        int targetId = _sharedMetadata.GetOrCreateWithRemove(source.Id, componentId, matchedQueries);
+        int targetId = _sharedMetadata.GetOrCreateArchetypeIdWithRemove(source.Id, componentId, matchedQueries);
 
         // Get or create archetype instance in this world
         return GetOrCreateById(targetId, matchedQueries);
