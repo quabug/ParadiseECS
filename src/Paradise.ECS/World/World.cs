@@ -18,6 +18,7 @@ public sealed class World<TBits, TRegistry>
     private readonly ChunkManager _chunkManager;
     private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
     private readonly EntityManager _entityManager;
+    private readonly Archetype<TBits, TRegistry> _emptyArchetype;
 
     /// <summary>
     /// Gets the number of currently alive entities.
@@ -46,16 +47,23 @@ public sealed class World<TBits, TRegistry>
         _chunkManager = chunkManager;
         _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry>(sharedMetadata, chunkManager);
         _entityManager = new EntityManager(initialEntityCapacity);
+
+        // Create the empty archetype for componentless entities
+        _emptyArchetype = _archetypeRegistry.GetOrCreateArchetype(
+            (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
     }
 
     /// <summary>
     /// Creates a new entity with no components.
-    /// The entity is created with an invalid archetype location until components are added.
+    /// The entity is placed in the empty archetype.
     /// </summary>
     /// <returns>The created entity handle.</returns>
     public Entity Spawn()
     {
-        return _entityManager.Create();
+        var entity = _entityManager.Create();
+        int globalIndex = _emptyArchetype.AllocateEntity(entity);
+        _entityManager.SetLocation(entity.Id, new EntityLocation(entity.Version, _emptyArchetype.Id, globalIndex));
+        return entity;
     }
 
     /// <summary>
@@ -71,15 +79,8 @@ public sealed class World<TBits, TRegistry>
         var mask = ImmutableBitSet<TBits>.Empty;
         builder.CollectTypes(ref mask);
 
-        // Create entity
+        // Create entity and place in target archetype (returns empty archetype if mask is empty)
         var entity = _entityManager.Create();
-
-        if (mask.IsEmpty)
-        {
-            // No components - entity exists with invalid archetype location
-            return entity;
-        }
-
         var archetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)mask);
         PlaceEntityWithComponents(entity, archetype, builder);
 
@@ -103,17 +104,13 @@ public sealed class World<TBits, TRegistry>
         var mask = ImmutableBitSet<TBits>.Empty;
         builder.CollectTypes(ref mask);
 
-        // Remove from old archetype if it had one
+        // Remove from old archetype
         RemoveFromCurrentArchetype(location);
 
-        if (mask.IsEmpty)
-        {
-            // No components - entity is now componentless
-            _entityManager.SetLocation(entity.Id, EntityLocation.Invalid with { Version = entity.Version });
-            return entity;
-        }
-
+        // Get target archetype (returns empty archetype if mask is empty)
         var archetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)mask);
+
+        // Place in target archetype and write components
         PlaceEntityWithComponents(entity, archetype, builder);
 
         return entity;
@@ -125,9 +122,8 @@ public sealed class World<TBits, TRegistry>
     /// </summary>
     /// <typeparam name="TBuilder">The builder type.</typeparam>
     /// <param name="entity">The existing entity handle.</param>
-    /// <param name="builder">The component builder with components to add.</param>
+    /// <param name="builder">The component builder with components to add or update.</param>
     /// <returns>The entity handle.</returns>
-    /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
     internal Entity AddComponents<TBuilder>(Entity entity, TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
@@ -140,50 +136,43 @@ public sealed class World<TBits, TRegistry>
         if (newMask.IsEmpty)
             return entity;
 
-        // Get current mask (empty if entity has no archetype)
-        var currentMask = location.IsValid
-            ? _archetypeRegistry.GetById(location.ArchetypeId)!.Layout.ComponentMask
-            : ImmutableBitSet<TBits>.Empty;
-
-        // Check for duplicates
-        var overlap = currentMask.And(newMask);
-        if (!overlap.IsEmpty)
-        {
-            foreach (int id in overlap)
-            {
-                throw new InvalidOperationException($"Entity {entity} already has component with ID {id}.");
-            }
-        }
+        // Get current mask from entity's archetype
+        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
+        var currentMask = sourceArchetype.Layout.ComponentMask;
 
         // Merge masks and get target archetype
         var targetMask = currentMask.Or(newMask);
+
+        // If all components already exist, just update values in place
+        if (targetMask.Equals(currentMask))
+        {
+            var (chunkIndex, indexInChunk) = sourceArchetype.GetChunkLocation(location.GlobalIndex);
+            var chunkHandle = sourceArchetype.GetChunk(chunkIndex);
+            builder.WriteComponents(_chunkManager, sourceArchetype.Layout, chunkHandle, indexInChunk);
+            return entity;
+        }
+
         var targetArchetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)targetMask);
 
         // Allocate in target archetype
         int newGlobalIndex = targetArchetype.AllocateEntity(entity);
 
-        // Copy existing components and remove from source
-        if (location.IsValid)
-        {
-            var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
-            var (srcChunkIndex, srcIndexInChunk) = sourceArchetype.GetChunkLocation(location.GlobalIndex);
-            var srcChunkHandle = sourceArchetype.GetChunk(srcChunkIndex);
+        // Copy existing components from source
+        var (srcChunkIndex, srcIndexInChunk) = sourceArchetype.GetChunkLocation(location.GlobalIndex);
+        var srcChunkHandle = sourceArchetype.GetChunk(srcChunkIndex);
 
-            var (dstChunkIndex, dstIndexInChunk) = targetArchetype.GetChunkLocation(newGlobalIndex);
-            var dstChunkHandle = targetArchetype.GetChunk(dstChunkIndex);
+        var (dstChunkIndex, dstIndexInChunk) = targetArchetype.GetChunkLocation(newGlobalIndex);
+        var dstChunkHandle = targetArchetype.GetChunk(dstChunkIndex);
 
-            CopySharedComponents(sourceArchetype, targetArchetype, srcChunkHandle, srcIndexInChunk, dstChunkHandle, dstIndexInChunk);
-            RemoveFromCurrentArchetype(location);
-        }
+        CopySharedComponents(sourceArchetype, targetArchetype, srcChunkHandle, srcIndexInChunk, dstChunkHandle, dstIndexInChunk);
+        RemoveFromCurrentArchetype(location);
 
         // Update location
         var newLocation = new EntityLocation(entity.Version, targetArchetype.Id, newGlobalIndex);
         _entityManager.SetLocation(entity.Id, newLocation);
 
-        // Write new component data
-        var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(newGlobalIndex);
-        var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
-        builder.WriteComponents(_chunkManager, targetArchetype.Layout, newChunkHandle, newIndexInChunk);
+        // Write new component data (overwrites any duplicates)
+        builder.WriteComponents(_chunkManager, targetArchetype.Layout, dstChunkHandle, dstIndexInChunk);
 
         return entity;
     }
@@ -191,34 +180,26 @@ public sealed class World<TBits, TRegistry>
     /// <summary>
     /// Places an entity in the specified archetype and writes component data from the builder.
     /// </summary>
-    /// <returns>The new entity location.</returns>
-    private EntityLocation PlaceEntityWithComponents<TBuilder>(
+    private void PlaceEntityWithComponents<TBuilder>(
         Entity entity,
         Archetype<TBits, TRegistry> archetype,
         TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
         int globalIndex = archetype.AllocateEntity(entity);
-
-        var location = new EntityLocation(entity.Version, archetype.Id, globalIndex);
-        _entityManager.SetLocation(entity.Id, location);
+        _entityManager.SetLocation(entity.Id, new EntityLocation(entity.Version, archetype.Id, globalIndex));
 
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(globalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
         builder.WriteComponents(_chunkManager, archetype.Layout, chunkHandle, indexInChunk);
-
-        return location;
     }
 
     /// <summary>
-    /// Removes an entity from its current archetype if it has one.
+    /// Removes an entity from its current archetype.
     /// Updates the moved entity's location if a swap-remove occurred.
     /// </summary>
     private void RemoveFromCurrentArchetype(EntityLocation location)
     {
-        if (!location.IsValid)
-            return;
-
         var archetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
         int movedEntityId = archetype.RemoveEntity(location.GlobalIndex);
 
@@ -237,10 +218,7 @@ public sealed class World<TBits, TRegistry>
     /// <returns>True if the entity was destroyed, false if it was already dead or invalid.</returns>
     public bool Despawn(Entity entity)
     {
-        if (!entity.IsValid)
-            return false;
-
-        if (!_entityManager.IsAlive(entity))
+        if (!IsAlive(entity))
             return false;
 
         var location = _entityManager.GetLocation(entity.Id);
@@ -301,20 +279,7 @@ public sealed class World<TBits, TRegistry>
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
     public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
     {
-        var location = GetValidatedLocation(entity);
-        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)
-            ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
-
-        var layout = archetype.Layout;
-        if (!layout.HasComponent<T>())
-            throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
-
-        var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
-        var chunkHandle = archetype.GetChunk(chunkIndex);
-        int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
-        using var chunk = _chunkManager.Get(chunkHandle);
-        var span = chunk.GetSpan<T>(offset, 1);
-        span[0] = value;
+        GetComponent<T>(entity).Value = value;
     }
 
     /// <summary>
@@ -325,17 +290,12 @@ public sealed class World<TBits, TRegistry>
     /// <returns>True if the entity has the component.</returns>
     public bool HasComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
-        if (!entity.IsValid)
+        if (!IsAlive(entity))
             return false;
 
-        if (!TryGetLocation(entity, out var location))
-            return false;
-
-        if (!location.IsValid)
-            return false;
-
-        var archetype = _archetypeRegistry.GetById(location.ArchetypeId);
-        return archetype?.Layout.HasComponent<T>() ?? false;
+        var location = _entityManager.GetLocation(entity.Id);
+        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
+        return archetype.Layout.HasComponent<T>();
     }
 
     /// <summary>
@@ -348,27 +308,6 @@ public sealed class World<TBits, TRegistry>
     public void AddComponent<T>(Entity entity, T value = default) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-
-        if (!location.IsValid)
-        {
-            // Entity has no archetype yet - create one with just this component
-            var mask = ImmutableBitSet<TBits>.Empty.Set(T.TypeId);
-            var archetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)mask);
-
-            int globalIndex = archetype.AllocateEntity(entity);
-
-            _entityManager.SetLocation(entity.Id, new EntityLocation(entity.Version, archetype.Id, globalIndex));
-
-            // Write component value
-            var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(globalIndex);
-            var chunkHandle = archetype.GetChunk(chunkIndex);
-            int offset = archetype.Layout.GetEntityComponentOffset<T>(indexInChunk);
-            using var chunk = _chunkManager.Get(chunkHandle);
-            var span = chunk.GetSpan<T>(offset, 1);
-            span[0] = value;
-            return;
-        }
-
         var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if already has component
@@ -400,26 +339,14 @@ public sealed class World<TBits, TRegistry>
     public void RemoveComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-
-        if (!location.IsValid)
-            throw new InvalidOperationException($"Entity {entity} has no components.");
-
         var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if has component
         if (!sourceArchetype.Layout.HasComponent<T>())
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
-        // Get target archetype using O(1) edge cache
+        // Get target archetype using O(1) edge cache (returns empty archetype if removing last component)
         var targetArchetype = _archetypeRegistry.GetOrCreateArchetypeWithRemove(sourceArchetype, T.TypeId);
-
-        if (targetArchetype.Layout.ComponentMask.IsEmpty)
-        {
-            // Removing the last component - remove from archetype entirely
-            RemoveFromCurrentArchetype(location);
-            _entityManager.SetLocation(entity.Id, EntityLocation.Invalid with { Version = entity.Version });
-            return;
-        }
 
         // Move entity to target archetype
         MoveEntity(entity, location, sourceArchetype, targetArchetype);
@@ -511,18 +438,6 @@ public sealed class World<TBits, TRegistry>
             throw new InvalidOperationException($"Entity {entity} is not alive.");
 
         return _entityManager.GetLocation(entity.Id);
-    }
-
-    private bool TryGetLocation(Entity entity, out EntityLocation location)
-    {
-        if (!_entityManager.IsAlive(entity))
-        {
-            location = EntityLocation.Invalid;
-            return false;
-        }
-
-        location = _entityManager.GetLocation(entity.Id);
-        return true;
     }
 
     public void Clear()
