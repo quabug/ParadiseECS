@@ -6,15 +6,15 @@ namespace Paradise.ECS.Concurrent;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
-public sealed class World<TBits, TRegistry> : IDisposable
+/// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
+public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
+    where TConfig : IConfig, new()
 {
-    private const int DefaultEntityCapacity = 1024;
-
-    private readonly SharedArchetypeMetadata<TBits, TRegistry> _sharedMetadata;
-    private readonly ChunkManager _chunkManager;
-    private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
+    private readonly SharedArchetypeMetadata<TBits, TRegistry, TConfig> _sharedMetadata;
+    private readonly ChunkManager<TConfig> _chunkManager;
+    private readonly ArchetypeRegistry<TBits, TRegistry, TConfig> _archetypeRegistry;
     private readonly EntityManager _entityManager;
     private readonly Lock _structuralChangeLock = new();
 
@@ -25,17 +25,17 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <summary>
     /// Gets the shared archetype metadata used by this world.
     /// </summary>
-    public SharedArchetypeMetadata<TBits, TRegistry> SharedMetadata => _sharedMetadata;
+    public SharedArchetypeMetadata<TBits, TRegistry, TConfig> SharedMetadata => _sharedMetadata;
 
     /// <summary>
     /// Gets the chunk manager for memory allocation.
     /// </summary>
-    public ChunkManager ChunkManager => _chunkManager;
+    public ChunkManager<TConfig> ChunkManager => _chunkManager;
 
     /// <summary>
     /// Gets the archetype registry.
     /// </summary>
-    public ArchetypeRegistry<TBits, TRegistry> ArchetypeRegistry => _archetypeRegistry;
+    public ArchetypeRegistry<TBits, TRegistry, TConfig> ArchetypeRegistry => _archetypeRegistry;
 
     /// <summary>
     /// Gets the number of currently alive entities.
@@ -43,25 +43,37 @@ public sealed class World<TBits, TRegistry> : IDisposable
     public int EntityCount => _entityManager.AliveCount;
 
     /// <summary>
-    /// Creates a new ECS world using the specified shared archetype metadata.
+    /// Creates a new ECS world using the specified configuration and shared archetype metadata.
+    /// The caller is responsible for disposing the shared metadata and chunk manager.
+    /// </summary>
+    /// <param name="config">The configuration instance with runtime settings.</param>
+    /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
+    /// <param name="chunkManager">The chunk manager for memory allocation.</param>
+    public World(TConfig config,
+                 SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+                 ChunkManager<TConfig> chunkManager)
+    {
+        ArgumentNullException.ThrowIfNull(sharedMetadata);
+        ArgumentNullException.ThrowIfNull(chunkManager);
+
+        _sharedMetadata = sharedMetadata;
+        _chunkManager = chunkManager;
+        _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry, TConfig>(sharedMetadata, chunkManager);
+        _entityManager = new EntityManager(config.DefaultEntityCapacity);
+        _entityLocations = new EntityLocation[config.DefaultEntityCapacity];
+    }
+
+    /// <summary>
+    /// Creates a new ECS world using default configuration and shared archetype metadata.
+    /// Uses <c>new TConfig()</c> for configuration with default property values.
     /// The caller is responsible for disposing the shared metadata and chunk manager.
     /// </summary>
     /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    /// <param name="initialEntityCapacity">Initial capacity for entity storage.</param>
-    public World(SharedArchetypeMetadata<TBits, TRegistry> sharedMetadata,
-                 ChunkManager chunkManager,
-                 int initialEntityCapacity = DefaultEntityCapacity)
+    public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+                 ChunkManager<TConfig> chunkManager)
+        : this(new TConfig(), sharedMetadata, chunkManager)
     {
-        ArgumentNullException.ThrowIfNull(sharedMetadata);
-        ArgumentNullException.ThrowIfNull(chunkManager);
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(initialEntityCapacity, 0);
-
-        _sharedMetadata = sharedMetadata;
-        _chunkManager = chunkManager;
-        _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry>(sharedMetadata, chunkManager);
-        _entityManager = new EntityManager(initialEntityCapacity);
-        _entityLocations = new EntityLocation[initialEntityCapacity];
     }
 
     /// <summary>
@@ -74,6 +86,8 @@ public sealed class World<TBits, TRegistry> : IDisposable
         using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
+        // Validate before creating to avoid inconsistent state if limit exceeded
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
         return _entityManager.Create();
     }
 
@@ -92,6 +106,9 @@ public sealed class World<TBits, TRegistry> : IDisposable
         // Collect component mask
         var mask = ImmutableBitSet<TBits>.Empty;
         builder.CollectTypes(ref mask);
+
+        // Validate before creating to avoid inconsistent state if limit exceeded
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
 
         // Create entity
         var entity = _entityManager.Create();
@@ -233,7 +250,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     private void PlaceEntityWithComponents<TBuilder>(
         Entity entity,
         ref EntityLocation location,
-        Archetype<TBits, TRegistry> archetype,
+        Archetype<TBits, TRegistry, TConfig> archetype,
         TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
@@ -328,7 +345,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <param name="entity">The entity.</param>
     /// <returns>A ref struct wrapping the component reference.</returns>
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
-    public ComponentRef<T> GetComponent<T>(Entity entity) where T : unmanaged, IComponent
+    public ComponentRef<T, TConfig> GetComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
@@ -346,7 +363,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
         var chunk = _chunkManager.Get(chunkHandle);
 
-        return new ComponentRef<T>(chunk, offset);
+        return new ComponentRef<T, TConfig>(chunk, offset);
     }
 
     /// <summary>
@@ -502,16 +519,16 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// Creates a query builder for this world.
     /// </summary>
     /// <returns>A new query builder.</returns>
-    public static QueryBuilder<TBits, TRegistry> Query()
+    public static QueryBuilder<TBits, TRegistry, TConfig> Query()
     {
-        return new QueryBuilder<TBits, TRegistry>();
+        return new QueryBuilder<TBits, TRegistry, TConfig>();
     }
 
     private void MoveEntity(
         Entity entity,
         ref EntityLocation location,
-        Archetype<TBits, TRegistry> source,
-        Archetype<TBits, TRegistry> target)
+        Archetype<TBits, TRegistry, TConfig> source,
+        Archetype<TBits, TRegistry, TConfig> target)
     {
         // Remember old location for swap-remove handling
         int oldGlobalIndex = location.GlobalIndex;
@@ -542,8 +559,8 @@ public sealed class World<TBits, TRegistry> : IDisposable
     }
 
     private void CopySharedComponents(
-        Archetype<TBits, TRegistry> source,
-        Archetype<TBits, TRegistry> target,
+        Archetype<TBits, TRegistry, TConfig> source,
+        Archetype<TBits, TRegistry, TConfig> target,
         ChunkHandle srcChunkHandle,
         int srcIndexInChunk,
         ChunkHandle dstChunkHandle,

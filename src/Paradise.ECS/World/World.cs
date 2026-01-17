@@ -9,16 +9,16 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
-public sealed class World<TBits, TRegistry>
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
+public sealed class World<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
+    where TConfig : IConfig, new()
 {
-    private const int DefaultEntityCapacity = 1024;
-
-    private readonly ChunkManager _chunkManager;
-    private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
+    private readonly ChunkManager<TConfig> _chunkManager;
+    private readonly ArchetypeRegistry<TBits, TRegistry, TConfig> _archetypeRegistry;
     private readonly EntityManager _entityManager;
-    private Archetype<TBits, TRegistry> _emptyArchetype;
+    private Archetype<TBits, TRegistry, TConfig> _emptyArchetype;
 
     /// <summary>
     /// Gets the number of currently alive entities.
@@ -30,27 +30,39 @@ public sealed class World<TBits, TRegistry>
     }
 
     /// <summary>
-    /// Creates a new ECS world using the specified shared archetype metadata.
+    /// Creates a new ECS world using the specified configuration and shared archetype metadata.
     /// The caller is responsible for disposing the shared metadata and chunk manager.
     /// </summary>
+    /// <param name="config">The configuration instance with runtime settings.</param>
     /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    /// <param name="initialEntityCapacity">Initial capacity for entity storage.</param>
-    public World(SharedArchetypeMetadata<TBits, TRegistry> sharedMetadata,
-                 ChunkManager chunkManager,
-                 int initialEntityCapacity = DefaultEntityCapacity)
+    public World(TConfig config,
+                 SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+                 ChunkManager<TConfig> chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(initialEntityCapacity, 0);
 
         _chunkManager = chunkManager;
-        _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry>(sharedMetadata, chunkManager);
-        _entityManager = new EntityManager(initialEntityCapacity);
+        _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry, TConfig>(sharedMetadata, chunkManager);
+        _entityManager = new EntityManager(config.DefaultEntityCapacity);
 
         // Create the empty archetype for componentless entities
         _emptyArchetype = _archetypeRegistry.GetOrCreateArchetype(
             (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
+    }
+
+    /// <summary>
+    /// Creates a new ECS world using default configuration and shared archetype metadata.
+    /// Uses <c>new TConfig()</c> for configuration with default property values.
+    /// The caller is responsible for disposing the shared metadata and chunk manager.
+    /// </summary>
+    /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
+    /// <param name="chunkManager">The chunk manager for memory allocation.</param>
+    public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+                 ChunkManager<TConfig> chunkManager)
+        : this(new TConfig(), sharedMetadata, chunkManager)
+    {
     }
 
     /// <summary>
@@ -61,6 +73,8 @@ public sealed class World<TBits, TRegistry>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Spawn()
     {
+        // Validate before creating to avoid inconsistent state if limit exceeded
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
         var entity = _entityManager.Create();
         int globalIndex = _emptyArchetype.AllocateEntity(entity);
         _entityManager.SetLocation(entity.Id, new EntityLocation(entity.Version, _emptyArchetype.Id, globalIndex));
@@ -79,6 +93,9 @@ public sealed class World<TBits, TRegistry>
         // Collect component mask
         var mask = ImmutableBitSet<TBits>.Empty;
         builder.CollectTypes(ref mask);
+
+        // Validate before creating to avoid inconsistent state if limit exceeded
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
 
         // Create entity and place in target archetype (returns empty archetype if mask is empty)
         var entity = _entityManager.Create();
@@ -183,7 +200,7 @@ public sealed class World<TBits, TRegistry>
     /// </summary>
     private void PlaceEntityWithComponents<TBuilder>(
         Entity entity,
-        Archetype<TBits, TRegistry> archetype,
+        Archetype<TBits, TRegistry, TConfig> archetype,
         TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
@@ -377,16 +394,16 @@ public sealed class World<TBits, TRegistry>
     /// </summary>
     /// <returns>A new query builder.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static QueryBuilder<TBits, TRegistry> Query()
+    public static QueryBuilder<TBits, TRegistry, TConfig> Query()
     {
-        return new QueryBuilder<TBits, TRegistry>();
+        return new QueryBuilder<TBits, TRegistry, TConfig>();
     }
 
     private void MoveEntity(
         Entity entity,
         EntityLocation location,
-        Archetype<TBits, TRegistry> source,
-        Archetype<TBits, TRegistry> target)
+        Archetype<TBits, TRegistry, TConfig> source,
+        Archetype<TBits, TRegistry, TConfig> target)
     {
         // Remember old location for swap-remove handling
         int oldGlobalIndex = location.GlobalIndex;
@@ -416,8 +433,8 @@ public sealed class World<TBits, TRegistry>
     }
 
     private void CopySharedComponents(
-        Archetype<TBits, TRegistry> source,
-        Archetype<TBits, TRegistry> target,
+        Archetype<TBits, TRegistry, TConfig> source,
+        Archetype<TBits, TRegistry, TConfig> target,
         ChunkHandle srcChunkHandle,
         int srcIndexInChunk,
         ChunkHandle dstChunkHandle,

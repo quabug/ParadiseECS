@@ -2,34 +2,34 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public sealed class ArchetypeStoreTests : IDisposable
 {
-    private readonly ChunkManager _chunkManager;
+    private readonly ChunkManager<DefaultConfig> _chunkManager;
     private readonly List<nint> _layoutDataList = [];
     private int _nextEntityId;
 
     public ArchetypeStoreTests()
     {
-        _chunkManager = new ChunkManager(initialCapacity: 16);
+        _chunkManager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 });
     }
 
     public void Dispose()
     {
         foreach (var layoutData in _layoutDataList)
         {
-            ImmutableArchetypeLayout<Bit64, ComponentRegistry>.Free(NativeMemoryAllocator.Shared, layoutData);
+            ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
         }
         _chunkManager?.Dispose();
     }
 
-    private Archetype<Bit64, ComponentRegistry> CreateStore(params ComponentTypeInfo[] components)
+    private Archetype<Bit64, ComponentRegistry, DefaultConfig> CreateStore(params ComponentTypeInfo[] components)
     {
         var mask = ImmutableBitSet<Bit64>.Empty;
         foreach (var comp in components)
         {
             mask = mask.Set(comp.Id.Value);
         }
-        var layoutData = ImmutableArchetypeLayout<Bit64, ComponentRegistry>.Create(NativeMemoryAllocator.Shared, mask);
+        var layoutData = ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
         _layoutDataList.Add(layoutData);
-        return new Archetype<Bit64, ComponentRegistry>(_layoutDataList.Count - 1, layoutData, _chunkManager);
+        return new Archetype<Bit64, ComponentRegistry, DefaultConfig>(_layoutDataList.Count - 1, layoutData, _chunkManager);
     }
 
     private Entity CreateTestEntity()

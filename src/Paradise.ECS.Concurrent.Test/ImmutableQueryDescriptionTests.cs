@@ -37,7 +37,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task With_Generic_AddsToAllConstraint()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Description;
 
@@ -49,7 +49,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task With_Type_AddsToAllConstraint()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With(typeof(TestPosition))
             .Description;
 
@@ -59,7 +59,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Without_Generic_AddsToNoneConstraint()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .Without<TestPosition>()
             .Description;
 
@@ -71,7 +71,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Without_Type_AddsToNoneConstraint()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .Without(typeof(TestPosition))
             .Description;
 
@@ -81,7 +81,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task WithAny_Generic_AddsToAnyConstraint()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .WithAny<TestPosition>()
             .Description;
 
@@ -93,7 +93,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task WithAny_Type_AddsToAnyConstraint()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .WithAny(typeof(TestPosition))
             .Description;
 
@@ -103,7 +103,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task With_ComponentId_AddsToAllConstraint()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With(TestPosition.TypeId.Value)
             .Description;
 
@@ -115,7 +115,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Without_ComponentId_AddsToNoneConstraint()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .Without(TestPosition.TypeId.Value)
             .Description;
 
@@ -127,7 +127,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task WithAny_ComponentId_AddsToAnyConstraint()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .WithAny(TestPosition.TypeId.Value)
             .Description;
 
@@ -139,7 +139,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Matches_AllConstraint_RequiresAllComponents()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .With<TestVelocity>()
             .Description;
@@ -156,7 +156,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Matches_NoneConstraint_ExcludesComponents()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .Description;
@@ -171,7 +171,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Matches_AnyConstraint_RequiresAtLeastOne()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .WithAny<TestPosition>()
             .WithAny<TestVelocity>()
             .Description;
@@ -190,7 +190,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Matches_CombinedConstraints_AllMustPass()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Without<TestHealth>()
             .WithAny<TestVelocity>()
@@ -216,12 +216,12 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task RecordEquality_SameConstraints_AreEqual()
     {
-        var desc1 = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Without<TestHealth>()
             .Description;
 
-        var desc2 = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc2 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Without<TestHealth>()
             .Description;
@@ -233,11 +233,11 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task RecordEquality_DifferentConstraints_AreNotEqual()
     {
-        var desc1 = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc1 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .Description;
 
-        var desc2 = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc2 = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestVelocity>()
             .Description;
 
@@ -247,7 +247,7 @@ public class ImmutableQueryDescriptionTests
     [Test]
     public async Task Chaining_PreservesExistingConstraints()
     {
-        var desc = new QueryBuilder<Bit64, ComponentRegistry>()
+        var desc = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>()
             .With<TestPosition>()
             .With<TestVelocity>()
             .Without<TestHealth>()
@@ -263,7 +263,7 @@ public class ImmutableQueryDescriptionTests
     {
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            _ = new QueryBuilder<Bit64, ComponentRegistry>().With(typeof(string));
+            _ = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>().With(typeof(string));
             await Task.CompletedTask.ConfigureAwait(false);
         });
     }
@@ -273,7 +273,7 @@ public class ImmutableQueryDescriptionTests
     {
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            _ = new QueryBuilder<Bit64, ComponentRegistry>().Without(typeof(int));
+            _ = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>().Without(typeof(int));
             await Task.CompletedTask.ConfigureAwait(false);
         });
     }
@@ -283,7 +283,7 @@ public class ImmutableQueryDescriptionTests
     {
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            _ = new QueryBuilder<Bit64, ComponentRegistry>().WithAny(typeof(object));
+            _ = new QueryBuilder<Bit64, ComponentRegistry, DefaultConfig>().WithAny(typeof(object));
             await Task.CompletedTask.ConfigureAwait(false);
         });
     }

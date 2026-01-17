@@ -1,6 +1,6 @@
 # Paradise.ECS Roadmap
 
-> Last updated: 2026-01-17
+> Last updated: 2026-01-18
 
 ## Vision
 
@@ -10,7 +10,7 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 **Core ECS foundation is complete.** All fundamental systems (Memory Management, Entities, Archetypes, Queries, World API, Source Generator) are implemented, tested, and production-ready. The codebase has comprehensive test coverage (5,870 LOC tests for 4,919 LOC source).
 
-**Current focus**: Static World Configuration and Queryable Archetype/Query Source Generator.
+**Current focus**: Queryable Archetype/Query Source Generator.
 
 **Architecture Score: 8.5/10** - Solid foundation with clean, modular design following SOLID principles.
 
@@ -79,20 +79,34 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - ThrowHelper for centralized validation
   - Refactored GetChunkLocation to return tuples
 
+- [x] **Static World Configuration** ([#32](https://github.com/quabug/ParadiseECS/pull/32))
+  - `IConfig` interface with static abstract members for compile-time constraints
+  - Configurable chunk size (default 16KB)
+  - Configurable `MaxMetaBlocks` for chunk management capacity
+  - Configurable `EntityIdByteSize` for entity ID storage (1/2/4 bytes)
+  - Instance members for runtime hints (`DefaultEntityCapacity`, `DefaultChunkCapacity`)
+  - `Config<T>` helper for computed values (`MaxEntityId`)
+  - `[DefaultConfig]` attribute with `Paradise.ECS.DefaultConfig` fallback
+  - Parameterless constructors for `World`, `ChunkManager`, `SharedArchetypeMetadata`
+
 ### Planned
+
+- [ ] **Per-World Component IDs**
+  - Allow each world to have independent component type registrations
+  - Currently component IDs are global via `IComponentRegistry` generated at compile-time
+  - Enable runtime component registration with world-local ID assignment
+  - Support scenarios where different worlds use different component sets
+  - Consider trade-offs: global IDs enable world sharing, local IDs enable isolation
+  - Potential approaches:
+    - World-specific registry instances with local ID mapping
+    - Hybrid: shared base components + world-local extensions
+    - Runtime component type registration with AOT-compatible patterns
 
 - [ ] **Extensible Metadata Interface**
   - Define interface for world/archetype metadata (e.g., `IWorldMetadata`)
   - Allow custom implementations beyond the default `SharedArchetypeMetadata`
   - Enable extension points for custom caching strategies, persistence, or debugging hooks
   - Support composition of metadata providers for modular functionality
-
-- [ ] **Static World Configuration**
-  - Define interface-based configuration for world/archetype settings
-  - Configurable chunk size (default 16KB)
-  - Configurable TBits storage size (Bit64, Bit128, Bit256, etc.)
-  - Configurable entity size and entity key type
-  - Compile-time configuration validation
 
 - [ ] **Queryable Archetype/Query Source Generator**
   - Attribute-based archetype and query definition
@@ -193,6 +207,16 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Integration with ECS systems for reusable component data
   - Configurable pool sizes and growth strategies
 
+- [ ] **Memory Allocation Strategies**
+  - Extend existing `IAllocator` interface with additional implementations
+  - **Arena Allocator**: Fast bump-pointer allocation with bulk deallocation, ideal for frame-temporary data
+  - **Virtual Memory Allocator**: Reserve large contiguous address space, commit pages on demand for sparse data
+  - **Stack Allocator**: LIFO allocation pattern for temporary allocations within a scope
+  - **Pool Allocator**: Fixed-size block allocation for uniform objects (complement to Object Pool)
+  - Consider alignment requirements for SIMD operations
+  - Memory budget tracking and diagnostics integration
+  - Hot-swappable allocator strategies per World or subsystem
+
 ---
 
 ## Open Issues Summary
@@ -240,15 +264,19 @@ Minor TODOs in codebase:
 
 ### Next Priority
 
-1. **Static World Configuration** - Provides compile-time configurable ECS parameters
-2. **Queryable Archetype/Query Source Generator** - Enables type-safe, zero-allocation query patterns
-3. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
-4. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
-5. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
-6. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
+1. **Queryable Archetype/Query Source Generator** - Enables type-safe, zero-allocation query patterns
+2. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
+3. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
+4. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
+5. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
 
 ### Recent Activity
 
+- **2026-01-18**: Merged [#32](https://github.com/quabug/ParadiseECS/pull/32) - Static World Configuration
+  - `IConfig` interface with static abstract + instance members
+  - Configurable `EntityIdByteSize` for 1/2/4-byte entity IDs
+  - `[DefaultConfig]` attribute with `Paradise.ECS.DefaultConfig` fallback
+  - Parameterless constructors for convenience
 - **2026-01-17**: Merged [#30](https://github.com/quabug/ParadiseECS/pull/30) - Add single-threaded Paradise.ECS with comprehensive test coverage
 - **2026-01-16**: Merged [#25](https://github.com/quabug/ParadiseECS/pull/25) - SharedArchetypeMetadata for multi-world sharing
 - **2026-01-15**: Merged [#24](https://github.com/quabug/ParadiseECS/pull/24) - Project roadmap

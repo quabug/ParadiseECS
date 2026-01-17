@@ -15,11 +15,14 @@ dotnet build
 # Run all tests
 dotnet test
 
-# Run a specific test class
-dotnet test --filter "FullyQualifiedName~ChunkManagerTests"
+# Run a specific test project
+dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj
+
+# Run a specific test class (TUnit uses --treenode-filter with /<Assembly>/<Namespace>/<Class>/<Test> format)
+dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -- --treenode-filter "/Paradise.ECS.Test/Paradise.ECS.Test/ChunkManagerTests/*"
 
 # Run a single test
-dotnet test --filter "FullyQualifiedName~ChunkManagerTests.Allocate_ReturnsValidHandle"
+dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -- --treenode-filter "/Paradise.ECS.Test/Paradise.ECS.Test/ChunkManagerTests/Allocate_ReturnsValidHandle"
 
 # AOT publish (verify AOT compatibility)
 dotnet publish src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -c Release
@@ -96,12 +99,15 @@ The ECS uses a custom memory management system optimized for cache-friendly iter
 
 ### Global Limits & Validation
 
-- **EcsLimits**: Defines system-wide maximums.
-  - `MaxArchetypeId = (1 << 20) - 1` = 1,048,575 archetypes
-  - `MaxComponentTypeId = (1 << 11) - 1` = 2,047 component types
+- **IConfig**: Static configuration interface with system-wide limits and configurable parameters.
+  - Constants: `MaxArchetypeId` (1,048,575), `MaxComponentTypeId` (2,047)
+  - Static abstract: `ChunkSize`, `DefaultEntityCapacity`, `MaxMetaBlocks`, `EntityIdByteSize`
+- **Config\<T\>**: Computed values derived from config (e.g., `MaxEntityId` from `EntityIdByteSize`)
+- **DefaultConfig**: Default configuration with 16KB chunks, 4-byte entity IDs
 - **ThrowHelper**: Centralized validation utilities.
   - Chunk validation: `ValidateChunkRange()`, `ValidateChunkSize()`, `ThrowIfExceedsChunkSize()`
   - Component/Archetype validation: `ThrowIfComponentIdExceedsCapacity()`, `ThrowIfArchetypeIdExceedsLimit()`
+  - Entity validation: `ThrowIfEntityIdExceedsLimit()` (validates against `EntityIdByteSize`)
   - General helpers: `ThrowIfNegative()`, `ThrowIfGreaterThan()`, `ThrowIfDisposed()`, `ThrowIfNull()`
   - Hot paths use `[MethodImpl(MethodImplOptions.AggressiveInlining)]`, cold paths use `NoInlining`
 
@@ -113,7 +119,7 @@ IIncrementalGenerator that processes `[Component]` attributes:
 1. Finds all structs with `[Component]` attribute
 2. Assigns TypeIds based on alphabetical ordering of fully qualified names
 3. Generates IComponentRegistry implementation with `TypeInfos` array
-4. Validates components don't exceed `EcsLimits.MaxComponentTypeId` (2,047)
+4. Validates components don't exceed `IConfig.MaxComponentTypeId` (2,047)
 
 **Configuration** (priority order):
 1. `[ComponentRegistryNamespaceAttribute]` on assembly

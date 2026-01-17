@@ -4,23 +4,25 @@ namespace Paradise.ECS;
 
 /// <summary>
 /// A lightweight, read-only view over a collection of archetypes that match specific component criteria.
-/// The underlying list of archetypes is managed by the <see cref="ArchetypeRegistry{TBits, TRegistry}"/>
+/// The underlying list of archetypes is managed by the <see cref="ArchetypeRegistry{TBits, TRegistry, TConfig}"/>
 /// and is updated automatically as new matching archetypes are created.
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
-public readonly struct Query<TBits, TRegistry>
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
+public readonly struct Query<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
+    where TConfig : IConfig, new()
 {
-    private readonly List<Archetype<TBits, TRegistry>> _matchingArchetypes;
+    private readonly List<Archetype<TBits, TRegistry, TConfig>> _matchingArchetypes;
 
     /// <summary>
     /// Creates a new query wrapping the specified archetype list.
     /// </summary>
     /// <param name="matchingArchetypes">The list of matching archetypes, owned by the registry.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Query(List<Archetype<TBits, TRegistry>> matchingArchetypes)
+    internal Query(List<Archetype<TBits, TRegistry, TConfig>> matchingArchetypes)
     {
         _matchingArchetypes = matchingArchetypes;
     }
@@ -70,6 +72,6 @@ public readonly struct Query<TBits, TRegistry>
     /// </summary>
     /// <returns>A struct enumerator for the matching archetypes.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public List<Archetype<TBits, TRegistry>>.Enumerator GetEnumerator()
+    public List<Archetype<TBits, TRegistry, TConfig>>.Enumerator GetEnumerator()
         => _matchingArchetypes.GetEnumerator();
 }

@@ -10,8 +10,6 @@ namespace Paradise.ECS;
 /// </summary>
 public sealed class EntityManager
 {
-    private const int DefaultInitialCapacity = 1024;
-
     private readonly List<EntityLocation> _locations;
     private readonly Stack<int> _freeSlots = new();
     private int _nextEntityId; // Next fresh entity ID to allocate
@@ -20,8 +18,8 @@ public sealed class EntityManager
     /// <summary>
     /// Creates a new EntityManager.
     /// </summary>
-    /// <param name="initialCapacity">Initial capacity for entity storage. Default is 1024.</param>
-    public EntityManager(int initialCapacity = DefaultInitialCapacity)
+    /// <param name="initialCapacity">Initial capacity for entity storage.</param>
+    public EntityManager(int initialCapacity)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(initialCapacity, 0);
         _locations = new List<EntityLocation>(initialCapacity);
@@ -43,6 +41,22 @@ public sealed class EntityManager
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _locations.Count;
+    }
+
+    /// <summary>
+    /// Returns the ID that would be assigned to the next created entity,
+    /// without actually creating it. Used for validation before creation.
+    /// </summary>
+    /// <returns>The next entity ID that would be allocated.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int PeekNextId()
+    {
+        // If there's a free slot, that ID will be reused
+        if (_freeSlots.TryPeek(out int id))
+            return id;
+
+        // Otherwise, a new ID will be allocated
+        return _nextEntityId;
     }
 
     /// <summary>

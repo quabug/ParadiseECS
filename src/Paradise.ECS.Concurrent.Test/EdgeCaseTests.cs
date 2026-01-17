@@ -5,19 +5,23 @@ namespace Paradise.ECS.Concurrent.Test;
 /// </summary>
 public sealed class EdgeCaseTests : IDisposable
 {
-    private readonly ChunkManager _chunkManager = new();
-    private readonly World<Bit64, ComponentRegistry> _world;
+    private static readonly DefaultConfig s_config = new();
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
+    private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public EdgeCaseTests()
     {
-        _world = new World<Bit64, ComponentRegistry>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared,
+        _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            s_config,
+            _sharedMetadata,
             _chunkManager);
     }
 
     public void Dispose()
     {
         _world.Dispose();
+        _sharedMetadata.Dispose();
         _chunkManager.Dispose();
     }
 
@@ -216,7 +220,7 @@ public sealed class EdgeCaseTests : IDisposable
         var e2 = _world.Spawn();
         _world.AddComponent<TestVelocity>(e2);
 
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
             .Build(_world.ArchetypeRegistry);
 
         await Assert.That(query.EntityCount).IsEqualTo(2);
@@ -228,7 +232,7 @@ public sealed class EdgeCaseTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
             .With<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
 
@@ -244,7 +248,7 @@ public sealed class EdgeCaseTests : IDisposable
         _world.AddComponent<TestPosition>(entity);
 
         // Query for Position but exclude Position - impossible!
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
             .With<TestPosition>()
             .Without<TestPosition>()
             .Build(_world.ArchetypeRegistry);
@@ -259,7 +263,7 @@ public sealed class EdgeCaseTests : IDisposable
         _world.AddComponent<TestPosition>(entity);
 
         // Query with All requirement only
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -355,9 +359,12 @@ public sealed class EdgeCaseTests : IDisposable
     [Test]
     public async Task World_Disposed_SpawnThrows()
     {
-        using var cm = new ChunkManager();
-        var world = new World<Bit64, ComponentRegistry>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared,
+        var config = new DefaultConfig();
+        using var cm = new ChunkManager<DefaultConfig>(config);
+        using var sm = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
+        var world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            config,
+            sm,
             cm);
         world.Dispose();
 
@@ -367,9 +374,12 @@ public sealed class EdgeCaseTests : IDisposable
     [Test]
     public async Task World_Disposed_HasComponentDoesNotThrow()
     {
-        using var cm = new ChunkManager();
-        var world = new World<Bit64, ComponentRegistry>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared,
+        var config = new DefaultConfig();
+        using var cm = new ChunkManager<DefaultConfig>(config);
+        using var sm = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
+        var world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            config,
+            sm,
             cm);
         var entity = world.Spawn();
         world.Dispose();

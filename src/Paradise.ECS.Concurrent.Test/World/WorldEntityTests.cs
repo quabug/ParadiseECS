@@ -5,19 +5,23 @@ namespace Paradise.ECS.Concurrent.Test;
 /// </summary>
 public sealed class WorldEntityTests : IDisposable
 {
-    private readonly ChunkManager _chunkManager = new();
-    private readonly World<Bit64, ComponentRegistry> _world;
+    private static readonly DefaultConfig s_config = new();
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
+    private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public WorldEntityTests()
     {
-        _world = new World<Bit64, ComponentRegistry>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared,
+        _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            s_config,
+            _sharedMetadata,
             _chunkManager);
     }
 
     public void Dispose()
     {
         _world.Dispose();
+        _sharedMetadata.Dispose();
         _chunkManager.Dispose();
     }
 
@@ -124,11 +128,13 @@ public sealed class WorldEntityTests : IDisposable
     public async Task Spawn_ExceedsInitialCapacity_ExpandsAutomatically()
     {
         // Create world with small capacity
-        using var chunkManager = new ChunkManager();
-        using var world = new World<Bit64, ComponentRegistry>(
-            SharedArchetypeMetadata<Bit64, ComponentRegistry>.Shared,
-            chunkManager,
-            initialEntityCapacity: 4);
+        var config = new DefaultConfig { DefaultEntityCapacity = 4 };
+        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
+        using var world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            config,
+            sharedMetadata,
+            chunkManager);
 
         // Spawn more entities than initial capacity
         var entities = new Entity[10];

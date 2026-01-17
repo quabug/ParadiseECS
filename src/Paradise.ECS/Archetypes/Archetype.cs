@@ -9,12 +9,14 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
-public sealed class Archetype<TBits, TRegistry>
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
+public sealed class Archetype<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
+    where TConfig : IConfig, new()
 {
     private readonly nint _layoutData;
-    private readonly ChunkManager _chunkManager;
+    private readonly ChunkManager<TConfig> _chunkManager;
     private readonly List<ChunkHandle> _chunks = new();
 
     /// <summary>
@@ -29,7 +31,7 @@ public sealed class Archetype<TBits, TRegistry>
     /// <summary>
     /// Gets the layout describing component offsets within this archetype.
     /// </summary>
-    public ImmutableArchetypeLayout<TBits, TRegistry> Layout
+    public ImmutableArchetypeLayout<TBits, TRegistry, TConfig> Layout
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => new(_layoutData);
@@ -61,7 +63,7 @@ public sealed class Archetype<TBits, TRegistry>
     /// <param name="id">The unique archetype ID.</param>
     /// <param name="layoutData">The layout data pointer (as nint) for this archetype.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public Archetype(int id, nint layoutData, ChunkManager chunkManager)
+    public Archetype(int id, nint layoutData, ChunkManager<TConfig> chunkManager)
     {
         ArgumentNullException.ThrowIfNull(chunkManager);
 
@@ -137,10 +139,10 @@ public sealed class Archetype<TBits, TRegistry>
         using var dstChunk = _chunkManager.Get(dstChunkHandle);
 
         // Copy entity ID
-        int srcEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(srcIndexInChunk);
-        int dstEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(dstIndexInChunk);
-        var srcEntityIdData = srcChunk.GetBytesAt(srcEntityIdOffset, sizeof(int));
-        var dstEntityIdData = dstChunk.GetBytesAt(dstEntityIdOffset, sizeof(int));
+        int srcEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(srcIndexInChunk);
+        int dstEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(dstIndexInChunk);
+        var srcEntityIdData = srcChunk.GetBytesAt(srcEntityIdOffset, TConfig.EntityIdByteSize);
+        var dstEntityIdData = dstChunk.GetBytesAt(dstEntityIdOffset, TConfig.EntityIdByteSize);
         srcEntityIdData.CopyTo(dstEntityIdData);
 
         // Iterate from min to max component ID in this archetype's layout
@@ -236,15 +238,35 @@ public sealed class Archetype<TBits, TRegistry>
     private int GetEntityId(ChunkHandle chunkHandle, int indexInChunk)
     {
         using var chunk = _chunkManager.Get(chunkHandle);
-        int offset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(indexInChunk);
-        return chunk.GetRef<int>(offset);
+        int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
+        return TConfig.EntityIdByteSize switch
+        {
+            1 => chunk.GetRef<byte>(offset),
+            2 => chunk.GetRef<ushort>(offset),
+            4 => chunk.GetRef<int>(offset),
+            _ => ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize)
+        };
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int SetEntityId(ChunkHandle chunkHandle, int indexInChunk, int entityId)
+    private void SetEntityId(ChunkHandle chunkHandle, int indexInChunk, int entityId)
     {
         using var chunk = _chunkManager.Get(chunkHandle);
-        int offset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(indexInChunk);
-        return chunk.GetRef<int>(offset) = entityId;
+        int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
+        switch (TConfig.EntityIdByteSize)
+        {
+            case 1:
+                chunk.GetRef<byte>(offset) = (byte)entityId;
+                break;
+            case 2:
+                chunk.GetRef<ushort>(offset) = (ushort)entityId;
+                break;
+            case 4:
+                chunk.GetRef<int>(offset) = entityId;
+                break;
+            default:
+                ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize);
+                break;
+        }
     }
 }

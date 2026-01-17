@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace Paradise.ECS;
 
 /// <summary>
-/// Key for archetype graph edges. Packed into 32 bits using <see cref="EcsLimits"/>.
+/// Key for archetype graph edges. Packed into 32 bits.
 /// </summary>
 internal readonly struct EdgeKey : IEquatable<EdgeKey>
 {
@@ -30,15 +30,15 @@ internal readonly struct EdgeKey : IEquatable<EdgeKey>
 
     public static EdgeKey ForAdd(int archetypeId, int componentId)
     {
-        Debug.Assert(archetypeId >= 0 && archetypeId <= EcsLimits.MaxArchetypeId);
-        Debug.Assert(componentId >= 0 && componentId <= EcsLimits.MaxComponentTypeId);
+        Debug.Assert(archetypeId >= 0 && archetypeId <= IConfig.MaxArchetypeId);
+        Debug.Assert(componentId >= 0 && componentId <= IConfig.MaxComponentTypeId);
         return new EdgeKey(((uint)archetypeId << TypeBits) | (uint)componentId);
     }
 
     public static EdgeKey ForRemove(int archetypeId, int componentId)
     {
-        Debug.Assert(archetypeId >= 0 && archetypeId <= EcsLimits.MaxArchetypeId);
-        Debug.Assert(componentId >= 0 && componentId <= EcsLimits.MaxComponentTypeId);
+        Debug.Assert(archetypeId >= 0 && archetypeId <= IConfig.MaxArchetypeId);
+        Debug.Assert(componentId >= 0 && componentId <= IConfig.MaxComponentTypeId);
         return new EdgeKey(((uint)archetypeId << TypeBits) | (uint)componentId | RemoveFlag);
     }
 

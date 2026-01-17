@@ -2,11 +2,11 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public class ChunkManagerTests : IDisposable
 {
-    private readonly ChunkManager _manager;
+    private readonly ChunkManager<DefaultConfig> _manager;
 
     public ChunkManagerTests()
     {
-        _manager = new ChunkManager(initialCapacity: 16);
+        _manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 });
     }
 
     public void Dispose()
@@ -86,11 +86,11 @@ public class ChunkManagerTests : IDisposable
 
 public class ChunkManagerExceptionTests : IDisposable
 {
-    private readonly ChunkManager _manager;
+    private readonly ChunkManager<DefaultConfig> _manager;
 
     public ChunkManagerExceptionTests()
     {
-        _manager = new ChunkManager(initialCapacity: 16);
+        _manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 });
     }
 
     public void Dispose()
@@ -143,7 +143,7 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Allocate_AfterDispose_ThrowsObjectDisposedException()
     {
-        var manager = new ChunkManager(initialCapacity: 4);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
         manager.Dispose();
 
         await Assert.That(manager.Allocate).Throws<ObjectDisposedException>();
@@ -218,7 +218,7 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Dispose_MultipleTimes_DoesNotThrow()
     {
-        using var manager = new ChunkManager(initialCapacity: 4);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
         manager.Allocate(); // Allocate something
 
         await Assert.That(() =>
@@ -232,7 +232,7 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Free_AfterDispose_DoesNotThrow()
     {
-        var manager = new ChunkManager(initialCapacity: 4);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
         var handle = manager.Allocate();
         manager.Dispose();
 
@@ -242,7 +242,7 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Get_AfterDispose_ThrowsObjectDisposedException()
     {
-        var manager = new ChunkManager(initialCapacity: 4);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
         var handle = manager.Allocate();
         manager.Dispose();
 
@@ -263,7 +263,7 @@ public class ChunkManagerExceptionTests : IDisposable
     {
         // This tests the Release path when id >= _nextSlotId
         // Internally called by Chunk.Dispose() with default chunk
-        var manager = new ChunkManager(initialCapacity: 4);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
 
         // Get a default chunk by using a stale handle
         var handle = manager.Allocate();
@@ -284,7 +284,7 @@ public class ChunkManagerExceptionTests : IDisposable
     public async Task Release_DirectCallWithOutOfRangeId_DoesNotThrow()
     {
         // Directly test the Release path when id >= _nextSlotId
-        var manager = new ChunkManager(initialCapacity: 4);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
 
         // Only allocate 1 chunk, so _nextSlotId is 1
         _ = manager.Allocate();
@@ -298,7 +298,7 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Release_AfterDispose_DoesNotThrow()
     {
-        var manager = new ChunkManager(initialCapacity: 4);
+        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
         var handle = manager.Allocate();
         {
             using var chunk = manager.Get(handle); // Borrow to increment share count
@@ -313,15 +313,16 @@ public class ChunkManagerExceptionTests : IDisposable
 public class ChunkManagerConstructorTests
 {
     [Test]
-    public async Task Constructor_WithNullAllocator_ThrowsArgumentNullException()
+    public async Task Constructor_WithNullChunkAllocator_ThrowsArgumentNullException()
     {
-        await Assert.That(() => new ChunkManager(null!, 16)).Throws<ArgumentNullException>();
+        var configWithNullAllocator = new DefaultConfig { DefaultChunkCapacity = 16, ChunkAllocator = null! };
+        await Assert.That(() => new ChunkManager<DefaultConfig>(configWithNullAllocator)).Throws<ArgumentNullException>();
     }
 
     [Test]
     public async Task Constructor_WithZeroInitialCapacity_UsesMinimumCapacity()
     {
-        using var manager = new ChunkManager(initialCapacity: 0);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 0 });
         var handle = manager.Allocate();
         await Assert.That(handle.IsValid).IsTrue();
     }
@@ -332,7 +333,7 @@ public class ChunkManagerConstructorTests
         // This tests the path where metaBlocksNeeded > MaxMetaBlocks
         // MaxMetaBlocks * EntriesPerMetaBlock = 1024 * 1024 = 1M
         // We can't actually allocate that much, but we can request a large capacity
-        using var manager = new ChunkManager(initialCapacity: 2_000_000);
+        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 2_000_000 });
         var handle = manager.Allocate();
         await Assert.That(handle.IsValid).IsTrue();
     }

@@ -32,19 +32,21 @@ internal static class ThrowHelper
     /// Throws if <paramref name="totalBytes"/> exceeds chunk size.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ThrowIfExceedsChunkSize(int totalBytes)
-        => ThrowIfGreaterThan(totalBytes, Chunk.ChunkSize);
+    public static void ThrowIfExceedsChunkSize<TConfig>(int totalBytes)
+        where TConfig : IConfig, new()
+        => ThrowIfGreaterThan(totalBytes, TConfig.ChunkSize);
 
     /// <summary>
     /// Validates byte offset and size for chunk bounds.
     /// Throws if offset or size is negative, or if the range exceeds chunk size.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateChunkRange(int byteOffset, int size)
+    public static void ValidateChunkRange<TConfig>(int byteOffset, int size)
+        where TConfig : IConfig, new()
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(size);
-        ThrowIfGreaterThan(size, Chunk.ChunkSize - byteOffset);
+        ThrowIfGreaterThan(size, TConfig.ChunkSize - byteOffset);
     }
 
     /// <summary>
@@ -52,12 +54,13 @@ internal static class ThrowHelper
     /// Throws if offset or count is negative, or if the range exceeds chunk size.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateChunkRange(int byteOffset, int count, int elementSize)
+    public static void ValidateChunkRange<TConfig>(int byteOffset, int count, int elementSize)
+        where TConfig : IConfig, new()
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(count);
         // Validate count against max possible elements to prevent overflow in multiplication
-        int maxCount = (Chunk.ChunkSize - byteOffset) / elementSize;
+        int maxCount = (TConfig.ChunkSize - byteOffset) / elementSize;
         ThrowIfGreaterThan(count, maxCount);
     }
 
@@ -66,10 +69,11 @@ internal static class ThrowHelper
     /// Throws if size is negative or exceeds chunk size.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateChunkSize(int size)
+    public static void ValidateChunkSize<TConfig>(int size)
+        where TConfig : IConfig, new()
     {
         ThrowIfNegative(size);
-        ThrowIfGreaterThan(size, Chunk.ChunkSize);
+        ThrowIfGreaterThan(size, TConfig.ChunkSize);
     }
 
     /// <summary>
@@ -137,12 +141,39 @@ internal static class ThrowHelper
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfArchetypeIdExceedsLimit(int archetypeId)
     {
-        if (archetypeId > EcsLimits.MaxArchetypeId)
+        if (archetypeId > IConfig.MaxArchetypeId)
             ThrowArchetypeIdExceedsLimit();
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowArchetypeIdExceedsLimit()
         => throw new InvalidOperationException(
-            $"Archetype count exceeded maximum of {EcsLimits.MaxArchetypeId}.");
+            $"Archetype count exceeded maximum of {IConfig.MaxArchetypeId}.");
+
+    /// <summary>
+    /// Throws if the entity ID exceeds what can be stored in EntityIdByteSize bytes.
+    /// </summary>
+    /// <typeparam name="TConfig">The world configuration type that determines entity ID limits.</typeparam>
+    /// <param name="entityId">The entity ID to validate.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ThrowIfEntityIdExceedsLimit<TConfig>(int entityId)
+        where TConfig : IConfig, new()
+    {
+        if (entityId > Config<TConfig>.MaxEntityId)
+            ThrowEntityIdExceedsLimit(entityId, Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowEntityIdExceedsLimit(int entityId, int maxEntityId, int byteSize)
+        => throw new InvalidOperationException(
+            $"Entity ID {entityId} exceeds maximum of {maxEntityId} for EntityIdByteSize={byteSize}.");
+
+    /// <summary>
+    /// Throws an exception for an invalid EntityIdByteSize value.
+    /// Returns T to allow use in switch expressions.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static T ThrowInvalidEntityIdByteSize<T>(int entityIdByteSize)
+        => throw new InvalidOperationException(
+            $"Invalid EntityIdByteSize: {entityIdByteSize}. Supported values are 1, 2, and 4.");
 }
