@@ -10,7 +10,7 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 **Core ECS foundation is complete.** All fundamental systems (Memory Management, Entities, Archetypes, Queries, World API, Source Generator) are implemented, tested, and production-ready. The codebase has comprehensive test coverage (5,870 LOC tests for 4,919 LOC source).
 
-**Current focus**: Static World Configuration and Queryable Archetype/Query Source Generator.
+**Current focus**: Queryable Archetype/Query Source Generator.
 
 **Architecture Score: 8.5/10** - Solid foundation with clean, modular design following SOLID principles.
 
@@ -79,17 +79,15 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - ThrowHelper for centralized validation
   - Refactored GetChunkLocation to return tuples
 
-### In Progress
-
-- [~] **Static World Configuration** (`feature/static-config`)
-  - [x] Define `IConfig` interface with static abstract members for compile-time constraints
-  - [x] Configurable chunk size (default 16KB)
-  - [x] Configurable `MaxMetaBlocks` for chunk management capacity
-  - [x] Configurable `EntityIdByteSize` for entity ID storage (1/2/4 bytes)
-  - [x] Instance members for runtime hints (`DefaultEntityCapacity`, `DefaultChunkCapacity`)
-  - [x] `Config<T>` helper for computed values (`MaxEntityId`)
-  - [ ] Configurable TBits storage size (Bit64, Bit128, Bit256, etc.)
-  - [ ] Move `TypeBits`/`MaxArchetypeId`/`MaxComponentTypeId` to configurable (currently const)
+- [x] **Static World Configuration** ([#32](https://github.com/quabug/ParadiseECS/pull/32))
+  - `IConfig` interface with static abstract members for compile-time constraints
+  - Configurable chunk size (default 16KB)
+  - Configurable `MaxMetaBlocks` for chunk management capacity
+  - Configurable `EntityIdByteSize` for entity ID storage (1/2/4 bytes)
+  - Instance members for runtime hints (`DefaultEntityCapacity`, `DefaultChunkCapacity`)
+  - `Config<T>` helper for computed values (`MaxEntityId`)
+  - `[DefaultConfig]` attribute with `Paradise.ECS.DefaultConfig` fallback
+  - Parameterless constructors for `World`, `ChunkManager`, `SharedArchetypeMetadata`
 
 ### Planned
 
@@ -266,19 +264,19 @@ Minor TODOs in codebase:
 
 ### Next Priority
 
-1. **Static World Configuration** - Provides compile-time configurable ECS parameters
-2. **Queryable Archetype/Query Source Generator** - Enables type-safe, zero-allocation query patterns
-3. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
-4. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
-5. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
-6. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
+1. **Queryable Archetype/Query Source Generator** - Enables type-safe, zero-allocation query patterns
+2. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
+3. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
+4. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
+5. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
 
 ### Recent Activity
 
-- **2026-01-18**: In progress - Static World Configuration (`feature/static-config`)
-  - Added `IConfig` interface with static abstract + instance members
+- **2026-01-18**: Merged [#32](https://github.com/quabug/ParadiseECS/pull/32) - Static World Configuration
+  - `IConfig` interface with static abstract + instance members
   - Configurable `EntityIdByteSize` for 1/2/4-byte entity IDs
-  - Moved `EcsLimits` constants to `IConfig`
+  - `[DefaultConfig]` attribute with `Paradise.ECS.DefaultConfig` fallback
+  - Parameterless constructors for convenience
 - **2026-01-17**: Merged [#30](https://github.com/quabug/ParadiseECS/pull/30) - Add single-threaded Paradise.ECS with comprehensive test coverage
 - **2026-01-16**: Merged [#25](https://github.com/quabug/ParadiseECS/pull/25) - SharedArchetypeMetadata for multi-world sharing
 - **2026-01-15**: Merged [#24](https://github.com/quabug/ParadiseECS/pull/24) - Project roadmap
