@@ -4,4 +4,12 @@
     <InternalsVisibleTo Include="Paradise.ECS.Concurrent.Test" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Paradise.ECS\Paradise.ECS.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Paradise.ECS" />
+  </ItemGroup>
+
 </Project>

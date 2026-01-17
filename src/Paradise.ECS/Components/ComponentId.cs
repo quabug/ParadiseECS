@@ -15,7 +15,11 @@ public readonly record struct ComponentId
     /// <summary>
     /// The bit index for this component in archetype masks.
     /// </summary>
-    public int Value { get; }
+    public int Value
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get;
+    }
 
     /// <summary>
     /// Creates a ComponentId with the specified value.

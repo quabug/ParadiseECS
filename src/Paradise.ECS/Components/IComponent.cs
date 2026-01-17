@@ -38,7 +38,7 @@ public interface IComponent
     /// this GUID provides stable identification across compilations when specified
     /// via <see cref="ComponentAttribute.Guid"/>.
     /// </remarks>
-    static abstract System.Guid Guid { get; }
+    static abstract Guid Guid { get; }
 
     /// <summary>
     /// The size of this component in bytes.

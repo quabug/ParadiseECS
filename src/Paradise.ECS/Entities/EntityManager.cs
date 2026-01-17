@@ -72,7 +72,8 @@ public sealed class EntityManager : IDisposable
         }
 
         // Allocate a new entity ID
-        id = _nextEntityId++;
+        id = _nextEntityId;
+        _nextEntityId++;
 
         // Ensure capacity
         EnsureCapacity(id);

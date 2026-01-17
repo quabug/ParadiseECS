@@ -80,7 +80,8 @@ public sealed unsafe class ChunkManager : IDisposable
         if (!_freeSlots.TryPop(out int id))
         {
             // No free slot available, allocate a new one
-            id = _nextSlotId++;
+            id = _nextSlotId;
+            _nextSlotId++;
 
             int blockIndex = id >> EntriesPerMetaBlockShift;
             if (blockIndex >= MaxMetaBlocks)
