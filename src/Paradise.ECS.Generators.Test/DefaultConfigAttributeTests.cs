@@ -136,7 +136,7 @@ public class DefaultConfigAttributeTests
     }
 
     [Test]
-    public async Task NoDefaultConfig_NoWorldAlias()
+    public async Task NoDefaultConfig_UsesBuiltInDefaultConfigFallback()
     {
         const string source = """
             using Paradise.ECS;
@@ -151,7 +151,9 @@ public class DefaultConfigAttributeTests
 
         await Assert.That(aliases).IsNotNull();
         await Assert.That(aliases).Contains("global using ComponentMask");
-        await Assert.That(aliases).DoesNotContain("global using World");
+        // Falls back to Paradise.ECS.DefaultConfig when no [DefaultConfig] attribute is found
+        await Assert.That(aliases).Contains("global::Paradise.ECS.DefaultConfig");
+        await Assert.That(aliases).Contains("global using World");
     }
 
     [Test]

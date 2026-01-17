@@ -34,7 +34,7 @@ internal static class ThrowHelper
     /// <typeparam name="TConfig">The world configuration type that determines chunk size.</typeparam>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfExceedsChunkSize<TConfig>(int totalBytes)
-        where TConfig : IConfig
+        where TConfig : IConfig, new()
         => ThrowIfGreaterThan(totalBytes, TConfig.ChunkSize);
 
     /// <summary>
@@ -44,7 +44,7 @@ internal static class ThrowHelper
     /// <typeparam name="TConfig">The world configuration type that determines chunk size.</typeparam>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ValidateChunkRange<TConfig>(int byteOffset, int size)
-        where TConfig : IConfig
+        where TConfig : IConfig, new()
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(size);
@@ -58,7 +58,7 @@ internal static class ThrowHelper
     /// <typeparam name="TConfig">The world configuration type that determines chunk size.</typeparam>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ValidateChunkRange<TConfig>(int byteOffset, int count, int elementSize)
-        where TConfig : IConfig
+        where TConfig : IConfig, new()
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(count);
@@ -74,7 +74,7 @@ internal static class ThrowHelper
     /// <typeparam name="TConfig">The world configuration type that determines chunk size.</typeparam>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ValidateChunkSize<TConfig>(int size)
-        where TConfig : IConfig
+        where TConfig : IConfig, new()
     {
         ThrowIfNegative(size);
         ThrowIfGreaterThan(size, TConfig.ChunkSize);
@@ -161,7 +161,7 @@ internal static class ThrowHelper
     /// <param name="entityId">The entity ID to validate.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void ThrowIfEntityIdExceedsLimit<TConfig>(int entityId)
-        where TConfig : IConfig
+        where TConfig : IConfig, new()
     {
         if (entityId > Config<TConfig>.MaxEntityId)
             ThrowEntityIdExceedsLimit(entityId, Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);

@@ -5,7 +5,7 @@ public static class ArchetypeRegistryExtension
     extension<TBits, TRegistry, TConfig>(ArchetypeRegistry<TBits, TRegistry, TConfig> registry)
         where TBits : unmanaged, IStorage
         where TRegistry : IComponentRegistry
-        where TConfig : IConfig
+        where TConfig : IConfig, new()
     {
         public Archetype<TBits, TRegistry, TConfig> GetOrCreate(ImmutableBitSet<TBits> mask)
         {

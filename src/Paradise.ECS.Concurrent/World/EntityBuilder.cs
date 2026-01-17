@@ -31,7 +31,7 @@ public interface IComponentsBuilder
         int indexInChunk)
         where TBits : unmanaged, IStorage
         where TRegistry : IComponentRegistry
-        where TConfig : IConfig;
+        where TConfig : IConfig, new();
 }
 
 /// <summary>
@@ -61,7 +61,7 @@ public readonly struct EntityBuilder : IComponentsBuilder
         int indexInChunk)
         where TBits : unmanaged, IStorage
         where TRegistry : IComponentRegistry
-        where TConfig : IConfig
+        where TConfig : IConfig, new()
     {
         // No components to write
     }
@@ -103,7 +103,7 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
         int indexInChunk)
         where TBits : unmanaged, IStorage
         where TRegistry : IComponentRegistry
-        where TConfig : IConfig
+        where TConfig : IConfig, new()
     {
         // Write inner components first
         InnerBuilder.WriteComponents(chunkManager, layout, chunkHandle, indexInChunk);
@@ -156,7 +156,7 @@ public static class ComponentsBuilderExtensions
         public Entity Build<TBits, TRegistry, TConfig>(World<TBits, TRegistry, TConfig> world)
             where TBits : unmanaged, IStorage
             where TRegistry : IComponentRegistry
-            where TConfig : IConfig
+            where TConfig : IConfig, new()
         {
             return world.CreateEntity(builder);
         }
@@ -175,7 +175,7 @@ public static class ComponentsBuilderExtensions
         public Entity Overwrite<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
             where TBits : unmanaged, IStorage
             where TRegistry : IComponentRegistry
-            where TConfig : IConfig
+            where TConfig : IConfig, new()
         {
             return world.OverwriteEntity(entity, builder);
         }
@@ -194,7 +194,7 @@ public static class ComponentsBuilderExtensions
         public Entity AddTo<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
             where TBits : unmanaged, IStorage
             where TRegistry : IComponentRegistry
-            where TConfig : IConfig
+            where TConfig : IConfig, new()
         {
             return world.AddComponents(entity, builder);
         }

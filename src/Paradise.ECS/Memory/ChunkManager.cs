@@ -17,7 +17,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 public sealed unsafe class ChunkManager<TConfig> : IDisposable
-    where TConfig : IConfig
+    where TConfig : IConfig, new()
 {
     /// <summary>
     /// Metadata for a single chunk slot.
@@ -71,6 +71,14 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
         {
             _metaBlocks[i] = (nint)_allocator.AllocateZeroed((nuint)TConfig.ChunkSize);
         }
+    }
+
+    /// <summary>
+    /// Creates a new ChunkManager using default configuration.
+    /// Uses <c>new TConfig()</c> for configuration with default property values.
+    /// </summary>
+    public ChunkManager() : this(new TConfig())
+    {
     }
 
     /// <summary>

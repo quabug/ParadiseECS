@@ -10,7 +10,7 @@ namespace Paradise.ECS.Concurrent;
 /// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
 public readonly ref struct ComponentRef<T, TConfig>
     where T : unmanaged, IComponent
-    where TConfig : IConfig
+    where TConfig : IConfig, new()
 {
     private readonly Chunk<TConfig> _chunk;
     private readonly int _offset;

@@ -13,7 +13,7 @@ namespace Paradise.ECS;
 public sealed class World<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IConfig
+    where TConfig : IConfig, new()
 {
     private readonly ChunkManager<TConfig> _chunkManager;
     private readonly ArchetypeRegistry<TBits, TRegistry, TConfig> _archetypeRegistry;
@@ -50,6 +50,19 @@ public sealed class World<TBits, TRegistry, TConfig>
         // Create the empty archetype for componentless entities
         _emptyArchetype = _archetypeRegistry.GetOrCreateArchetype(
             (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
+    }
+
+    /// <summary>
+    /// Creates a new ECS world using default configuration and shared archetype metadata.
+    /// Uses <c>new TConfig()</c> for configuration with default property values.
+    /// The caller is responsible for disposing the shared metadata and chunk manager.
+    /// </summary>
+    /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
+    /// <param name="chunkManager">The chunk manager for memory allocation.</param>
+    public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+                 ChunkManager<TConfig> chunkManager)
+        : this(new TConfig(), sharedMetadata, chunkManager)
+    {
     }
 
     /// <summary>

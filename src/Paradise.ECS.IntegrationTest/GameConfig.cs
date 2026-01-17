@@ -2,9 +2,9 @@ namespace Paradise.ECS.IntegrationTest;
 
 /// <summary>
 /// Game-specific ECS configuration.
-/// Marked with [WorldDefault] to generate the World type alias.
+/// Marked with [DefaultConfig] to generate the World type alias.
 /// </summary>
-// [DefaultConfig]
+[DefaultConfig]
 public readonly struct GameConfig : IConfig
 {
     /// <summary>

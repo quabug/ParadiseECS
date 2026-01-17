@@ -13,7 +13,7 @@ namespace Paradise.ECS;
 public readonly struct Query<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IConfig
+    where TConfig : IConfig, new()
 {
     private readonly List<Archetype<TBits, TRegistry, TConfig>> _matchingArchetypes;
 

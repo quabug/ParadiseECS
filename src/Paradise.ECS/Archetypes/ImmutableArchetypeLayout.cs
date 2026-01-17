@@ -60,7 +60,7 @@ public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
 public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IConfig
+    where TConfig : IConfig, new()
 {
     private readonly byte* _data;
 

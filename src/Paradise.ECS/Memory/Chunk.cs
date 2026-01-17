@@ -9,7 +9,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 public readonly unsafe ref struct Chunk<TConfig> : IDisposable
-    where TConfig : IConfig
+    where TConfig : IConfig, new()
 {
     private readonly ChunkManager<TConfig>? _manager;
     private readonly int _id;

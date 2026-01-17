@@ -13,9 +13,8 @@ namespace Paradise.ECS;
 public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IConfig
+    where TConfig : IConfig, new()
 {
-    private readonly IAllocator _metadataAllocator;
     private readonly IAllocator _layoutAllocator;
     private readonly Dictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
     private readonly List<nint/* ArchetypeLayout* */> _layouts = new();
@@ -50,8 +49,15 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// <param name="config">The configuration instance with runtime settings including the allocators.</param>
     public SharedArchetypeMetadata(TConfig config)
     {
-        _metadataAllocator = config.MetadataAllocator ?? throw new ArgumentNullException(nameof(config), "Config.MetadataAllocator cannot be null");
         _layoutAllocator = config.LayoutAllocator ?? throw new ArgumentNullException(nameof(config), "Config.LayoutAllocator cannot be null");
+    }
+
+    /// <summary>
+    /// Creates a new shared archetype metadata instance using default configuration.
+    /// Uses <c>new TConfig()</c> for configuration with default property values.
+    /// </summary>
+    public SharedArchetypeMetadata() : this(new TConfig())
+    {
     }
 
     /// <summary>

@@ -10,7 +10,7 @@ namespace Paradise.ECS.Concurrent;
 public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
-    where TConfig : IConfig
+    where TConfig : IConfig, new()
 {
     private readonly SharedArchetypeMetadata<TBits, TRegistry, TConfig> _sharedMetadata;
     private readonly ChunkManager<TConfig> _chunkManager;
@@ -61,6 +61,19 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry, TConfig>(sharedMetadata, chunkManager);
         _entityManager = new EntityManager(config.DefaultEntityCapacity);
         _entityLocations = new EntityLocation[config.DefaultEntityCapacity];
+    }
+
+    /// <summary>
+    /// Creates a new ECS world using default configuration and shared archetype metadata.
+    /// Uses <c>new TConfig()</c> for configuration with default property values.
+    /// The caller is responsible for disposing the shared metadata and chunk manager.
+    /// </summary>
+    /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
+    /// <param name="chunkManager">The chunk manager for memory allocation.</param>
+    public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+                 ChunkManager<TConfig> chunkManager)
+        : this(new TConfig(), sharedMetadata, chunkManager)
+    {
     }
 
     /// <summary>
