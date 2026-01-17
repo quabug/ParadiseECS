@@ -11,14 +11,27 @@ on:
       - '.github/workflows/test.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
-      - '*.slnx'
-      - '.editorconfig'
-      - '.github/workflows/test.yml'
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - '*.slnx'
+              - '.editorconfig'
+              - '.github/workflows/test.yml'
+
   test:
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
