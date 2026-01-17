@@ -60,8 +60,9 @@ public sealed class World<TBits, TRegistry, TConfig>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Entity Spawn()
     {
+        // Validate before creating to avoid inconsistent state if limit exceeded
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
         var entity = _entityManager.Create();
-        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(entity.Id);
         int globalIndex = _emptyArchetype.AllocateEntity(entity);
         _entityManager.SetLocation(entity.Id, new EntityLocation(entity.Version, _emptyArchetype.Id, globalIndex));
         return entity;
@@ -80,9 +81,11 @@ public sealed class World<TBits, TRegistry, TConfig>
         var mask = ImmutableBitSet<TBits>.Empty;
         builder.CollectTypes(ref mask);
 
+        // Validate before creating to avoid inconsistent state if limit exceeded
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
+
         // Create entity and place in target archetype (returns empty archetype if mask is empty)
         var entity = _entityManager.Create();
-        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(entity.Id);
         var archetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)mask);
         PlaceEntityWithComponents(entity, archetype, builder);
 

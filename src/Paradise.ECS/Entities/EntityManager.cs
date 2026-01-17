@@ -44,6 +44,22 @@ public sealed class EntityManager
     }
 
     /// <summary>
+    /// Returns the ID that would be assigned to the next created entity,
+    /// without actually creating it. Used for validation before creation.
+    /// </summary>
+    /// <returns>The next entity ID that would be allocated.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int PeekNextId()
+    {
+        // If there's a free slot, that ID will be reused
+        if (_freeSlots.TryPeek(out int id))
+            return id;
+
+        // Otherwise, a new ID will be allocated
+        return _nextEntityId;
+    }
+
+    /// <summary>
     /// Creates a new entity and returns a handle to it.
     /// The entity has no archetype until components are added.
     /// </summary>

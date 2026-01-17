@@ -155,6 +155,23 @@ internal static class ThrowHelper
             $"Archetype count exceeded maximum of {IConfig.MaxArchetypeId}.");
 
     /// <summary>
+    /// Throws if the entity ID exceeds the maximum allowed for the configuration.
+    /// </summary>
+    /// <typeparam name="TConfig">The world configuration type that determines entity ID limits.</typeparam>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void ThrowIfEntityIdExceedsLimit<TConfig>(int entityId)
+        where TConfig : IConfig
+    {
+        if (entityId > Config<TConfig>.MaxEntityId)
+            ThrowEntityIdExceedsLimit(entityId, Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void ThrowEntityIdExceedsLimit(int entityId, int maxEntityId, int entityIdByteSize)
+        => throw new InvalidOperationException(
+            $"Entity ID {entityId} exceeds maximum of {maxEntityId} for EntityIdByteSize={entityIdByteSize}.");
+
+    /// <summary>
     /// Throws an exception for an invalid EntityIdByteSize value.
     /// Returns T to allow use in switch expressions.
     /// </summary>

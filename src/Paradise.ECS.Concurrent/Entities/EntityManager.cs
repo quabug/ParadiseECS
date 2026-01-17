@@ -40,6 +40,25 @@ public sealed class EntityManager : IDisposable
     public int Capacity => Volatile.Read(ref _locations).Length;
 
     /// <summary>
+    /// Returns the ID that would be assigned to the next created entity,
+    /// without actually creating it. Used for validation before creation.
+    /// Note: In concurrent scenarios, another thread may allocate this ID
+    /// between peeking and creating. This is acceptable for validation
+    /// since the limit check is conservative.
+    /// </summary>
+    /// <returns>The next entity ID that would be allocated.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int PeekNextId()
+    {
+        // If there's a free slot, that ID will be reused
+        if (_freeSlots.TryPeek(out int id))
+            return id;
+
+        // Otherwise, a new ID will be allocated
+        return Volatile.Read(ref _nextEntityId);
+    }
+
+    /// <summary>
     /// Creates a new entity and returns a handle to it.
     /// The entity has no archetype until components are added.
     /// Uses lock-free operations for thread safety.

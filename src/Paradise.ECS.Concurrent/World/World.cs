@@ -73,6 +73,8 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
+        // Validate before creating to avoid inconsistent state if limit exceeded
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
         return _entityManager.Create();
     }
 
@@ -91,6 +93,9 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         // Collect component mask
         var mask = ImmutableBitSet<TBits>.Empty;
         builder.CollectTypes(ref mask);
+
+        // Validate before creating to avoid inconsistent state if limit exceeded
+        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
 
         // Create entity
         var entity = _entityManager.Create();
