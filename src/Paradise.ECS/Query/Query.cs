@@ -19,6 +19,7 @@ public readonly struct Query<TBits, TRegistry>
     /// Creates a new query wrapping the specified archetype list.
     /// </summary>
     /// <param name="matchingArchetypes">The list of matching archetypes, owned by the registry.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal Query(List<Archetype<TBits, TRegistry>> matchingArchetypes)
     {
         _matchingArchetypes = matchingArchetypes;

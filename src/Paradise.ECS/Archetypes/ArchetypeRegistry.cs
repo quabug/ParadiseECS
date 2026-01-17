@@ -54,11 +54,10 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
 
         // Grow list if needed by adding nulls
         int requiredCount = queryId + 1;
-        int currentCount = _queryCache.Count;
-        if (currentCount < requiredCount)
+        _queryCache.EnsureCapacity(requiredCount);
+        for (int i = _queryCache.Count; i < requiredCount; i++)
         {
-            int nullsToAdd = requiredCount - currentCount;
-            _queryCache.AddRange(new List<Archetype<TBits, TRegistry>>?[nullsToAdd]);
+            _queryCache.Add(null);
         }
 
         // Get matched archetype IDs from shared metadata and add only locally existing archetypes
@@ -72,8 +71,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
             int archetypeId = matchedIds[i];
             // Only add archetypes that already exist in this world
             // New archetypes will be added via NotifyQueries when created
-            if ((uint)archetypeId < (uint)localArchetypeCount &&
-                _archetypes[archetypeId] is { } archetype)
+            if ((uint)archetypeId < (uint)localArchetypeCount && _archetypes[archetypeId] is { } archetype)
             {
                 archetypes.Add(archetype);
             }
@@ -88,7 +86,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>
     /// <returns>The archetype store for this mask.</returns>
-    public Archetype<TBits, TRegistry> GetOrCreate(HashedKey<ImmutableBitSet<TBits>> mask)
+    public Archetype<TBits, TRegistry> GetOrCreateArchetype(HashedKey<ImmutableBitSet<TBits>> mask)
     {
         var matchedQueries = _tempMatchedQueries;
         matchedQueries.Clear();
@@ -115,8 +113,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
         {
             int queryId = matchedQueries[i];
             // Only notify queries that exist locally in this world
-            if ((uint)queryId < (uint)localQueryCount &&
-                _queryCache[queryId] is { } archetypes)
+            if ((uint)queryId < (uint)localQueryCount && _queryCache[queryId] is { } archetypes)
             {
                 archetypes.Add(archetype);
             }
@@ -160,7 +157,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to add.</param>
     /// <returns>The target archetype with the component added.</returns>
-    public Archetype<TBits, TRegistry> GetOrCreateWithAdd(
+    public Archetype<TBits, TRegistry> GetOrCreateArchetypeWithAdd(
         Archetype<TBits, TRegistry> source,
         ComponentId componentId)
     {
@@ -183,7 +180,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to remove.</param>
     /// <returns>The target archetype with the component removed.</returns>
-    public Archetype<TBits, TRegistry> GetOrCreateWithRemove(
+    public Archetype<TBits, TRegistry> GetOrCreateArchetypeWithRemove(
         Archetype<TBits, TRegistry> source,
         ComponentId componentId)
     {
@@ -208,24 +205,18 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
     private Archetype<TBits, TRegistry> GetOrCreateById(int archetypeId, List<int> matchedQueries)
     {
         // Fast path: archetype already exists
-        if ((uint)archetypeId < (uint)_archetypes.Count &&
-            _archetypes[archetypeId] is { } existing)
+        if ((uint)archetypeId < (uint)_archetypes.Count && _archetypes[archetypeId] is { } existing)
         {
             return existing;
         }
 
         // Grow list if needed by adding nulls
         int requiredCount = archetypeId + 1;
-        int currentCount = _archetypes.Count;
-        if (currentCount < requiredCount)
+        _archetypes.EnsureCapacity(requiredCount);
+        for (int i = _archetypes.Count; i < requiredCount; i++)
         {
-            int nullsToAdd = requiredCount - currentCount;
-            _archetypes.AddRange(new Archetype<TBits, TRegistry>?[nullsToAdd]);
+            _archetypes.Add(null);
         }
-
-        // Check again after growing
-        if (_archetypes[archetypeId] is { } existingAfterGrow)
-            return existingAfterGrow;
 
         // Create new archetype instance for this world
         var layoutData = _sharedMetadata.GetLayoutData(archetypeId);

@@ -66,11 +66,9 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
 
         // Grow list if needed by adding nulls
         int requiredCount = queryId + 1;
-        int currentCount = _queryCache.Count;
-        if (currentCount < requiredCount)
+        for (int i = _queryCache.Count; i < requiredCount; i++)
         {
-            int nullsToAdd = requiredCount - currentCount;
-            _queryCache.AddRange(new List<Archetype<TBits, TRegistry>>?[nullsToAdd]);
+            _queryCache.Add(null);
         }
 
         // Double-check after acquiring lock
@@ -251,11 +249,9 @@ public sealed class ArchetypeRegistry<TBits, TRegistry> : IDisposable
 
         // Grow list if needed by adding nulls
         int requiredCount = archetypeId + 1;
-        int currentCount = _archetypes.Count;
-        if (currentCount < requiredCount)
+        for (int i = _archetypes.Count; i < requiredCount; i++)
         {
-            int nullsToAdd = requiredCount - currentCount;
-            _archetypes.AddRange(new Archetype<TBits, TRegistry>?[nullsToAdd]);
+            _archetypes.Add(null);
         }
 
         // Double-check after acquiring lock

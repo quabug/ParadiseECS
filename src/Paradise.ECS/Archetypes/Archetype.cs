@@ -194,11 +194,10 @@ public sealed class Archetype<TBits, TRegistry>
     /// Converts a global entity index to chunk index and index within chunk.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void GetChunkLocation(int globalIndex, out int chunkIndex, out int indexInChunk)
+    public (int ChunkIndex, int IndexInChunk) GetChunkLocation(int globalIndex)
     {
         int entitiesPerChunk = Layout.EntitiesPerChunk;
-        chunkIndex = globalIndex / entitiesPerChunk;
-        indexInChunk = globalIndex % entitiesPerChunk;
+        return (globalIndex / entitiesPerChunk, globalIndex % entitiesPerChunk);
     }
 
     /// <summary>

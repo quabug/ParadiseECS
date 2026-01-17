@@ -201,10 +201,10 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (location.IsValid)
         {
             var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
-            sourceArchetype.GetChunkLocation(location.GlobalIndex, out int srcChunkIndex, out int srcIndexInChunk);
+            var (srcChunkIndex, srcIndexInChunk) = sourceArchetype.GetChunkLocation(location.GlobalIndex);
             var srcChunkHandle = sourceArchetype.GetChunk(srcChunkIndex);
 
-            targetArchetype.GetChunkLocation(newGlobalIndex, out int dstChunkIndex, out int dstIndexInChunk);
+            var (dstChunkIndex, dstIndexInChunk) = targetArchetype.GetChunkLocation(newGlobalIndex);
             var dstChunkHandle = targetArchetype.GetChunk(dstChunkIndex);
 
             CopySharedComponents(sourceArchetype, targetArchetype, srcChunkHandle, srcIndexInChunk, dstChunkHandle, dstIndexInChunk);
@@ -220,7 +220,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         };
 
         // Write new component data
-        targetArchetype.GetChunkLocation(newGlobalIndex, out int newChunkIndex, out int newIndexInChunk);
+        var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(newGlobalIndex);
         var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
         builder.WriteComponents(_chunkManager, targetArchetype.Layout, newChunkHandle, newIndexInChunk);
 
@@ -246,7 +246,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
             GlobalIndex = globalIndex
         };
 
-        archetype.GetChunkLocation(globalIndex, out int chunkIndex, out int indexInChunk);
+        var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(globalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
         builder.WriteComponents(_chunkManager, archetype.Layout, chunkHandle, indexInChunk);
     }
@@ -341,7 +341,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (!layout.HasComponent<T>())
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
-        archetype.GetChunkLocation(location.GlobalIndex, out int chunkIndex, out int indexInChunk);
+        var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
         int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
         var chunk = _chunkManager.Get(chunkHandle);
@@ -369,7 +369,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (!layout.HasComponent<T>())
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
-        archetype.GetChunkLocation(location.GlobalIndex, out int chunkIndex, out int indexInChunk);
+        var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
         int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
         using var chunk = _chunkManager.Get(chunkHandle);
@@ -429,7 +429,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
             location.GlobalIndex = globalIndex;
 
             // Write component value
-            archetype.GetChunkLocation(globalIndex, out int chunkIndex, out int indexInChunk);
+            var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(globalIndex);
             var chunkHandle = archetype.GetChunk(chunkIndex);
             int offset = archetype.Layout.GetEntityComponentOffset<T>(indexInChunk);
             using var chunk = _chunkManager.Get(chunkHandle);
@@ -451,7 +451,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
         MoveEntity(entity, ref location, sourceArchetype, targetArchetype);
 
         // Write the new component value
-        targetArchetype.GetChunkLocation(location.GlobalIndex, out int newChunkIndex, out int newIndexInChunk);
+        var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(location.GlobalIndex);
         var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
         int newOffset = targetArchetype.Layout.GetEntityComponentOffset<T>(newIndexInChunk);
         using var newChunk = _chunkManager.Get(newChunkHandle);
@@ -515,12 +515,12 @@ public sealed class World<TBits, TRegistry> : IDisposable
     {
         // Remember old location for swap-remove handling
         int oldGlobalIndex = location.GlobalIndex;
-        source.GetChunkLocation(oldGlobalIndex, out int oldChunkIndex, out int oldIndexInChunk);
+        var (oldChunkIndex, oldIndexInChunk) = source.GetChunkLocation(oldGlobalIndex);
         var oldChunkHandle = source.GetChunk(oldChunkIndex);
 
         // Allocate in target archetype
         int newGlobalIndex = target.AllocateEntity(entity);
-        target.GetChunkLocation(newGlobalIndex, out int newChunkIndex, out int newIndexInChunk);
+        var (newChunkIndex, newIndexInChunk) = target.GetChunkLocation(newGlobalIndex);
         var newChunkHandle = target.GetChunk(newChunkIndex);
 
         // Copy shared component data
