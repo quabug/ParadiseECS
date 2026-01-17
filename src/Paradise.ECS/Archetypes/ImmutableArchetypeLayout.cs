@@ -30,7 +30,7 @@ public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
     public ImmutableBitSet<TBits> ComponentMask;
 
     /// <summary>Size of this header in bytes.</summary>
-    public static int SizeInBytes => Unsafe.SizeOf<ArchetypeLayoutHeader<TBits>>();
+    public static readonly int SizeInBytes = Unsafe.SizeOf<ArchetypeLayoutHeader<TBits>>();
 }
 
 /// <summary>
@@ -40,6 +40,7 @@ public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
 /// <remarks>
 /// Memory layout example for 100 entities with Position(12B), Velocity(12B), Health(8B):
 /// <code>
@@ -56,9 +57,10 @@ public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
 /// Component sizes are looked up from TRegistry.TypeInfos.
 /// Use <see cref="Create"/> to allocate and <see cref="Free"/> to deallocate.
 /// </remarks>
-public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry>
+public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
+    where TConfig : IWorldConfig
 {
     /// <summary>
     /// Size in bytes of an entity ID stored in chunk memory.
@@ -188,7 +190,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry>
         // Empty archetype still needs entity ID storage
         if (componentMask.IsEmpty)
         {
-            header.EntitiesPerChunk = Chunk.ChunkSize / EntityIdSize;
+            header.EntitiesPerChunk = TConfig.ChunkSize / EntityIdSize;
             return;
         }
 
@@ -204,7 +206,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry>
         // Tag-only archetype: only entity IDs
         if (totalSizePerEntity == EntityIdSize)
         {
-            header.EntitiesPerChunk = Chunk.ChunkSize / EntityIdSize;
+            header.EntitiesPerChunk = TConfig.ChunkSize / EntityIdSize;
             // Mark all tag components as present (offset after entity IDs, but size 0)
             foreach (int componentId in componentMask)
             {
@@ -214,7 +216,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry>
         }
 
         // Start with optimistic estimate
-        int entitiesPerChunk = Chunk.ChunkSize / totalSizePerEntity;
+        int entitiesPerChunk = TConfig.ChunkSize / totalSizePerEntity;
         if (entitiesPerChunk == 0)
             entitiesPerChunk = 1;
 
@@ -222,7 +224,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry>
         while (entitiesPerChunk > 1)
         {
             int totalSize = CalculateAndStoreOffsets(componentMask, typeInfos, baseOffsets, minId, entitiesPerChunk);
-            if (totalSize <= Chunk.ChunkSize)
+            if (totalSize <= TConfig.ChunkSize)
                 break;
             entitiesPerChunk--;
         }

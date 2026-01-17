@@ -10,14 +10,16 @@ namespace Paradise.ECS.Concurrent;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
-public sealed class Archetype<TBits, TRegistry>
+/// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
+public sealed class Archetype<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
+    where TConfig : IWorldConfig
 {
     private const int InitialChunkCapacity = 4;
 
     private readonly nint _layoutData;
-    private readonly ChunkManager _chunkManager;
+    private readonly ChunkManager<TConfig> _chunkManager;
     private readonly Lock _lock = new();
     private ChunkHandle[] _chunks = new ChunkHandle[InitialChunkCapacity];
     private int _chunkCount;
@@ -31,7 +33,7 @@ public sealed class Archetype<TBits, TRegistry>
     /// <summary>
     /// Gets the layout describing component offsets within this archetype.
     /// </summary>
-    public ImmutableArchetypeLayout<TBits, TRegistry> Layout => new(_layoutData);
+    public ImmutableArchetypeLayout<TBits, TRegistry, TConfig> Layout => new(_layoutData);
 
     /// <summary>
     /// Gets the current number of entities in this archetype.
@@ -49,7 +51,7 @@ public sealed class Archetype<TBits, TRegistry>
     /// <param name="id">The unique archetype ID.</param>
     /// <param name="layoutData">The layout data pointer (as nint) for this archetype.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public Archetype(int id, nint layoutData, ChunkManager chunkManager)
+    public Archetype(int id, nint layoutData, ChunkManager<TConfig> chunkManager)
     {
         ArgumentNullException.ThrowIfNull(chunkManager);
 
@@ -154,8 +156,8 @@ public sealed class Archetype<TBits, TRegistry>
         using var dstChunk = _chunkManager.Get(dstChunkHandle);
 
         // Copy entity ID
-        int srcEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(srcIndexInChunk);
-        int dstEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(dstIndexInChunk);
+        int srcEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(srcIndexInChunk);
+        int dstEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(dstIndexInChunk);
         var srcEntityIdData = srcChunk.GetBytesAt(srcEntityIdOffset, sizeof(int));
         var dstEntityIdData = dstChunk.GetBytesAt(dstEntityIdOffset, sizeof(int));
         srcEntityIdData.CopyTo(dstEntityIdData);
@@ -258,7 +260,7 @@ public sealed class Archetype<TBits, TRegistry>
     private ref int GetEntityIdRef(ChunkHandle chunkHandle, int indexInChunk)
     {
         using var chunk = _chunkManager.Get(chunkHandle);
-        int offset = ImmutableArchetypeLayout<TBits, TRegistry>.GetEntityIdOffset(indexInChunk);
+        int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
         return ref chunk.GetRef<int>(offset);
     }
 }

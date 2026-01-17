@@ -9,9 +9,11 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
-public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
+public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
+    where TConfig : IWorldConfig
 {
     private readonly IAllocator _allocator;
     private readonly Dictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
@@ -70,7 +72,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
             return existingId;
         }
 
-        var layoutData = ImmutableArchetypeLayout<TBits, TRegistry>.Create(_allocator, mask);
+        var layoutData = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Create(_allocator, mask);
         int newId = _layouts.Count;
         _layouts.Add(layoutData);
         ThrowHelper.ThrowIfArchetypeIdExceedsLimit(newId);
@@ -174,7 +176,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         int archetypeCount = _layouts.Count;
         for (int i = 0; i < archetypeCount; i++)
         {
-            var layout = new ImmutableArchetypeLayout<TBits, TRegistry>(_layouts[i]);
+            var layout = new ImmutableArchetypeLayout<TBits, TRegistry, TConfig>(_layouts[i]);
             if (description.Value.Matches(layout.ComponentMask))
             {
                 queryData.MatchedArchetypeIds.Add(i);
@@ -221,10 +223,10 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
     /// <returns>The layout for this archetype.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the archetype ID is invalid.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableArchetypeLayout<TBits, TRegistry> GetLayout(int archetypeId)
+    public ImmutableArchetypeLayout<TBits, TRegistry, TConfig> GetLayout(int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed, this);
-        return new ImmutableArchetypeLayout<TBits, TRegistry>(_layouts[archetypeId]);
+        return new ImmutableArchetypeLayout<TBits, TRegistry, TConfig>(_layouts[archetypeId]);
     }
 
     /// <summary>
@@ -309,7 +311,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry> : IDisposable
         // Free all layouts
         for (int i = 0; i < _layouts.Count; i++)
         {
-            ImmutableArchetypeLayout<TBits, TRegistry>.Free(_allocator, _layouts[i]);
+            ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Free(_allocator, _layouts[i]);
         }
 
         _layouts.Clear();

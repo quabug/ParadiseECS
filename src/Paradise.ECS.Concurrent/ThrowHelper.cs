@@ -31,33 +31,39 @@ internal static class ThrowHelper
     /// <summary>
     /// Throws if <paramref name="totalBytes"/> exceeds chunk size.
     /// </summary>
+    /// <typeparam name="TConfig">The world configuration type that determines chunk size.</typeparam>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ThrowIfExceedsChunkSize(int totalBytes)
-        => ThrowIfGreaterThan(totalBytes, Chunk.ChunkSize);
+    public static void ThrowIfExceedsChunkSize<TConfig>(int totalBytes)
+        where TConfig : IWorldConfig
+        => ThrowIfGreaterThan(totalBytes, TConfig.ChunkSize);
 
     /// <summary>
     /// Validates byte offset and size for chunk bounds.
     /// Throws if offset or size is negative, or if the range exceeds chunk size.
     /// </summary>
+    /// <typeparam name="TConfig">The world configuration type that determines chunk size.</typeparam>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateChunkRange(int byteOffset, int size)
+    public static void ValidateChunkRange<TConfig>(int byteOffset, int size)
+        where TConfig : IWorldConfig
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(size);
-        ThrowIfGreaterThan(size, Chunk.ChunkSize - byteOffset);
+        ThrowIfGreaterThan(size, TConfig.ChunkSize - byteOffset);
     }
 
     /// <summary>
     /// Validates byte offset, count, and element size for chunk bounds.
     /// Throws if offset or count is negative, or if the range exceeds chunk size.
     /// </summary>
+    /// <typeparam name="TConfig">The world configuration type that determines chunk size.</typeparam>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateChunkRange(int byteOffset, int count, int elementSize)
+    public static void ValidateChunkRange<TConfig>(int byteOffset, int count, int elementSize)
+        where TConfig : IWorldConfig
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(count);
         // Validate count against max possible elements to prevent overflow in multiplication
-        int maxCount = (Chunk.ChunkSize - byteOffset) / elementSize;
+        int maxCount = (TConfig.ChunkSize - byteOffset) / elementSize;
         ThrowIfGreaterThan(count, maxCount);
     }
 
@@ -65,11 +71,13 @@ internal static class ThrowHelper
     /// Validates size for chunk bounds.
     /// Throws if size is negative or exceeds chunk size.
     /// </summary>
+    /// <typeparam name="TConfig">The world configuration type that determines chunk size.</typeparam>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateChunkSize(int size)
+    public static void ValidateChunkSize<TConfig>(int size)
+        where TConfig : IWorldConfig
     {
         ThrowIfNegative(size);
-        ThrowIfGreaterThan(size, Chunk.ChunkSize);
+        ThrowIfGreaterThan(size, TConfig.ChunkSize);
     }
 
     /// <summary>

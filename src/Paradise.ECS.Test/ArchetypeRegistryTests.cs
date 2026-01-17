@@ -5,13 +5,13 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class ArchetypeRegistryTests : IDisposable
 {
-    private readonly ChunkManager _chunkManager = new(NativeMemoryAllocator.Shared);
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry> _sharedMetadata = new(NativeMemoryAllocator.Shared);
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry> _registry;
+    private readonly ChunkManager<DefaultWorldConfig> _chunkManager = new(NativeMemoryAllocator.Shared);
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig> _sharedMetadata = new(NativeMemoryAllocator.Shared);
+    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig> _registry;
 
     public ArchetypeRegistryTests()
     {
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry>(_sharedMetadata, _chunkManager);
+        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig>(_sharedMetadata, _chunkManager);
     }
 
     public void Dispose()
@@ -192,7 +192,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateQuery_ReturnsQuery()
     {
-        var description = World<Bit64, ComponentRegistry>.Query()
+        var description = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -205,7 +205,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateQuery_SameDescription_ReturnsSameQuery()
     {
-        var description = World<Bit64, ComponentRegistry>.Query()
+        var description = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -226,7 +226,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
         _registry.GetOrCreateArchetype(hashedKey);
 
         // Then create a query that should match
-        var description = World<Bit64, ComponentRegistry>.Query()
+        var description = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -239,7 +239,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     public async Task GetOrCreateQuery_UpdatesWhenNewArchetypeCreated()
     {
         // First create a query
-        var description = World<Bit64, ComponentRegistry>.Query()
+        var description = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;

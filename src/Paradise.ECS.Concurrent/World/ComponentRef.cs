@@ -7,9 +7,12 @@ namespace Paradise.ECS.Concurrent;
 /// Must be disposed to release the chunk borrow.
 /// </summary>
 /// <typeparam name="T">The component type.</typeparam>
-public readonly ref struct ComponentRef<T> where T : unmanaged, IComponent
+/// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
+public readonly ref struct ComponentRef<T, TConfig>
+    where T : unmanaged, IComponent
+    where TConfig : IWorldConfig
 {
-    private readonly Chunk _chunk;
+    private readonly Chunk<TConfig> _chunk;
     private readonly int _offset;
 
     /// <summary>
@@ -17,7 +20,7 @@ public readonly ref struct ComponentRef<T> where T : unmanaged, IComponent
     /// </summary>
     /// <param name="chunk">The borrowed chunk containing the component.</param>
     /// <param name="offset">The byte offset to the component data.</param>
-    internal ComponentRef(Chunk chunk, int offset)
+    internal ComponentRef(Chunk<TConfig> chunk, int offset)
     {
         _chunk = chunk;
         _offset = offset;

@@ -5,11 +5,11 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public sealed class ChunkManagerConcurrencyTests : IDisposable
 {
-    private readonly ChunkManager _manager;
+    private readonly ChunkManager<DefaultWorldConfig> _manager;
 
     public ChunkManagerConcurrencyTests()
     {
-        _manager = new ChunkManager(initialCapacity: 64);
+        _manager = new ChunkManager<DefaultWorldConfig>(initialCapacity: 64);
     }
 
     public void Dispose()
@@ -169,7 +169,7 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
     public async Task ConcurrentAllocate_TriggersGrowth_Succeeds()
     {
         // Use small initial capacity to force growth
-        using var smallManager = new ChunkManager(initialCapacity: 4);
+        using var smallManager = new ChunkManager<DefaultWorldConfig>(initialCapacity: 4);
 
         const int threadCount = 8;
         const int allocationsPerThread = 300; // Will exceed initial capacity

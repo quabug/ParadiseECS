@@ -5,13 +5,13 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class QueryTests : IDisposable
 {
-    private readonly ChunkManager _chunkManager = new(NativeMemoryAllocator.Shared);
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry> _sharedMetadata = new(NativeMemoryAllocator.Shared);
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry> _registry;
+    private readonly ChunkManager<DefaultWorldConfig> _chunkManager = new(NativeMemoryAllocator.Shared);
+    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultWorldConfig> _sharedMetadata = new(NativeMemoryAllocator.Shared);
+    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig> _registry;
 
     public QueryTests()
     {
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry>(_sharedMetadata, _chunkManager);
+        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultWorldConfig>(_sharedMetadata, _chunkManager);
     }
 
     public void Dispose()
@@ -25,7 +25,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_Default_IsEmpty()
     {
-        var builder = World<Bit64, ComponentRegistry>.Query();
+        var builder = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query();
         var description = builder.Description;
 
         await Assert.That(description.All.IsEmpty).IsTrue();
@@ -36,7 +36,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_With_SetsAllMask()
     {
-        var builder = World<Bit64, ComponentRegistry>.Query()
+        var builder = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>();
 
         var description = builder.Description;
@@ -47,7 +47,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithMultiple_SetsAllMask()
     {
-        var builder = World<Bit64, ComponentRegistry>.Query()
+        var builder = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .With<TestVelocity>();
 
@@ -60,7 +60,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_Without_SetsNoneMask()
     {
-        var builder = World<Bit64, ComponentRegistry>.Query()
+        var builder = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .Without<TestPosition>();
 
         var description = builder.Description;
@@ -71,7 +71,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithAny_SetsAnyMask()
     {
-        var builder = World<Bit64, ComponentRegistry>.Query()
+        var builder = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .WithAny<TestPosition>();
 
         var description = builder.Description;
@@ -82,7 +82,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_Combined_SetsAllMasks()
     {
-        var builder = World<Bit64, ComponentRegistry>.Query()
+        var builder = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .WithAny<TestHealth>();
@@ -97,7 +97,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithComponentId_SetsAllMask()
     {
-        var builder = World<Bit64, ComponentRegistry>.Query()
+        var builder = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With(TestPosition.TypeId.Value);
 
         var description = builder.Description;
@@ -108,7 +108,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithoutComponentId_SetsNoneMask()
     {
-        var builder = World<Bit64, ComponentRegistry>.Query()
+        var builder = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .Without(TestPosition.TypeId.Value);
 
         var description = builder.Description;
@@ -119,7 +119,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithAnyComponentId_SetsAnyMask()
     {
-        var builder = World<Bit64, ComponentRegistry>.Query()
+        var builder = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .WithAny(TestPosition.TypeId.Value);
 
         var description = builder.Description;
@@ -144,7 +144,7 @@ public sealed class QueryTests : IDisposable
         var velocityArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
         velocityArchetype.AllocateEntity(new Entity(2, 1));
 
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -165,7 +165,7 @@ public sealed class QueryTests : IDisposable
         var velocityArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
         velocityArchetype.AllocateEntity(new Entity(1, 1));
 
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -191,7 +191,7 @@ public sealed class QueryTests : IDisposable
         var bothArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         bothArchetype.AllocateEntity(new Entity(2, 1));
 
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .Build(_registry);
@@ -218,7 +218,7 @@ public sealed class QueryTests : IDisposable
         var bothArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         bothArchetype.AllocateEntity(new Entity(2, 1));
 
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .With<TestVelocity>()
             .Build(_registry);
@@ -235,7 +235,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task Query_EmptyRegistry_ReturnsZero()
     {
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -261,7 +261,7 @@ public sealed class QueryTests : IDisposable
         var bothArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         bothArchetype.AllocateEntity(new Entity(2, 1));
 
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -282,7 +282,7 @@ public sealed class QueryTests : IDisposable
         var velocityArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
         velocityArchetype.AllocateEntity(new Entity(3, 1));
 
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -292,7 +292,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task Query_IsEmpty_ReturnsCorrectValue()
     {
-        var emptyQuery = World<Bit64, ComponentRegistry>.Query()
+        var emptyQuery = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -303,7 +303,7 @@ public sealed class QueryTests : IDisposable
         var positionArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
-        var query = World<Bit64, ComponentRegistry>.Query()
+        var query = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -322,11 +322,11 @@ public sealed class QueryTests : IDisposable
         var positionArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
-        var query1 = World<Bit64, ComponentRegistry>.Query()
+        var query1 = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Build(_registry);
 
-        var query2 = World<Bit64, ComponentRegistry>.Query()
+        var query2 = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -341,11 +341,11 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task ImmutableQueryDescription_Equality_SameDescriptions()
     {
-        var desc1 = World<Bit64, ComponentRegistry>.Query()
+        var desc1 = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Description;
 
-        var desc2 = World<Bit64, ComponentRegistry>.Query()
+        var desc2 = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Description;
 
@@ -356,11 +356,11 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task ImmutableQueryDescription_Inequality_DifferentDescriptions()
     {
-        var desc1 = World<Bit64, ComponentRegistry>.Query()
+        var desc1 = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Description;
 
-        var desc2 = World<Bit64, ComponentRegistry>.Query()
+        var desc2 = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestVelocity>()
             .Description;
 
@@ -370,7 +370,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task ImmutableQueryDescription_Matches_CorrectMasks()
     {
-        var desc = World<Bit64, ComponentRegistry>.Query()
+        var desc = World<Bit64, ComponentRegistry, DefaultWorldConfig>.Query()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .Description;

@@ -79,6 +79,15 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - ThrowHelper for centralized validation
   - Refactored GetChunkLocation to return tuples
 
+### In Progress
+
+- [~] **Static World Configuration** (`feature/static-config`)
+  - Define interface-based configuration for world/archetype settings
+  - Configurable chunk size (default 16KB)
+  - Configurable TBits storage size (Bit64, Bit128, Bit256, etc.)
+  - Configurable entity size and entity key type
+  - Compile-time configuration validation
+
 ### Planned
 
 - [ ] **Extensible Metadata Interface**
@@ -86,13 +95,6 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Allow custom implementations beyond the default `SharedArchetypeMetadata`
   - Enable extension points for custom caching strategies, persistence, or debugging hooks
   - Support composition of metadata providers for modular functionality
-
-- [ ] **Static World Configuration**
-  - Define interface-based configuration for world/archetype settings
-  - Configurable chunk size (default 16KB)
-  - Configurable TBits storage size (Bit64, Bit128, Bit256, etc.)
-  - Configurable entity size and entity key type
-  - Compile-time configuration validation
 
 - [ ] **Queryable Archetype/Query Source Generator**
   - Attribute-based archetype and query definition

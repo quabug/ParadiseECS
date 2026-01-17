@@ -1,0 +1,44 @@
+namespace Paradise.ECS;
+
+/// <summary>
+/// Static configuration interface for World parameters.
+/// Uses static abstract members for compile-time resolution and JIT optimization.
+/// </summary>
+public interface IWorldConfig
+{
+    /// <summary>
+    /// Chunk memory block size in bytes.
+    /// Should be a power of 2 for optimal memory alignment.
+    /// Default: 16KB (optimized for L1 cache).
+    /// </summary>
+    static abstract int ChunkSize { get; }
+
+    /// <summary>
+    /// Initial capacity for entity storage.
+    /// Default: 1024.
+    /// </summary>
+    static abstract int DefaultEntityCapacity { get; }
+
+    /// <summary>
+    /// Maximum number of metadata blocks for chunk management.
+    /// Each block can track 1024 chunk entries.
+    /// Default: 1024 (supports up to ~1M chunks).
+    /// </summary>
+    static abstract int MaxMetaBlocks { get; }
+}
+
+/// <summary>
+/// Default configuration optimized for typical game scenarios.
+/// 16KB chunks sized for L1 cache, 1024 initial entity capacity.
+/// </summary>
+public readonly struct DefaultWorldConfig : IWorldConfig
+{
+    /// <inheritdoc />
+    public static int ChunkSize { get; } = 16 * 1024;
+
+    /// <inheritdoc />
+    public static int DefaultEntityCapacity { get; } = 1024;
+
+    /// <inheritdoc />
+    public static int MaxMetaBlocks { get; } = 1024;
+}

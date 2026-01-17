@@ -2,11 +2,11 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public class ChunkTests : IDisposable
 {
-    private readonly ChunkManager _manager;
+    private readonly ChunkManager<DefaultWorldConfig> _manager;
 
     public ChunkTests()
     {
-        _manager = new ChunkManager(initialCapacity: 16);
+        _manager = new ChunkManager<DefaultWorldConfig>(initialCapacity: 16);
     }
 
     public void Dispose()
@@ -17,7 +17,7 @@ public class ChunkTests : IDisposable
     [Test]
     public async Task ChunkSize_Is16KB()
     {
-        int chunkSize = Chunk.ChunkSize;
+        int chunkSize = DefaultWorldConfig.ChunkSize;
         await Assert.That(chunkSize).IsEqualTo(16 * 1024);
     }
 
@@ -109,7 +109,7 @@ public class ChunkTests : IDisposable
             bytesLength = chunk.GetDataBytes().Length;
         }
 
-        await Assert.That(bytesLength).IsEqualTo(Chunk.ChunkSize);
+        await Assert.That(bytesLength).IsEqualTo(DefaultWorldConfig.ChunkSize);
     }
 
     [Test]
@@ -134,7 +134,7 @@ public class ChunkTests : IDisposable
         try
         {
             using var chunk = _manager.Get(handle);
-            _ = chunk.GetDataBytes(Chunk.ChunkSize + 1);
+            _ = chunk.GetDataBytes(DefaultWorldConfig.ChunkSize + 1);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -201,7 +201,7 @@ public class ChunkTests : IDisposable
             rawBytesLength = chunk.GetRawBytes().Length;
         }
 
-        await Assert.That(rawBytesLength).IsEqualTo(Chunk.ChunkSize);
+        await Assert.That(rawBytesLength).IsEqualTo(DefaultWorldConfig.ChunkSize);
     }
 
     [Test]
@@ -344,7 +344,7 @@ public class ChunkTests : IDisposable
         try
         {
             using var chunk = _manager.Get(handle);
-            _ = chunk.GetBytesAt(Chunk.ChunkSize - 10, 20); // Would exceed chunk size
+            _ = chunk.GetBytesAt(DefaultWorldConfig.ChunkSize - 10, 20); // Would exceed chunk size
         }
         catch (ArgumentOutOfRangeException)
         {

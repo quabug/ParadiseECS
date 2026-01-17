@@ -3,26 +3,22 @@ using System.Runtime.CompilerServices;
 namespace Paradise.ECS;
 
 /// <summary>
-/// A 16KB memory block for storing data.
-/// The size is chosen to fit within L1 cache for optimal iteration performance.
+/// A memory block for storing entity component data.
+/// The size is configured via TConfig.ChunkSize, defaulting to 16KB to fit within L1 cache.
 /// This is a ref struct that borrows memory from ChunkManager and must be disposed.
 /// </summary>
-public readonly unsafe ref struct Chunk : IDisposable
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
+public readonly unsafe ref struct Chunk<TConfig> : IDisposable
+    where TConfig : IWorldConfig
 {
-    /// <summary>
-    /// The size of each chunk in bytes (16KB).
-    /// Chosen to fit within typical L1 cache sizes (32KB+).
-    /// </summary>
-    public const int ChunkSize = 16 * 1024;
-
-    private readonly ChunkManager? _manager;
+    private readonly ChunkManager<TConfig>? _manager;
     private readonly int _id;
     private readonly nint _memory;
 
     /// <summary>
     /// Creates a Chunk view that borrows memory from the manager.
     /// </summary>
-    internal Chunk(ChunkManager manager, int id, nint memory)
+    internal Chunk(ChunkManager<TConfig> manager, int id, nint memory)
     {
         ThrowHelper.ThrowIfNull((void*)memory);
         _manager = manager;
@@ -52,7 +48,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> GetSpan<T>(int byteOffset, int count) where T : unmanaged
     {
-        ThrowHelper.ValidateChunkRange(byteOffset, count, sizeof(T));
+        ThrowHelper.ValidateChunkRange<TConfig>(byteOffset, count, sizeof(T));
         return new((byte*)_memory + byteOffset, count);
     }
 
@@ -65,7 +61,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRef<T>(int byteOffset) where T : unmanaged
     {
-        ThrowHelper.ValidateChunkRange(byteOffset, 1, sizeof(T));
+        ThrowHelper.ValidateChunkRange<TConfig>(byteOffset, 1, sizeof(T));
         return ref Unsafe.AsRef<T>((byte*)_memory + byteOffset);
     }
 
@@ -73,7 +69,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     /// Gets the raw bytes of the entire data area.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetDataBytes() => new((void*)_memory, ChunkSize);
+    public Span<byte> GetDataBytes() => new((void*)_memory, TConfig.ChunkSize);
 
     /// <summary>
     /// Gets the raw bytes of the data area up to a specified size.
@@ -81,7 +77,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<byte> GetDataBytes(int size)
     {
-        ThrowHelper.ValidateChunkSize(size);
+        ThrowHelper.ValidateChunkSize<TConfig>(size);
         return new((void*)_memory, size);
     }
 
@@ -91,7 +87,7 @@ public readonly unsafe ref struct Chunk : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<byte> GetBytesAt(int byteOffset, int size)
     {
-        ThrowHelper.ValidateChunkRange(byteOffset, size);
+        ThrowHelper.ValidateChunkRange<TConfig>(byteOffset, size);
         return new((byte*)_memory + byteOffset, size);
     }
 
@@ -99,5 +95,5 @@ public readonly unsafe ref struct Chunk : IDisposable
     /// Gets the entire chunk memory as raw bytes.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Span<byte> GetRawBytes() => new((void*)_memory, ChunkSize);
+    public Span<byte> GetRawBytes() => new((void*)_memory, TConfig.ChunkSize);
 }
