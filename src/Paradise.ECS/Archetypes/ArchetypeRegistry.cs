@@ -11,16 +11,17 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
+    private readonly SharedArchetypeMetadata<TBits, TRegistry> _sharedMetadata;
+    private readonly ChunkManager _chunkManager;
+
+    private readonly List<Archetype<TBits, TRegistry>?> _archetypes = new();
+    private readonly List<List<Archetype<TBits, TRegistry>>?> _queryCache = new();
+
     /// <summary>
     /// Temporary list for collecting matched query IDs during archetype operations.
     /// Reused to avoid allocations on each operation.
     /// </summary>
     private readonly List<int> _tempMatchedQueries = new();
-
-    private readonly SharedArchetypeMetadata<TBits, TRegistry> _sharedMetadata;
-    private readonly List<Archetype<TBits, TRegistry>?> _archetypes = new();
-    private readonly List<List<Archetype<TBits, TRegistry>>?> _queryCache = new();
-    private readonly ChunkManager _chunkManager;
 
     /// <summary>
     /// Creates a new archetype registry using the specified shared metadata.
@@ -226,7 +227,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
 
         // Notify matching queries about the new archetype using pre-computed matched query IDs
         NotifyQueries(archetype, matchedQueries);
-
+        matchedQueries.Clear();
         return archetype;
     }
 
@@ -241,5 +242,6 @@ public sealed class ArchetypeRegistry<TBits, TRegistry>
         }
         _archetypes.Clear();
         _queryCache.Clear();
+        _tempMatchedQueries.Clear();
     }
 }
