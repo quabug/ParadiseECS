@@ -3,27 +3,18 @@ using System.Runtime.CompilerServices;
 namespace Paradise.ECS;
 
 /// <summary>
-/// Manager for entity lifecycle.
-/// Handles entity creation, destruction, and validation using version-based handles.
-/// Uses a contiguous array for entity metadata.
+/// Manager for entity lifecycle and location tracking.
+/// Handles entity creation, destruction, validation, and archetype location using version-based handles.
+/// Uses a contiguous list for entity metadata indexed by Entity.Id for O(1) lookups.
 /// Single-threaded version without concurrent access support.
 /// </summary>
-public sealed class EntityManager : IDisposable
+public sealed class EntityManager
 {
-    /// <summary>
-    /// Metadata for a single entity slot.
-    /// </summary>
-    private struct EntityMeta
-    {
-        public uint Version; // Version counter for stale handle detection
-    }
-
     private const int DefaultInitialCapacity = 1024;
 
-    private EntityMeta[] _metas;
+    private readonly List<EntityLocation> _locations;
     private readonly Stack<int> _freeSlots = new();
     private int _nextEntityId; // Next fresh entity ID to allocate
-    private bool _disposed;
     private int _aliveCount; // Number of currently alive entities
 
     /// <summary>
@@ -33,7 +24,7 @@ public sealed class EntityManager : IDisposable
     public EntityManager(int initialCapacity = DefaultInitialCapacity)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(initialCapacity, 0);
-        _metas = new EntityMeta[initialCapacity];
+        _locations = new List<EntityLocation>(initialCapacity);
     }
 
     /// <summary>
@@ -51,22 +42,21 @@ public sealed class EntityManager : IDisposable
     public int Capacity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _metas.Length;
+        get => _locations.Count;
     }
 
     /// <summary>
     /// Creates a new entity and returns a handle to it.
+    /// The entity has no archetype until components are added.
     /// </summary>
     /// <returns>A valid entity handle.</returns>
     public Entity Create()
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         if (_freeSlots.TryPop(out int id))
         {
-            // Reuse a freed entity slot
-            ref var meta = ref _metas[id];
-            uint version = meta.Version;
+            // Reuse a freed entity slot - version was already incremented on destroy
+            uint version = _locations[id].Version;
+            _locations[id] = new EntityLocation(version, -1, -1);
             _aliveCount++;
             return new Entity(id, version);
         }
@@ -75,12 +65,11 @@ public sealed class EntityManager : IDisposable
         id = _nextEntityId;
         _nextEntityId++;
 
-        // Ensure capacity
+        // Ensure capacity - adds default entries to grow the list
         EnsureCapacity(id);
 
-        // Initialize version
-        ref var newMeta = ref _metas[id];
-        newMeta.Version = 1;
+        // Initialize location with version 1 and no archetype
+        _locations[id] = new EntityLocation(1, -1, -1);
 
         _aliveCount++;
         return new Entity(id, 1);
@@ -97,19 +86,17 @@ public sealed class EntityManager : IDisposable
         if (!entity.IsValid)
             return;
 
-        if (_disposed) return;
-
         if (entity.Id >= _nextEntityId)
             return;
 
-        ref var meta = ref _metas[entity.Id];
+        var location = _locations[entity.Id];
 
         // Check if already destroyed (stale handle)
-        if (meta.Version != entity.Version)
+        if (location.Version != entity.Version)
             return;
 
-        // Increment version to invalidate all existing handles
-        meta.Version++;
+        // Increment version to invalidate all existing handles, clear archetype info
+        _locations[entity.Id] = new EntityLocation(location.Version + 1, -1, -1);
 
         // Add to free list
         _freeSlots.Push(entity.Id);
@@ -127,38 +114,58 @@ public sealed class EntityManager : IDisposable
         if (!entity.IsValid)
             return false;
 
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         if (entity.Id >= _nextEntityId)
             return false;
 
-        ref var meta = ref _metas[entity.Id];
-        return meta.Version == entity.Version;
+        return _locations[entity.Id].Version == entity.Version;
     }
 
     /// <summary>
-    /// Ensures the array has capacity for the given entity id.
+    /// Gets the location for the specified entity ID.
+    /// </summary>
+    /// <param name="entityId">The entity ID.</param>
+    /// <returns>The entity location.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityLocation GetLocation(int entityId)
+    {
+        return _locations[entityId];
+    }
+
+    /// <summary>
+    /// Sets the location for the specified entity ID.
+    /// </summary>
+    /// <param name="entityId">The entity ID.</param>
+    /// <param name="location">The new location.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetLocation(int entityId, in EntityLocation location)
+    {
+        _locations[entityId] = location;
+    }
+
+    /// <summary>
+    /// Ensures the list has enough elements for the given entity id.
     /// </summary>
     private void EnsureCapacity(int id)
     {
-        if (id < _metas.Length)
+        int requiredCount = id + 1;
+        if (requiredCount <= _locations.Count)
             return;
 
-        // Grow by doubling, ensuring we have room for the new id
-        int newCapacity = Math.Max(_metas.Length * 2, id + 1);
-        var newMetas = new EntityMeta[newCapacity];
-        Array.Copy(_metas, newMetas, _metas.Length);
-        _metas = newMetas;
+        // Ensure internal capacity, then add default elements
+        _locations.EnsureCapacity(requiredCount);
+        for (int i = _locations.Count; i < requiredCount; i++)
+        {
+            _locations.Add(default);
+        }
     }
 
-    public void Dispose()
+    /// <summary>
+    /// Releases all resources used by this instance.
+    /// </summary>
+    public void Clear()
     {
-        if (_disposed)
-            return;
-
-        _disposed = true;
         _freeSlots.Clear();
-        _metas = [];
+        _locations.Clear();
         _nextEntityId = 0;
         _aliveCount = 0;
     }
