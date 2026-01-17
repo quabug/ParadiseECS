@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Allow underscore naming convention in test methods -->
+    <!-- CA1515: Test classes need to be public for TUnit discovery -->
+    <NoWarn>$(NoWarn);CA1707;CA1515</NoWarn>
+    <!-- Native AOT support -->
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Paradise.ECS\Paradise.ECS.csproj" />
+  </ItemGroup>
+
+</Project>

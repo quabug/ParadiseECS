@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Paradise.ECS.Test" />
+  </ItemGroup>
+
+</Project>
