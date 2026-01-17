@@ -9,7 +9,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
-public sealed class World<TBits, TRegistry> : IDisposable
+public sealed class World<TBits, TRegistry>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
 {
@@ -18,8 +18,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
     private readonly ChunkManager _chunkManager;
     private readonly ArchetypeRegistry<TBits, TRegistry> _archetypeRegistry;
     private readonly EntityManager _entityManager;
-
-    private bool _disposed;
 
     /// <summary>
     /// Gets the number of currently alive entities.
@@ -52,12 +50,11 @@ public sealed class World<TBits, TRegistry> : IDisposable
 
     /// <summary>
     /// Creates a new entity with no components.
-    /// Location is lazily initialized when components are first added.
+    /// The entity is created with an invalid archetype location until components are added.
     /// </summary>
     /// <returns>The created entity handle.</returns>
     public Entity Spawn()
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
         return _entityManager.Create();
     }
 
@@ -70,8 +67,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
     internal Entity CreateEntity<TBuilder>(TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         // Collect component mask
         var mask = ImmutableBitSet<TBits>.Empty;
         builder.CollectTypes(ref mask);
@@ -81,7 +76,7 @@ public sealed class World<TBits, TRegistry> : IDisposable
 
         if (mask.IsEmpty)
         {
-            // No components - location will be lazily initialized if needed
+            // No components - entity exists with invalid archetype location
             return entity;
         }
 
@@ -102,8 +97,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
     internal Entity OverwriteEntity<TBuilder>(Entity entity, TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         var location = GetValidatedLocation(entity);
 
         // Collect component mask
@@ -138,8 +131,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
     internal Entity AddComponents<TBuilder>(Entity entity, TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         var location = GetValidatedLocation(entity);
 
         // Collect new component mask from builder
@@ -249,8 +240,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (!entity.IsValid)
             return false;
 
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         if (!_entityManager.IsAlive(entity))
             return false;
 
@@ -275,8 +264,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (!entity.IsValid)
             return false;
 
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         return _entityManager.IsAlive(entity);
     }
 
@@ -289,8 +276,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
     public ComponentRef<T> GetComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         var location = GetValidatedLocation(entity);
         var archetype = _archetypeRegistry.GetById(location.ArchetypeId)
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
@@ -316,8 +301,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
     public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         var location = GetValidatedLocation(entity);
         var archetype = _archetypeRegistry.GetById(location.ArchetypeId)
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
@@ -345,8 +328,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
         if (!entity.IsValid)
             return false;
 
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         if (!TryGetLocation(entity, out var location))
             return false;
 
@@ -366,8 +347,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <exception cref="InvalidOperationException">Entity is not alive or already has the component.</exception>
     public void AddComponent<T>(Entity entity, T value = default) where T : unmanaged, IComponent
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         var location = GetValidatedLocation(entity);
 
         if (!location.IsValid)
@@ -420,8 +399,6 @@ public sealed class World<TBits, TRegistry> : IDisposable
     /// <exception cref="InvalidOperationException">Entity is not alive or doesn't have the component.</exception>
     public void RemoveComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
-        ThrowHelper.ThrowIfDisposed(_disposed, this);
-
         var location = GetValidatedLocation(entity);
 
         if (!location.IsValid)
@@ -548,13 +525,8 @@ public sealed class World<TBits, TRegistry> : IDisposable
         return true;
     }
 
-    public void Dispose()
+    public void Clear()
     {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-
         _archetypeRegistry.Clear();
         _entityManager.Clear();
     }

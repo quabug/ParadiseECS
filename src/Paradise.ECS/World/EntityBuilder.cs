@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Paradise.ECS;
 
 /// <summary>
@@ -42,9 +44,11 @@ public readonly struct EntityBuilder : IComponentsBuilder
     /// Creates a new empty entity builder.
     /// </summary>
     /// <returns>A new entity builder.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static EntityBuilder Create() => default;
 
     /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void CollectTypes<TBits>(ref ImmutableBitSet<TBits> mask)
         where TBits : unmanaged, IStorage
     {
@@ -52,6 +56,7 @@ public readonly struct EntityBuilder : IComponentsBuilder
     }
 
     /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteComponents<TBits, TRegistry>(
         ChunkManager chunkManager,
         ImmutableArchetypeLayout<TBits, TRegistry> layout,
@@ -77,14 +82,27 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
     /// <summary>
     /// The component value to add.
     /// </summary>
-    public TComponent Value { get; init; }
+    public TComponent Value
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        init;
+    }
 
     /// <summary>
     /// The inner builder that this wraps.
     /// </summary>
-    public TInnerBuilder InnerBuilder { get; init; }
+    public TInnerBuilder InnerBuilder
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        init;
+    }
 
     /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void CollectTypes<TBits>(ref ImmutableBitSet<TBits> mask)
         where TBits : unmanaged, IStorage
     {
@@ -93,6 +111,7 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
     }
 
     /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteComponents<TBits, TRegistry>(
         ChunkManager chunkManager,
         ImmutableArchetypeLayout<TBits, TRegistry> layout,
@@ -131,6 +150,7 @@ public static class ComponentsBuilderExtensions
         /// <typeparam name="TComponent">The component type to add.</typeparam>
         /// <param name="value">The component value.</param>
         /// <returns>A new builder with the component added.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public WithComponent<TComponent, TBuilder> Add<TComponent>(TComponent value = default)
             where TComponent : unmanaged, IComponent
         {
@@ -148,6 +168,7 @@ public static class ComponentsBuilderExtensions
         /// <typeparam name="TRegistry">The component registry type.</typeparam>
         /// <param name="world">The world to create the entity in.</param>
         /// <returns>The created entity.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Entity Build<TBits, TRegistry>(World<TBits, TRegistry> world)
             where TBits : unmanaged, IStorage
             where TRegistry : IComponentRegistry
@@ -165,6 +186,7 @@ public static class ComponentsBuilderExtensions
         /// <param name="entity">The existing entity handle.</param>
         /// <param name="world">The world containing the entity.</param>
         /// <returns>The entity.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Entity Overwrite<TBits, TRegistry>(Entity entity, World<TBits, TRegistry> world)
             where TBits : unmanaged, IStorage
             where TRegistry : IComponentRegistry
@@ -182,6 +204,7 @@ public static class ComponentsBuilderExtensions
         /// <param name="world">The world containing the entity.</param>
         /// <returns>The entity.</returns>
         /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Entity AddTo<TBits, TRegistry>(Entity entity, World<TBits, TRegistry> world)
             where TBits : unmanaged, IStorage
             where TRegistry : IComponentRegistry
