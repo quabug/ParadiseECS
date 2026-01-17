@@ -8,7 +8,7 @@ public sealed class ArchetypeStoreTests : IDisposable
 
     public ArchetypeStoreTests()
     {
-        _chunkManager = new ChunkManager<DefaultConfig>(initialCapacity: 16);
+        _chunkManager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 });
     }
 
     public void Dispose()

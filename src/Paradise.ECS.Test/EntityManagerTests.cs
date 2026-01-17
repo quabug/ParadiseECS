@@ -8,7 +8,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Create_ReturnsValidEntity()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
 
         var entity = manager.Create();
 
@@ -20,7 +20,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Create_MultipleEntities_HaveUniqueIds()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
 
         var entity1 = manager.Create();
         var entity2 = manager.Create();
@@ -34,7 +34,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Create_ConsecutiveIds()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
 
         var e1 = manager.Create();
         var e2 = manager.Create();
@@ -48,7 +48,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task IsAlive_NewEntity_ReturnsTrue()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity = manager.Create();
 
         var isAlive = manager.IsAlive(entity);
@@ -59,7 +59,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task IsAlive_InvalidEntity_ReturnsFalse()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
 
         var isAlive = manager.IsAlive(Entity.Invalid);
 
@@ -69,7 +69,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task IsAlive_DefaultEntity_ReturnsFalse()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
 
         var isAlive = manager.IsAlive(default);
 
@@ -79,7 +79,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Destroy_MakesEntityNotAlive()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity = manager.Create();
 
         manager.Destroy(entity);
@@ -91,7 +91,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Destroy_InvalidEntity_DoesNotThrow()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
 
         manager.Destroy(Entity.Invalid);
 
@@ -101,7 +101,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Destroy_AlreadyDestroyedEntity_DoesNotThrow()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity = manager.Create();
         manager.Destroy(entity);
 
@@ -113,7 +113,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Destroy_IncreasesVersion()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity1 = manager.Create();
         int firstId = entity1.Id;
         uint firstVersion = entity1.Version;
@@ -129,7 +129,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Create_AfterDestroy_ReusesSlot()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity1 = manager.Create();
         int id1 = entity1.Id;
 
@@ -143,7 +143,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task AliveCount_IncrementsOnCreate()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         int initialCount = manager.AliveCount;
 
         manager.Create();
@@ -155,7 +155,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task AliveCount_DecrementsOnDestroy()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity1 = manager.Create();
         _ = manager.Create();
         int countAfterCreate = manager.AliveCount;
@@ -168,7 +168,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task AliveCount_ConsistentAfterCreateAndDestroy()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         int initialCount = manager.AliveCount;
 
         var entity = manager.Create();
@@ -209,7 +209,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task IsAlive_StaleHandle_ReturnsFalse()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity1 = manager.Create();
         manager.Destroy(entity1);
         var entity2 = manager.Create();
@@ -221,7 +221,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Create_ManyEntities_AllValid()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         const int count = 1000;
         var entities = new Entity[count];
 
@@ -240,7 +240,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Destroy_ManyEntities_AllDestroyed()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         const int count = 100;
         var entities = new Entity[count];
 
@@ -264,7 +264,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Clear_ResetsState()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         manager.Create();
         manager.Create();
 
@@ -277,7 +277,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task GetLocation_ReturnsStoredLocation()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity = manager.Create();
         var location = new EntityLocation(entity.Version, 5, 10);
 
@@ -292,7 +292,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task SetLocation_UpdatesLocation()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity = manager.Create();
 
         manager.SetLocation(entity.Id, new EntityLocation(entity.Version, 1, 2));
@@ -313,7 +313,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task Destroy_EntityIdBeyondRange_DoesNotThrow()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var fakeEntity = new Entity(9999, 1);
 
         manager.Destroy(fakeEntity);
@@ -324,7 +324,7 @@ public sealed class EntityManagerTests
     [Test]
     public async Task IsAlive_EntityIdBeyondRange_ReturnsFalse()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var fakeEntity = new Entity(9999, 1);
 
         await Assert.That(manager.IsAlive(fakeEntity)).IsFalse();

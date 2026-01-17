@@ -5,12 +5,13 @@ namespace Paradise.ECS.Concurrent.Test;
 /// </summary>
 public sealed class EdgeCaseTests : IDisposable
 {
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new();
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(new DefaultConfig());
     private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public EdgeCaseTests()
     {
         _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            new DefaultConfig(),
             SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
             _chunkManager);
     }
@@ -355,8 +356,9 @@ public sealed class EdgeCaseTests : IDisposable
     [Test]
     public async Task World_Disposed_SpawnThrows()
     {
-        using var cm = new ChunkManager<DefaultConfig>();
+        using var cm = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            new DefaultConfig(),
             SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
             cm);
         world.Dispose();
@@ -367,8 +369,9 @@ public sealed class EdgeCaseTests : IDisposable
     [Test]
     public async Task World_Disposed_HasComponentDoesNotThrow()
     {
-        using var cm = new ChunkManager<DefaultConfig>();
+        using var cm = new ChunkManager<DefaultConfig>(new DefaultConfig());
         var world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            new DefaultConfig(),
             SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
             cm);
         var entity = world.Spawn();

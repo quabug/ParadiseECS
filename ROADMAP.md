@@ -1,6 +1,6 @@
 # Paradise.ECS Roadmap
 
-> Last updated: 2026-01-17
+> Last updated: 2026-01-18
 
 ## Vision
 
@@ -82,13 +82,27 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 ### In Progress
 
 - [~] **Static World Configuration** (`feature/static-config`)
-  - Define interface-based configuration for world/archetype settings
-  - Configurable chunk size (default 16KB)
-  - Configurable TBits storage size (Bit64, Bit128, Bit256, etc.)
-  - Configurable entity size and entity key type
-  - Compile-time configuration validation
+  - [x] Define `IConfig` interface with static abstract members for compile-time constraints
+  - [x] Configurable chunk size (default 16KB)
+  - [x] Configurable `MaxMetaBlocks` for chunk management capacity
+  - [x] Configurable `EntityIdByteSize` for entity ID storage (1/2/4 bytes)
+  - [x] Instance members for runtime hints (`DefaultEntityCapacity`, `DefaultChunkCapacity`)
+  - [x] `Config<T>` helper for computed values (`MaxEntityId`)
+  - [ ] Configurable TBits storage size (Bit64, Bit128, Bit256, etc.)
+  - [ ] Move `TypeBits`/`MaxArchetypeId`/`MaxComponentTypeId` to configurable (currently const)
 
 ### Planned
+
+- [ ] **Per-World Component IDs**
+  - Allow each world to have independent component type registrations
+  - Currently component IDs are global via `IComponentRegistry` generated at compile-time
+  - Enable runtime component registration with world-local ID assignment
+  - Support scenarios where different worlds use different component sets
+  - Consider trade-offs: global IDs enable world sharing, local IDs enable isolation
+  - Potential approaches:
+    - World-specific registry instances with local ID mapping
+    - Hybrid: shared base components + world-local extensions
+    - Runtime component type registration with AOT-compatible patterns
 
 - [ ] **Extensible Metadata Interface**
   - Define interface for world/archetype metadata (e.g., `IWorldMetadata`)
@@ -251,6 +265,10 @@ Minor TODOs in codebase:
 
 ### Recent Activity
 
+- **2026-01-18**: In progress - Static World Configuration (`feature/static-config`)
+  - Added `IConfig` interface with static abstract + instance members
+  - Configurable `EntityIdByteSize` for 1/2/4-byte entity IDs
+  - Moved `EcsLimits` constants to `IConfig`
 - **2026-01-17**: Merged [#30](https://github.com/quabug/ParadiseECS/pull/30) - Add single-threaded Paradise.ECS with comprehensive test coverage
 - **2026-01-16**: Merged [#25](https://github.com/quabug/ParadiseECS/pull/25) - SharedArchetypeMetadata for multi-world sharing
 - **2026-01-15**: Merged [#24](https://github.com/quabug/ParadiseECS/pull/24) - Project roadmap

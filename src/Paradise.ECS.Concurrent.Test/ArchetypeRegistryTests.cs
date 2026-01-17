@@ -26,7 +26,7 @@ public class ArchetypeRegistryTests : IDisposable
 
     public ArchetypeRegistryTests()
     {
-        _chunkManager = new ChunkManager<DefaultConfig>(initialCapacity: 16);
+        _chunkManager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 });
         _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
             SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared, _chunkManager);
     }
@@ -274,7 +274,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
 
     public ArchetypeRegistryConcurrencyTests()
     {
-        _chunkManager = new ChunkManager<DefaultConfig>(initialCapacity: 64);
+        _chunkManager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 64 });
         _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
             SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared, _chunkManager);
     }

@@ -11,8 +11,6 @@ namespace Paradise.ECS.Concurrent;
 /// </summary>
 public sealed class EntityManager : IDisposable
 {
-    private const int DefaultInitialCapacity = 1024;
-
     private EntityLocation[] _locations;
     private readonly ConcurrentStack<int> _freeSlots = new();
     private readonly Lock _growLock = new();
@@ -24,8 +22,8 @@ public sealed class EntityManager : IDisposable
     /// <summary>
     /// Creates a new EntityManager.
     /// </summary>
-    /// <param name="initialCapacity">Initial capacity for entity storage. Default is 1024.</param>
-    public EntityManager(int initialCapacity = DefaultInitialCapacity)
+    /// <param name="initialCapacity">Initial capacity for entity storage.</param>
+    public EntityManager(int initialCapacity)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(initialCapacity, 0);
         _locations = new EntityLocation[initialCapacity];

@@ -46,24 +46,24 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
     /// <summary>
     /// Creates a new ChunkManager with the default <see cref="NativeMemoryAllocator"/>.
     /// </summary>
-    /// <param name="initialCapacity">Initial number of chunk slots to allocate.</param>
-    public ChunkManager(int initialCapacity = 256)
-        : this(NativeMemoryAllocator.Shared, initialCapacity)
+    /// <param name="config">The configuration instance with runtime settings.</param>
+    public ChunkManager(TConfig config)
+        : this(config, NativeMemoryAllocator.Shared)
     {
     }
 
     /// <summary>
     /// Creates a new ChunkManager with a custom allocator.
     /// </summary>
+    /// <param name="config">The configuration instance with runtime settings.</param>
     /// <param name="allocator">The allocator to use for memory operations.</param>
-    /// <param name="initialCapacity">Initial number of chunk slots to pre-allocate meta blocks for.</param>
-    public ChunkManager(IAllocator allocator, int initialCapacity = 256)
+    public ChunkManager(TConfig config, IAllocator allocator)
     {
         _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
         _metaBlocks = new nint[MaxMetaBlocks];
 
         // Pre-allocate meta blocks for initial capacity (optional optimization)
-        int metaBlocksNeeded = (initialCapacity + EntriesPerMetaBlock - 1) / EntriesPerMetaBlock;
+        int metaBlocksNeeded = (config.DefaultChunkCapacity + EntriesPerMetaBlock - 1) / EntriesPerMetaBlock;
         if (metaBlocksNeeded < 1) metaBlocksNeeded = 1;
         else if (metaBlocksNeeded > MaxMetaBlocks) metaBlocksNeeded = MaxMetaBlocks;
 

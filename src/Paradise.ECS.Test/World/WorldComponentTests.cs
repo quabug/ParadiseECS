@@ -5,13 +5,13 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class WorldComponentTests : IDisposable
 {
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(NativeMemoryAllocator.Shared);
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(new DefaultConfig(), NativeMemoryAllocator.Shared);
     private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(NativeMemoryAllocator.Shared);
     private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
     public WorldComponentTests()
     {
-        _world = new World<Bit64, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
+        _world = new World<Bit64, ComponentRegistry, DefaultConfig>(new DefaultConfig(), _sharedMetadata, _chunkManager);
     }
 
     public void Dispose()

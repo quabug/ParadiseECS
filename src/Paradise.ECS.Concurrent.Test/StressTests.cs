@@ -18,8 +18,9 @@ public sealed class StressTests : IDisposable
 
     private void CreateWorld()
     {
-        _chunkManager = new ChunkManager<DefaultConfig>();
+        _chunkManager = new ChunkManager<DefaultConfig>(new DefaultConfig());
         _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
+            new DefaultConfig(),
             SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>.Shared,
             _chunkManager);
     }

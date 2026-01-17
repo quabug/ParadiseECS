@@ -8,7 +8,7 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
 
     public EntityManagerConcurrencyTests()
     {
-        _manager = new EntityManager();
+        _manager = new EntityManager(1024);
     }
 
     public void Dispose()
@@ -216,7 +216,7 @@ public sealed class EntityManagerConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentCapacityExpansion_NoDataLoss()
     {
-        using var manager = new EntityManager();
+        using var manager = new EntityManager(1024);
 
         const int threadCount = 8;
         const int entitiesPerThread = 1000; // More entities to trigger array expansion

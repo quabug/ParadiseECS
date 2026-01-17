@@ -1,8 +1,9 @@
 namespace Paradise.ECS;
 
 /// <summary>
-/// Static configuration interface for World parameters.
-/// Uses static abstract members for compile-time resolution and JIT optimization.
+/// Configuration interface for World parameters.
+/// Uses static abstract members for compile-time structural constraints,
+/// and instance members for runtime configuration like initial capacities.
 /// </summary>
 public interface IConfig
 {
@@ -16,18 +17,14 @@ public interface IConfig
     /// </summary>
     public const int MaxComponentTypeId = (1 << EdgeKey.ComponentBits) - 1;
 
+    #region Static Abstract Members (Compile-time Structural Constraints)
+
     /// <summary>
     /// Chunk memory block size in bytes.
     /// Should be a power of 2 for optimal memory alignment.
     /// Default: 16KB (optimized for L1 cache).
     /// </summary>
     static abstract int ChunkSize { get; }
-
-    /// <summary>
-    /// Initial capacity for entity storage.
-    /// Default: 1024.
-    /// </summary>
-    static abstract int DefaultEntityCapacity { get; }
 
     /// <summary>
     /// Maximum number of metadata blocks for chunk management.
@@ -41,7 +38,45 @@ public interface IConfig
     /// Only the Entity.Id is stored, not the full Entity struct.
     /// Default: 4 bytes (sizeof(int)).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Each chunk stores entity IDs at the beginning, followed by component data arrays.
+    /// The chunk layout is: [EntityIds × N][Component1 × N][Component2 × N]...
+    /// </para>
+    /// <para>
+    /// Smaller values allow more entities per chunk but limit maximum entity count:
+    /// <list type="bullet">
+    ///   <item>1 byte: max 255 entities, 4KB chunk fits 4096 empty entities</item>
+    ///   <item>2 bytes: max 65,535 entities, 4KB chunk fits 2048 empty entities</item>
+    ///   <item>4 bytes: max ~2 billion entities, 16KB chunk fits 4096 empty entities</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// The maximum entity ID is computed as: (1 &lt;&lt; (EntityIdByteSize * 8)) - 1,
+    /// available via <see cref="Config{T}.MaxEntityId"/>.
+    /// </para>
+    /// </remarks>
     static abstract int EntityIdByteSize { get; }
+
+    #endregion
+
+    #region Instance Members (Runtime Configuration)
+
+    /// <summary>
+    /// Initial capacity for chunk storage (number of chunk slots to pre-allocate meta blocks for).
+    /// This is a runtime hint that can vary per instance.
+    /// Default: 256.
+    /// </summary>
+    int DefaultChunkCapacity { get; }
+
+    /// <summary>
+    /// Initial capacity for entity storage.
+    /// This is a runtime hint that can vary per instance.
+    /// Default: 1024.
+    /// </summary>
+    int DefaultEntityCapacity { get; }
+
+    #endregion
 }
 
 /// <summary>
@@ -65,15 +100,35 @@ public static class Config<T> where T : IConfig
 /// </summary>
 public readonly struct DefaultConfig : IConfig
 {
-    /// <inheritdoc />
-    public static int ChunkSize { get; } = 16 * 1024;
+    /// <summary>
+    /// Creates a default configuration with standard settings.
+    /// </summary>
+    public DefaultConfig() { }
+
+    #region Static Abstract Implementations (Compile-time Constraints)
 
     /// <inheritdoc />
-    public static int DefaultEntityCapacity { get; } = 1024;
+    public static int ChunkSize => 16 * 1024;
 
     /// <inheritdoc />
-    public static int MaxMetaBlocks { get; } = 1024;
+    public static int MaxMetaBlocks => 1024;
 
     /// <inheritdoc />
-    public static int EntityIdByteSize { get; } = sizeof(int);
+    public static int EntityIdByteSize => sizeof(int);
+
+    #endregion
+
+    #region Instance Members (Runtime Configuration)
+
+    /// <summary>
+    /// Initial capacity for entity storage. Default: 1024.
+    /// </summary>
+    public int DefaultEntityCapacity { get; init; } = 1024;
+
+    /// <summary>
+    /// Initial capacity for chunk storage. Default: 256.
+    /// </summary>
+    public int DefaultChunkCapacity { get; init; } = 256;
+
+    #endregion
 }

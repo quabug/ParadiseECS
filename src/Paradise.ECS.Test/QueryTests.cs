@@ -5,7 +5,7 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class QueryTests : IDisposable
 {
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(NativeMemoryAllocator.Shared);
+    private readonly ChunkManager<DefaultConfig> _chunkManager = new(new DefaultConfig(), NativeMemoryAllocator.Shared);
     private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(NativeMemoryAllocator.Shared);
     private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
 

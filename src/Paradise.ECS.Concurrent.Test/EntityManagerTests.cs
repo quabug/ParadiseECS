@@ -6,7 +6,7 @@ public class EntityManagerTests : IDisposable
 
     public EntityManagerTests()
     {
-        _manager = new EntityManager();
+        _manager = new EntityManager(1024);
     }
 
     public void Dispose()
@@ -147,7 +147,7 @@ public class EntityManagerTests : IDisposable
     [Test]
     public async Task Create_BeyondInitialCapacity_ExpandsAutomatically()
     {
-        using var manager = new EntityManager();
+        using var manager = new EntityManager(1024);
 
         // Create many entities to test expansion
         for (int i = 0; i < 100; i++)
@@ -162,7 +162,7 @@ public class EntityManagerTests : IDisposable
     [Test]
     public async Task Capacity_GrowsAsNeeded()
     {
-        using var manager = new EntityManager();
+        using var manager = new EntityManager(1024);
 
         int initialCapacity = manager.Capacity;
 
@@ -239,7 +239,7 @@ public class EntityManagerTests : IDisposable
     [Test]
     public async Task Dispose_ClearsState()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         manager.Create();
         manager.Create();
 
@@ -252,7 +252,7 @@ public class EntityManagerTests : IDisposable
     [Test]
     public async Task Create_AfterDispose_ThrowsObjectDisposedException()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         manager.Dispose();
 
         await Assert.That(manager.Create).Throws<ObjectDisposedException>();
@@ -261,7 +261,7 @@ public class EntityManagerTests : IDisposable
     [Test]
     public async Task Destroy_AfterDispose_DoesNotThrow()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity = manager.Create();
         manager.Dispose();
 
@@ -271,7 +271,7 @@ public class EntityManagerTests : IDisposable
     [Test]
     public async Task IsAlive_AfterDispose_ThrowsObjectDisposedException()
     {
-        var manager = new EntityManager();
+        var manager = new EntityManager(1024);
         var entity = manager.Create();
         manager.Dispose();
 

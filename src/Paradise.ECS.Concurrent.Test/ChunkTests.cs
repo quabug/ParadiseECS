@@ -6,7 +6,7 @@ public class ChunkTests : IDisposable
 
     public ChunkTests()
     {
-        _manager = new ChunkManager<DefaultConfig>(initialCapacity: 16);
+        _manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 });
     }
 
     public void Dispose()

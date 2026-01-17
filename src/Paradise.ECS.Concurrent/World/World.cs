@@ -43,27 +43,24 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     public int EntityCount => _entityManager.AliveCount;
 
     /// <summary>
-    /// Creates a new ECS world using the specified shared archetype metadata.
+    /// Creates a new ECS world using the specified configuration and shared archetype metadata.
     /// The caller is responsible for disposing the shared metadata and chunk manager.
     /// </summary>
+    /// <param name="config">The configuration instance with runtime settings.</param>
     /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    /// <param name="initialEntityCapacity">Initial capacity for entity storage. If not specified, uses TConfig.DefaultEntityCapacity.</param>
-    public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
-                 ChunkManager<TConfig> chunkManager,
-                 int initialEntityCapacity = 0)
+    public World(TConfig config,
+                 SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+                 ChunkManager<TConfig> chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);
 
-        if (initialEntityCapacity <= 0)
-            initialEntityCapacity = TConfig.DefaultEntityCapacity;
-
         _sharedMetadata = sharedMetadata;
         _chunkManager = chunkManager;
         _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry, TConfig>(sharedMetadata, chunkManager);
-        _entityManager = new EntityManager(initialEntityCapacity);
-        _entityLocations = new EntityLocation[initialEntityCapacity];
+        _entityManager = new EntityManager(config.DefaultEntityCapacity);
+        _entityLocations = new EntityLocation[config.DefaultEntityCapacity];
     }
 
     /// <summary>

@@ -54,17 +54,17 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
     private bool _disposed;
 
     /// <summary>
-    /// Creates a new ChunkManager with the specified allocator.
+    /// Creates a new ChunkManager with the specified configuration and allocator.
     /// </summary>
+    /// <param name="config">The configuration instance with runtime settings.</param>
     /// <param name="allocator">The allocator to use for memory operations.</param>
-    /// <param name="initialCapacity">Initial number of chunk slots to pre-allocate meta blocks for.</param>
-    public ChunkManager(IAllocator allocator, int initialCapacity = 256)
+    public ChunkManager(TConfig config, IAllocator allocator)
     {
         _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
         _metaBlocks = new nint[TConfig.MaxMetaBlocks];
 
         // Pre-allocate meta blocks for initial capacity
-        int metaBlocksNeeded = (initialCapacity + s_entriesPerMetaBlock - 1) / s_entriesPerMetaBlock;
+        int metaBlocksNeeded = (config.DefaultChunkCapacity + s_entriesPerMetaBlock - 1) / s_entriesPerMetaBlock;
         if (metaBlocksNeeded < 1) metaBlocksNeeded = 1;
         else if (metaBlocksNeeded > TConfig.MaxMetaBlocks) metaBlocksNeeded = TConfig.MaxMetaBlocks;
 
