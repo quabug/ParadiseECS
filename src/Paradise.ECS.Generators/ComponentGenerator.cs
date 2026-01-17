@@ -217,9 +217,10 @@ public class ComponentGenerator : IIncrementalGenerator
         if (fullyQualifiedName.StartsWith("global::", StringComparison.Ordinal))
             fullyQualifiedName = fullyQualifiedName.Substring(8);
 
-        // Verify the type implements IConfig
-        var implementsIConfig = typeSymbol.AllInterfaces
-            .Any(iface => iface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == "global::" + IConfigFullName);
+        // Verify the type implements IConfig using SymbolEqualityComparer (more robust than string comparison)
+        var iConfigInterface = context.SemanticModel.Compilation.GetTypeByMetadataName(IConfigFullName);
+        var implementsIConfig = iConfigInterface is not null &&
+            typeSymbol.AllInterfaces.Contains(iConfigInterface, SymbolEqualityComparer.Default);
 
         return new DefaultConfigInfo(
             fullyQualifiedName,
