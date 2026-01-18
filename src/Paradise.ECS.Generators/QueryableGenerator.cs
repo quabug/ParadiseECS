@@ -367,9 +367,15 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    /// <summary>Gets the query builder for this queryable type.</summary>");
         sb.AppendLine($"{indent}    public static {queryable.TypeName}QueryBuilder Query => default;");
         sb.AppendLine();
+        sb.AppendLine($"{indent}    /// <summary>Gets the chunk query builder for batch component access.</summary>");
+        sb.AppendLine($"{indent}    public static {queryable.TypeName}ChunkQueryBuilder ChunkQuery => default;");
+        sb.AppendLine();
 
         // Generate nested Data<TBits, TRegistry, TConfig> struct
         GenerateNestedDataStruct(sb, queryable, indent + "    ");
+
+        // Generate nested ChunkData<TBits, TRegistry, TConfig> struct
+        GenerateNestedChunkDataStruct(sb, queryable, indent + "    ");
 
         sb.AppendLine($"{indent}}}");
 
@@ -383,6 +389,10 @@ public class QueryableGenerator : IIncrementalGenerator
         // Generate QueryBuilder and Query structs at namespace level (inside the same namespace block)
         GenerateQueryBuilderStruct(sb, queryable, baseIndent);
         GenerateTypedQueryStruct(sb, queryable, baseIndent);
+
+        // Generate ChunkQueryBuilder and ChunkQuery structs
+        GenerateChunkQueryBuilderStruct(sb, queryable, baseIndent);
+        GenerateTypedChunkQueryStruct(sb, queryable, baseIndent);
 
         // Close namespace
         if (hasNamespace)
@@ -599,6 +609,208 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}            }}");
         sb.AppendLine($"{indent}            return true;");
         sb.AppendLine($"{indent}        }}");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine($"{indent}}}");
+    }
+
+    private static void GenerateNestedChunkDataStruct(StringBuilder sb, QueryableInfo queryable, string indent)
+    {
+        sb.AppendLine();
+        sb.AppendLine($"{indent}/// <summary>");
+        sb.AppendLine($"{indent}/// Chunk data providing span-based component access for batch processing.");
+        sb.AppendLine($"{indent}/// </summary>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
+        sb.AppendLine($"{indent}public readonly ref struct ChunkData<TBits, TRegistry, TConfig>");
+        sb.AppendLine($"{indent}    where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine($"{indent}    where TRegistry : global::Paradise.ECS.IComponentRegistry");
+        sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
+        sb.AppendLine($"{indent}{{");
+
+        // Generate private fields
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ImmutableArchetypeLayout<TBits, TRegistry, TConfig> _layout;");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkHandle _chunk;");
+        sb.AppendLine($"{indent}    private readonly int _entityCount;");
+        sb.AppendLine();
+
+        // Generate internal constructor
+        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}    internal ChunkData(");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkManager chunkManager,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkHandle chunk,");
+        sb.AppendLine($"{indent}        int entityCount)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        _chunkManager = chunkManager;");
+        sb.AppendLine($"{indent}        _layout = layout;");
+        sb.AppendLine($"{indent}        _chunk = chunk;");
+        sb.AppendLine($"{indent}        _entityCount = entityCount;");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+
+        // EntityCount property
+        sb.AppendLine($"{indent}    /// <summary>Gets the number of entities in this chunk.</summary>");
+        sb.AppendLine($"{indent}    public int EntityCount");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}        get => _entityCount;");
+        sb.AppendLine($"{indent}    }}");
+
+        // Generate span properties for With<T> components (unless QueryOnly)
+        foreach (var comp in queryable.WithComponentsAccess)
+        {
+            if (comp.QueryOnly)
+                continue;
+
+            sb.AppendLine();
+            // Pluralize property name for span (simple pluralization)
+            var spanPropertyName = comp.PropertyName + "s";
+            sb.AppendLine($"{indent}    /// <summary>Gets a span over all {comp.ComponentTypeName} components in this chunk.</summary>");
+            sb.AppendLine($"{indent}    public global::System.Span<global::{comp.ComponentFullName}> {spanPropertyName}");
+            sb.AppendLine($"{indent}    {{");
+            sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+            sb.AppendLine($"{indent}        get");
+            sb.AppendLine($"{indent}        {{");
+            sb.AppendLine($"{indent}            int baseOffset = _layout.GetBaseOffset<global::{comp.ComponentFullName}>();");
+            sb.AppendLine($"{indent}            return _chunkManager.GetBytes(_chunk).GetSpan<global::{comp.ComponentFullName}>(baseOffset, _entityCount);");
+            sb.AppendLine($"{indent}        }}");
+            sb.AppendLine($"{indent}    }}");
+        }
+
+        // Generate Has property and GetXxxSpan() method for Optional<T> components
+        foreach (var opt in queryable.OptionalComponents)
+        {
+            sb.AppendLine();
+            // HasXxx property
+            sb.AppendLine($"{indent}    /// <summary>Gets whether this chunk's archetype has the {opt.ComponentTypeName} component.</summary>");
+            sb.AppendLine($"{indent}    public bool Has{opt.PropertyName}");
+            sb.AppendLine($"{indent}    {{");
+            sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+            sb.AppendLine($"{indent}        get => _layout.HasComponent<global::{opt.ComponentFullName}>();");
+            sb.AppendLine($"{indent}    }}");
+
+            sb.AppendLine();
+            // GetXxxSpan() method - pluralize name
+            var spanMethodName = "Get" + opt.PropertyName + "s";
+            sb.AppendLine($"{indent}    /// <summary>Gets a span over all {opt.ComponentTypeName} components in this chunk. Only call if Has{opt.PropertyName} is true.</summary>");
+            sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+            sb.AppendLine($"{indent}    public global::System.Span<global::{opt.ComponentFullName}> {spanMethodName}()");
+            sb.AppendLine($"{indent}    {{");
+            sb.AppendLine($"{indent}        int baseOffset = _layout.GetBaseOffset<global::{opt.ComponentFullName}>();");
+            sb.AppendLine($"{indent}        return _chunkManager.GetBytes(_chunk).GetSpan<global::{opt.ComponentFullName}>(baseOffset, _entityCount);");
+            sb.AppendLine($"{indent}    }}");
+        }
+
+        sb.AppendLine($"{indent}}}");
+    }
+
+    private static void GenerateChunkQueryBuilderStruct(StringBuilder sb, QueryableInfo queryable, string indent)
+    {
+        sb.AppendLine();
+        sb.AppendLine($"{indent}/// <summary>");
+        sb.AppendLine($"{indent}/// Chunk query builder for {queryable.TypeName}. Builds a typed chunk query for batch component access.");
+        sb.AppendLine($"{indent}/// </summary>");
+        sb.AppendLine($"{indent}public readonly struct {queryable.TypeName}ChunkQueryBuilder");
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{indent}    /// <summary>Builds a typed chunk query for the specified world.</summary>");
+        sb.AppendLine($"{indent}    /// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
+        sb.AppendLine($"{indent}    /// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
+        sb.AppendLine($"{indent}    /// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
+        sb.AppendLine($"{indent}    /// <param name=\"world\">The world to query.</param>");
+        sb.AppendLine($"{indent}    /// <returns>A typed chunk query that iterates over {queryable.TypeName}.ChunkData instances.</returns>");
+        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}    public {queryable.TypeName}ChunkQuery<TBits, TRegistry, TConfig> Build<TBits, TRegistry, TConfig>(");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world)");
+        sb.AppendLine($"{indent}        where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine($"{indent}        where TRegistry : global::Paradise.ECS.IComponentRegistry");
+        sb.AppendLine($"{indent}        where TConfig : global::Paradise.ECS.IConfig, new()");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TBits>.Descriptions[{queryable.TypeName}.QueryableId];");
+        sb.AppendLine($"{indent}        var query = world.Registry.GetOrCreateQuery(hashedDescription);");
+        sb.AppendLine($"{indent}        return new {queryable.TypeName}ChunkQuery<TBits, TRegistry, TConfig>(world, query);");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine($"{indent}}}");
+    }
+
+    private static void GenerateTypedChunkQueryStruct(StringBuilder sb, QueryableInfo queryable, string indent)
+    {
+        sb.AppendLine();
+        var chunkDataType = $"{queryable.TypeName}.ChunkData<TBits, TRegistry, TConfig>";
+
+        sb.AppendLine($"{indent}/// <summary>");
+        sb.AppendLine($"{indent}/// Typed chunk query that returns {queryable.TypeName}.ChunkData instances for batch processing.");
+        sb.AppendLine($"{indent}/// </summary>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
+        sb.AppendLine($"{indent}public readonly struct {queryable.TypeName}ChunkQuery<TBits, TRegistry, TConfig>");
+        sb.AppendLine($"{indent}    where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine($"{indent}    where TRegistry : global::Paradise.ECS.IComponentRegistry");
+        sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> _query;");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}    internal {queryable.TypeName}ChunkQuery(");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> query)");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        _chunkManager = world.ChunkManager;");
+        sb.AppendLine($"{indent}        _query = query;");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}    /// <summary>Gets the total number of entities matching this query.</summary>");
+        sb.AppendLine($"{indent}    public int EntityCount");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}        get => _query.EntityCount;");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}    /// <summary>Gets whether this query has any matching entities.</summary>");
+        sb.AppendLine($"{indent}    public bool IsEmpty");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}        get => _query.IsEmpty;");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}    /// <summary>Returns an enumerator that iterates through all chunks in the matching archetypes.</summary>");
+        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}    public Enumerator GetEnumerator() => new Enumerator(_chunkManager, _query);");
+        sb.AppendLine();
+
+        // Generate nested Enumerator struct
+        sb.AppendLine($"{indent}    /// <summary>Enumerator for iterating over {queryable.TypeName}.ChunkData instances.</summary>");
+        sb.AppendLine($"{indent}    public ref struct Enumerator");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
+        sb.AppendLine($"{indent}        private global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>>.ChunkEnumerator _chunkEnumerator;");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}        internal Enumerator(");
+        sb.AppendLine($"{indent}            global::Paradise.ECS.ChunkManager chunkManager,");
+        sb.AppendLine($"{indent}            global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> query)");
+        sb.AppendLine($"{indent}        {{");
+        sb.AppendLine($"{indent}            _chunkManager = chunkManager;");
+        sb.AppendLine($"{indent}            _chunkEnumerator = query.Chunks.GetEnumerator();");
+        sb.AppendLine($"{indent}        }}");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}        /// <summary>Gets the current {queryable.TypeName}.ChunkData.</summary>");
+        sb.AppendLine($"{indent}        public {chunkDataType} Current");
+        sb.AppendLine($"{indent}        {{");
+        sb.AppendLine($"{indent}            [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}            get");
+        sb.AppendLine($"{indent}            {{");
+        sb.AppendLine($"{indent}                var info = _chunkEnumerator.Current;");
+        sb.AppendLine($"{indent}                return new {chunkDataType}(_chunkManager, info.Archetype.Layout, info.Handle, info.EntityCount);");
+        sb.AppendLine($"{indent}            }}");
+        sb.AppendLine($"{indent}        }}");
+        sb.AppendLine();
+        sb.AppendLine($"{indent}        /// <summary>Advances to the next chunk.</summary>");
+        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}        public bool MoveNext() => _chunkEnumerator.MoveNext();");
         sb.AppendLine($"{indent}    }}");
         sb.AppendLine($"{indent}}}");
     }

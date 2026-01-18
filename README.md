@@ -9,6 +9,7 @@ A high-performance Entity Component System library for .NET 10, designed for Nat
 - **O(1) Structural Changes** - Graph-based archetype transitions enable constant-time add/remove component operations.
 - **Fluent Builder API** - Type-safe, zero-allocation entity creation with compile-time validation.
 - **Multi-World Support** - Shared archetype metadata enables multiple worlds to share type information.
+- **Convenient Entity Iteration** - WorldQuery and WorldEntity provide ergonomic query iteration with fluent component access.
 
 ## Requirements
 
@@ -171,20 +172,45 @@ Build queries to iterate over entities with specific component combinations:
 var movingQuery = World<Bit256, ComponentRegistry>.Query()
     .With<Position>()
     .With<Velocity>()
-    .Build(archetypeRegistry);
+    .Build(world);
 
 // Query entities with Position but WITHOUT PlayerTag
 var nonPlayerQuery = World<Bit256, ComponentRegistry>.Query()
     .With<Position>()
     .Without<PlayerTag>()
-    .Build(archetypeRegistry);
+    .Build(world);
 
 // Query entities with Position AND (Health OR Shield)
 var damagableQuery = World<Bit256, ComponentRegistry>.Query()
     .With<Position>()
     .WithAny<Health>()
     .WithAny<Shield>()
-    .Build(archetypeRegistry);
+    .Build(world);
+```
+
+### Iterate Over Entities
+
+Use `WorldQuery` for convenient entity iteration with component access:
+
+```csharp
+// Build a query and iterate
+var query = World<Bit256, ComponentRegistry>.Query()
+    .With<Position>()
+    .With<Velocity>()
+    .Build(world);
+
+// Iterate using WorldQuery
+foreach (var worldEntity in new WorldQuery<Bit256, ComponentRegistry, DefaultConfig>(world, query))
+{
+    // Access components through WorldEntity
+    using var pos = worldEntity.GetComponent<Position>();
+    using var vel = worldEntity.GetComponent<Velocity>();
+
+    // Update position based on velocity
+    pos.Value.X += vel.Value.X;
+    pos.Value.Y += vel.Value.Y;
+    pos.Value.Z += vel.Value.Z;
+}
 ```
 
 ## Architecture
@@ -317,6 +343,8 @@ using var chunkManager = new ChunkManager(allocator);
 
 See [ROADMAP.md](ROADMAP.md) for planned features including:
 
+- Query code generator for strongly-typed iteration (in progress)
+- Godot engine integration
 - System scheduling and execution
 - Parallel job system
 - Event system

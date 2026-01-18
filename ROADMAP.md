@@ -1,6 +1,6 @@
 # Paradise.ECS Roadmap
 
-> Last updated: 2026-01-18
+> Last updated: 2026-01-19
 
 ## Vision
 
@@ -98,36 +98,17 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 ### In Progress
 
 - [~] **Query Code Generator** (`feature/query-code-gen`)
-  - Source generator for strongly-typed query structs
-  - Zero-allocation iteration patterns via generated code
-  - Compile-time query validation
+  - [x] Source generator for strongly-typed query structs
+  - [x] Zero-allocation iteration patterns via generated code
+  - [x] Compile-time query validation
+  - [x] KGP-style typed iteration with direct component property access
+  - [x] `WithAttribute<T>` with Name, IsReadOnly, QueryOnly parameters
+  - [x] `OptionalAttribute<T>` for optional components with Has/Get pattern
 
 ### Planned
 
-- [ ] **Per-World Component IDs**
-  - Allow each world to have independent component type registrations
-  - Currently component IDs are global via `IComponentRegistry` generated at compile-time
-  - Enable runtime component registration with world-local ID assignment
-  - Support scenarios where different worlds use different component sets
-  - Consider trade-offs: global IDs enable world sharing, local IDs enable isolation
-  - Potential approaches:
-    - World-specific registry instances with local ID mapping
-    - Hybrid: shared base components + world-local extensions
-    - Runtime component type registration with AOT-compatible patterns
-
-- [ ] **Extensible Metadata Interface**
-  - Define interface for world/archetype metadata (e.g., `IWorldMetadata`)
-  - Allow custom implementations beyond the default `SharedArchetypeMetadata`
-  - Enable extension points for custom caching strategies, persistence, or debugging hooks
-  - Support composition of metadata providers for modular functionality
-
-- [ ] **Specialized World Types**
-  - `SingleThreadWorld` - Optimized for single-threaded scenarios, minimal locking overhead
-  - `JobsWorld` - Multi-threaded world with job system integration, parallel query iteration
-  - `ReadOnlyWorld` - Immutable view for safe concurrent reads, snapshot queries
-  - `ReplayWorld` - Recording and playback of world state for debugging/networking
-  - Common interface (`IWorld`) with usage-specific implementations
-  - Compile-time world type selection for optimal performance
+- [ ] **Zero-Allocation Tag Component System** ([#10](https://github.com/quabug/ParadiseECS/issues/10))
+    - Design and implement tag components without storage overhead
 
 - [ ] **World Clone & Snapshots**
   - World cloning for snapshot/rollback scenarios
@@ -135,16 +116,31 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Support for game state serialization and networking
   - Integration with ReadOnlyWorld for snapshot queries
 
-- [ ] **Performance Optimizations**
-  - GetChunkIndex linear scan optimization ([#17](https://github.com/quabug/ParadiseECS/issues/17))
-  - Incremental hash computation ([#14](https://github.com/quabug/ParadiseECS/issues/14))
-  - FrozenDictionary vs Dictionary benchmark ([#13](https://github.com/quabug/ParadiseECS/issues/13))
-  - Query archetype caching for high-frequency scenarios ([#12](https://github.com/quabug/ParadiseECS/issues/12))
-  - Hybrid edge caching for archetype transitions ([#20](https://github.com/quabug/ParadiseECS/issues/20))
-  - Inverted index for query matching optimization
+- [ ] **System Scheduling**
+    - System base class/interface
+    - Query iteration patterns
+    - System execution ordering
+    - Dependency management between systems
 
-- [ ] **Zero-Allocation Tag Component System** ([#10](https://github.com/quabug/ParadiseECS/issues/10))
-  - Design and implement tag components without storage overhead
+- [ ] **Parallel Job System**
+    - Job scheduling infrastructure
+    - Work stealing for load balancing
+    - Parallel query iteration
+    - Safety rails for data races
+
+- [ ] **Extensible Metadata Interface**
+    - Define interface for world/archetype metadata (e.g., `IWorldMetadata`)
+    - Allow custom implementations beyond the default `SharedArchetypeMetadata`
+    - Enable extension points for custom caching strategies, persistence, or debugging hooks
+    - Support composition of metadata providers for modular functionality
+
+- [ ] **Specialized World Types**
+    - `SingleThreadWorld` - Optimized for single-threaded scenarios, minimal locking overhead
+    - `JobsWorld` - Multi-threaded world with job system integration, parallel query iteration
+    - `ReadOnlyWorld` - Immutable view for safe concurrent reads, snapshot queries
+    - `ReplayWorld` - Recording and playback of world state for debugging/networking
+    - Common interface (`IWorld`) with usage-specific implementations
+    - Compile-time world type selection for optimal performance
 
 - [ ] **Reference Type Component Support**
   - Enable managed/reference type components (classes, strings, arrays)
@@ -152,18 +148,6 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - GC-aware chunk management for reference types
   - Consider hybrid archetypes with both unmanaged and managed components
   - Investigate pinning strategies for interop scenarios
-
-- [ ] **System Scheduling**
-  - System base class/interface
-  - Query iteration patterns
-  - System execution ordering
-  - Dependency management between systems
-
-- [ ] **Parallel Job System**
-  - Job scheduling infrastructure
-  - Work stealing for load balancing
-  - Parallel query iteration
-  - Safety rails for data races
 
 - [ ] **Exclusive Write Constraints**
   - Compile-time or runtime enforcement that only one system can write to a component type
@@ -184,30 +168,6 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - AOT-compatible serialization
   - Version migration support
 
-- [ ] **Resource Management**
-  - Asset loading abstractions
-  - Resource lifecycle management
-  - Hot-reload support
-  - Memory budgeting
-
-- [ ] **Prefabs & Templates**
-  - Entity archetype templates
-  - Instantiation patterns
-  - Nested prefabs
-  - Runtime modification
-
-- [ ] **Debugging & Profiling**
-  - Entity inspector integration
-  - Performance profiler
-  - Memory usage visualization
-  - System execution timeline
-
-- [ ] **Benchmark Suite**
-  - BenchmarkDotNet integration
-  - Performance targets definition
-  - Regression detection
-  - Comparison with other ECS libraries
-
 - [ ] **Object Pool**
   - Generic object pooling for frequently allocated objects
   - Thread-safe pool implementation for concurrent access
@@ -224,6 +184,60 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Memory budget tracking and diagnostics integration
   - Hot-swappable allocator strategies per World or subsystem
 
+- [ ] **Godot Integration**
+  - Create binding layer for Godot 4.x C# (.NET 8+)
+  - Bridge Paradise.ECS entities with Godot Node system
+  - Component-to-Node synchronization for rendering, physics, and audio
+  - GDScript interop for querying and manipulating ECS data
+  - Godot editor integration for entity inspection and debugging
+  - Scene tree synchronization strategies (lazy vs eager)
+  - Consider GodotSharp API compatibility and lifecycle management
+  - Performance considerations: minimize managed-to-native boundary crossings
+  - Example project demonstrating ECS-driven game logic with Godot rendering
+
+- [ ] **Performance Optimizations**
+    - GetChunkIndex linear scan optimization ([#17](https://github.com/quabug/ParadiseECS/issues/17))
+    - Incremental hash computation ([#14](https://github.com/quabug/ParadiseECS/issues/14))
+    - FrozenDictionary vs Dictionary benchmark ([#13](https://github.com/quabug/ParadiseECS/issues/13))
+    - Query archetype caching for high-frequency scenarios ([#12](https://github.com/quabug/ParadiseECS/issues/12))
+    - Hybrid edge caching for archetype transitions ([#20](https://github.com/quabug/ParadiseECS/issues/20))
+    - Inverted index for query matching optimization
+
+- [ ] **Per-World Component IDs**
+    - Allow each world to have independent component type registrations
+    - Currently component IDs are global via `IComponentRegistry` generated at compile-time
+    - Enable runtime component registration with world-local ID assignment
+    - Support scenarios where different worlds use different component sets
+    - Consider trade-offs: global IDs enable world sharing, local IDs enable isolation
+    - Potential approaches:
+        - World-specific registry instances with local ID mapping
+        - Hybrid: shared base components + world-local extensions
+        - Runtime component type registration with AOT-compatible patterns
+ 
+- [ ] **Cross-Assembly ECS Support**
+    - Enable components, queryables, and world types to be defined across multiple assemblies
+    - Components from library assemblies should be usable in application assemblies
+    - Queryables in one assembly should reference components from other assemblies
+    - World type aliases should work with component registries spanning assemblies
+    - Consider assembly-level coordination for component ID assignment
+    - Challenges: source generator runs per-assembly, need cross-assembly type discovery
+    - Potential approaches:
+        - Incremental ID ranges reserved per assembly
+        - Assembly-level attribute to declare component ID offsets
+        - Runtime component registration with AOT-compatible patterns
+        - Shared component base assembly with extension assemblies
+
+- [ ] **Resource Management**
+    - Asset loading abstractions
+    - Resource lifecycle management
+    - Hot-reload support
+    - Memory budgeting
+
+- [ ] **Prefabs & Templates**
+    - Entity archetype templates
+    - Instantiation patterns
+    - Nested prefabs
+    - Runtime modification
 ---
 
 ## Open Issues Summary
