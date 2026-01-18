@@ -137,12 +137,12 @@ public sealed class QueryTests : IDisposable
     {
         // Create archetype with Position
         var positionMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var positionArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
+        var positionArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
         // Create archetype with Velocity
         var velocityMask = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
-        var velocityArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
+        var velocityArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
         velocityArchetype.AllocateEntity(new Entity(2, 1));
 
         var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
@@ -163,7 +163,7 @@ public sealed class QueryTests : IDisposable
     {
         // Create archetype with Velocity only
         var velocityMask = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
-        var velocityArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
+        var velocityArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
         velocityArchetype.AllocateEntity(new Entity(1, 1));
 
         var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
@@ -184,12 +184,12 @@ public sealed class QueryTests : IDisposable
     {
         // Create archetype with Position only
         var positionMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var positionArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
+        var positionArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
         // Create archetype with Position + Velocity
         var bothMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
-        var bothArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
+        var bothArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         bothArchetype.AllocateEntity(new Entity(2, 1));
 
         var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
@@ -211,12 +211,12 @@ public sealed class QueryTests : IDisposable
     {
         // Create archetype with Position only
         var positionMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var positionArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
+        var positionArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
         // Create archetype with Position + Velocity
         var bothMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
-        var bothArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
+        var bothArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         bothArchetype.AllocateEntity(new Entity(2, 1));
 
         var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
@@ -254,12 +254,12 @@ public sealed class QueryTests : IDisposable
     {
         // Create archetype with Position only
         var positionMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var positionArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
+        var positionArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
         // Create archetype with Position + Velocity
         var bothMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
-        var bothArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
+        var bothArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         bothArchetype.AllocateEntity(new Entity(2, 1));
 
         var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
@@ -274,13 +274,13 @@ public sealed class QueryTests : IDisposable
     {
         // Create archetype with Position only and add 2 entities
         var positionMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var positionArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
+        var positionArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
         positionArchetype.AllocateEntity(new Entity(2, 1));
 
         // Create archetype with Velocity only and add 1 entity
         var velocityMask = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
-        var velocityArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
+        var velocityArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
         velocityArchetype.AllocateEntity(new Entity(3, 1));
 
         var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
@@ -301,7 +301,7 @@ public sealed class QueryTests : IDisposable
 
         // Create archetype with Position and add entity
         var positionMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var positionArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
+        var positionArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
         var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
@@ -320,7 +320,7 @@ public sealed class QueryTests : IDisposable
     {
         // Create archetype with Position
         var positionMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var positionArchetype = _registry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
+        var positionArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
         var query1 = World<Bit64, ComponentRegistry, DefaultConfig>.Query()

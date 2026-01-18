@@ -309,11 +309,7 @@ public sealed class StressTests : IDisposable
         _world.AddComponent(entity, new TestVelocity { X = 1, Y = 2, Z = 3 });
 
         // Verify Position data preserved
-        TestPosition pos;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            pos = posRef.Value;
-        }
+        var pos = _world.GetComponent<TestPosition>(entity);
 
         await Assert.That(pos.X).IsEqualTo(10f);
         await Assert.That(pos.Y).IsEqualTo(20f);
@@ -323,15 +319,8 @@ public sealed class StressTests : IDisposable
         _world.AddComponent(entity, new TestHealth { Current = 100, Max = 100 });
 
         // Verify both Position and Velocity preserved
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            pos = posRef.Value;
-        }
-        TestVelocity vel;
-        using (var velRef = _world.GetComponent<TestVelocity>(entity))
-        {
-            vel = velRef.Value;
-        }
+        pos = _world.GetComponent<TestPosition>(entity);
+        var vel = _world.GetComponent<TestVelocity>(entity);
 
         await Assert.That(pos.X).IsEqualTo(10f);
         await Assert.That(vel.X).IsEqualTo(1f);
@@ -359,9 +348,9 @@ public sealed class StressTests : IDisposable
         for (int i = 0; i < entities.Count; i++)
         {
             TestPosition pos;
-            using (var posRef = _world!.GetComponent<TestPosition>(entities[i]))
+            var posRef = _world!.GetComponent<TestPosition>(entities[i]);
             {
-                pos = posRef.Value;
+                pos = posRef;
             }
 
             await Assert.That(pos.X).IsEqualTo((float)i);

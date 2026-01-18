@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Paradise.ECS.Concurrent;
 
 /// <summary>
@@ -647,5 +649,68 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         _entityManager.Dispose();
 
         _entityLocations = [];
+    }
+}
+
+public static class ComponentsBuilderWorldExtensions
+{
+    extension<TBuilder>(TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
+    {
+        /// <summary>
+        /// Builds the entity in the specified world.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="world">The world to create the entity in.</param>
+        /// <returns>The created entity.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Entity Build<TBits, TRegistry, TConfig>(World<TBits, TRegistry, TConfig> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            return world.CreateEntity(builder);
+        }
+
+        /// <summary>
+        /// Overwrites all components on an existing entity with the builder's components.
+        /// Any existing components are discarded. The entity must already exist and be alive.
+        /// Used for deserialization or network synchronization.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="entity">The existing entity handle.</param>
+        /// <param name="world">The world containing the entity.</param>
+        /// <returns>The entity.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Entity Overwrite<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            return world.OverwriteEntity(entity, builder);
+        }
+
+        /// <summary>
+        /// Adds the builder's components to an existing entity, preserving its current components.
+        /// This is a structural change that moves the entity to a new archetype.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="entity">The existing entity handle.</param>
+        /// <param name="world">The world containing the entity.</param>
+        /// <returns>The entity.</returns>
+        /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Entity AddTo<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            return world.AddComponents(entity, builder);
+        }
     }
 }

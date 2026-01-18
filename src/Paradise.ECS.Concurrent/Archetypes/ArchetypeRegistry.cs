@@ -10,7 +10,8 @@ namespace Paradise.ECS.Concurrent;
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
-public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig> : IDisposable
+public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
+    : IArchetypeRegistry<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>>, IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
@@ -50,7 +51,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig> : IDisposable
     /// </summary>
     /// <param name="description">The query description defining matching criteria.</param>
     /// <returns>The query for this description.</returns>
-    public Query<TBits, TRegistry, TConfig> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description)
+    public Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = _operationGuard.EnterScope();
@@ -61,7 +62,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig> : IDisposable
         // Fast path: query already exists in this world
         if ((uint)queryId < (uint)_queryCache.Count && _queryCache[queryId] is { } existingList)
         {
-            return new Query<TBits, TRegistry, TConfig>(existingList);
+            return new Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>>(existingList);
         }
 
         using var lockScope = _lock.EnterScope();
@@ -77,7 +78,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig> : IDisposable
         ref var slot = ref _queryCache.GetRef(queryId);
         if (slot is not null)
         {
-            return new Query<TBits, TRegistry, TConfig>(slot);
+            return new Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>>(slot);
         }
 
         // Get matched archetype IDs from shared metadata and add only locally existing archetypes
@@ -99,7 +100,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig> : IDisposable
         }
 
         slot = archetypes;
-        return new Query<TBits, TRegistry, TConfig>(archetypes);
+        return new Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>>(archetypes);
     }
 
     /// <summary>

@@ -9,7 +9,7 @@ namespace Paradise.ECS.Concurrent;
 /// Uses a contiguous array for entity metadata indexed by Entity.Id for O(1) lookups.
 /// Array growth uses a lock to prevent wasted allocations.
 /// </summary>
-public sealed class EntityManager : IDisposable
+public sealed class EntityManager : IEntityManager, IDisposable
 {
     private EntityLocation[] _locations;
     private readonly ConcurrentStack<int> _freeSlots = new();

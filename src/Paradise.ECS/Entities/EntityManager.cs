@@ -8,7 +8,7 @@ namespace Paradise.ECS;
 /// Uses a contiguous list for entity metadata indexed by Entity.Id for O(1) lookups.
 /// Single-threaded version without concurrent access support.
 /// </summary>
-public sealed class EntityManager
+public sealed class EntityManager : IEntityManager
 {
     private readonly List<EntityLocation> _locations;
     private readonly Stack<int> _freeSlots = new();

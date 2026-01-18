@@ -10,7 +10,7 @@ namespace Paradise.ECS;
 /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public sealed class Archetype<TBits, TRegistry, TConfig>
+public sealed class Archetype<TBits, TRegistry, TConfig> : IArchetype<TBits, TRegistry, TConfig>
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()

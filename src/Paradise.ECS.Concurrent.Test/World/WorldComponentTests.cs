@@ -117,9 +117,9 @@ public sealed class WorldComponentTests : IDisposable
 
         // Capture values before await (ref struct cannot cross await boundary)
         TestPosition pos;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
+        var posRef = _world.GetComponent<TestPosition>(entity);
         {
-            pos = posRef.Value;
+            pos = posRef;
         }
         await Assert.That(pos.X).IsEqualTo(10f);
         await Assert.That(pos.Y).IsEqualTo(20f);
@@ -165,9 +165,9 @@ public sealed class WorldComponentTests : IDisposable
         await Assert.That(hasVel).IsFalse();
 
         float posX;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
+        var posRef = _world.GetComponent<TestPosition>(entity);
         {
-            posX = posRef.Value.X;
+            posX = posRef.X;
         }
         await Assert.That(posX).IsEqualTo(10f);
     }
@@ -197,9 +197,9 @@ public sealed class WorldComponentTests : IDisposable
         _world.AddComponent(entity, new TestPosition { X = 10, Y = 20, Z = 30 });
 
         TestPosition pos;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
+        var posRef = _world.GetComponent<TestPosition>(entity);
         {
-            pos = posRef.Value;
+            pos = posRef;
         }
 
         await Assert.That(pos.X).IsEqualTo(10f);
@@ -214,27 +214,23 @@ public sealed class WorldComponentTests : IDisposable
 
         await Assert.That(() =>
         {
-            using var _ = _world.GetComponent<TestPosition>(entity);
+            var _ = _world.GetComponent<TestPosition>(entity);
         }).Throws<InvalidOperationException>();
     }
 
     [Test]
-    public async Task GetComponent_ModifyViaRef_PersistsChange()
+    public async Task SetComponent_ModifyComponent_PersistsChange()
     {
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestPosition { X = 10 });
 
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            posRef.Value.X = 999;
-        }
+        // Modify via SetComponent (GetComponent returns a copy, not a ref)
+        var pos = _world.GetComponent<TestPosition>(entity);
+        pos.X = 999;
+        _world.SetComponent(entity, pos);
 
-        float posX;
-        using (var posRef2 = _world.GetComponent<TestPosition>(entity))
-        {
-            posX = posRef2.Value.X;
-        }
-        await Assert.That(posX).IsEqualTo(999f);
+        var pos2 = _world.GetComponent<TestPosition>(entity);
+        await Assert.That(pos2.X).IsEqualTo(999f);
     }
 
     #endregion
@@ -250,9 +246,9 @@ public sealed class WorldComponentTests : IDisposable
         _world.SetComponent(entity, new TestPosition { X = 50, Y = 60, Z = 70 });
 
         TestPosition pos;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
+        var posRef = _world.GetComponent<TestPosition>(entity);
         {
-            pos = posRef.Value;
+            pos = posRef;
         }
         await Assert.That(pos.X).IsEqualTo(50f);
         await Assert.That(pos.Y).IsEqualTo(60f);
@@ -282,13 +278,13 @@ public sealed class WorldComponentTests : IDisposable
         _world.AddComponent(e2, new TestPosition { X = 200 });
 
         float posX1, posX2;
-        using (var ref1 = _world.GetComponent<TestPosition>(e1))
+        var ref1 = _world.GetComponent<TestPosition>(e1);
         {
-            posX1 = ref1.Value.X;
+            posX1 = ref1.X;
         }
-        using (var ref2 = _world.GetComponent<TestPosition>(e2))
+        var ref2 = _world.GetComponent<TestPosition>(e2);
         {
-            posX2 = ref2.Value.X;
+            posX2 = ref2.X;
         }
 
         await Assert.That(posX1).IsEqualTo(100f);
@@ -308,9 +304,9 @@ public sealed class WorldComponentTests : IDisposable
 
         var isAlive = _world.IsAlive(e2);
         float posX2;
-        using (var ref2 = _world.GetComponent<TestPosition>(e2))
+        var ref2 = _world.GetComponent<TestPosition>(e2);
         {
-            posX2 = ref2.Value.X;
+            posX2 = ref2.X;
         }
         await Assert.That(isAlive).IsTrue();
         await Assert.That(posX2).IsEqualTo(200f);

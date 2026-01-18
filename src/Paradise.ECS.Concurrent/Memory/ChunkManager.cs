@@ -17,7 +17,7 @@ namespace Paradise.ECS.Concurrent;
 /// - Meta blocks are lazily allocated on-demand using CAS
 /// - Maximum capacity: MaxMetaBlocks * EntriesPerMetaBlock
 /// </summary>
-public sealed unsafe class ChunkManager : IDisposable
+public sealed unsafe class ChunkManager : IChunkManager
 {
     /// <summary>
     /// Metadata for a single chunk slot.
@@ -43,7 +43,8 @@ public sealed unsafe class ChunkManager : IDisposable
     private int _nextSlotId; // Next fresh slot ID to allocate (atomic)
     private int _disposed; // 0 = not disposed, 1 = disposed
 
-    internal int ChunkSize => _chunkSize;
+    /// <inheritdoc />
+    public int ChunkSize => _chunkSize;
 
     /// <summary>
     /// Creates a new ChunkManager with the specified configuration.

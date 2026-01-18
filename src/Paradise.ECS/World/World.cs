@@ -48,7 +48,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         _entityManager = new EntityManager(config.DefaultEntityCapacity);
 
         // Create the empty archetype for componentless entities
-        _emptyArchetype = _archetypeRegistry.GetOrCreateArchetype(
+        _emptyArchetype = _archetypeRegistry.GetOrCreate(
             (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
     }
 
@@ -99,7 +99,7 @@ public sealed class World<TBits, TRegistry, TConfig>
 
         // Create entity and place in target archetype (returns empty archetype if mask is empty)
         var entity = _entityManager.Create();
-        var archetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)mask);
+        var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
         PlaceEntityWithComponents(entity, archetype, builder);
 
         return entity;
@@ -126,7 +126,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         RemoveFromCurrentArchetype(location);
 
         // Get target archetype (returns empty archetype if mask is empty)
-        var archetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)mask);
+        var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
 
         // Place in target archetype and write components
         PlaceEntityWithComponents(entity, archetype, builder);
@@ -155,7 +155,7 @@ public sealed class World<TBits, TRegistry, TConfig>
             return entity;
 
         // Get current mask from entity's archetype
-        var sourceArchetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
         var currentMask = sourceArchetype.Layout.ComponentMask;
 
         // Merge masks and get target archetype
@@ -170,7 +170,7 @@ public sealed class World<TBits, TRegistry, TConfig>
             return entity;
         }
 
-        var targetArchetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)targetMask);
+        var targetArchetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)targetMask);
 
         // Allocate in target archetype
         int newGlobalIndex = targetArchetype.AllocateEntity(entity);
@@ -218,7 +218,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     /// </summary>
     private void RemoveFromCurrentArchetype(EntityLocation location)
     {
-        var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
         int movedEntityId = archetype.RemoveEntity(location.GlobalIndex);
 
         // If an entity was moved during swap-remove, update its location
@@ -303,7 +303,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     private (ChunkHandle Handle, int Offset) GetComponentLocation<T>(Entity entity) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-        var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)
+        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
 
         var layout = archetype.Layout;
@@ -329,7 +329,7 @@ public sealed class World<TBits, TRegistry, TConfig>
             return false;
 
         var location = _entityManager.GetLocation(entity.Id);
-        var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
         return archetype.Layout.HasComponent<T>();
     }
 
@@ -343,14 +343,14 @@ public sealed class World<TBits, TRegistry, TConfig>
     public void AddComponent<T>(Entity entity, T value = default) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-        var sourceArchetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if already has component
         if (sourceArchetype.Layout.HasComponent<T>())
             throw new InvalidOperationException($"Entity {entity} already has component {typeof(T).Name}.");
 
         // Get target archetype using O(1) edge cache
-        var targetArchetype = _archetypeRegistry.GetOrCreateArchetypeWithAdd(sourceArchetype, T.TypeId);
+        var targetArchetype = _archetypeRegistry.GetOrCreateWithAdd(sourceArchetype, T.TypeId);
 
         // Move entity to target archetype
         MoveEntity(entity, location, sourceArchetype, targetArchetype);
@@ -372,14 +372,14 @@ public sealed class World<TBits, TRegistry, TConfig>
     public void RemoveComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-        var sourceArchetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if has component
         if (!sourceArchetype.Layout.HasComponent<T>())
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
         // Get target archetype using O(1) edge cache (returns empty archetype if removing last component)
-        var targetArchetype = _archetypeRegistry.GetOrCreateArchetypeWithRemove(sourceArchetype, T.TypeId);
+        var targetArchetype = _archetypeRegistry.GetOrCreateWithRemove(sourceArchetype, T.TypeId);
 
         // Move entity to target archetype
         MoveEntity(entity, location, sourceArchetype, targetArchetype);
@@ -485,7 +485,70 @@ public sealed class World<TBits, TRegistry, TConfig>
         _entityManager.Clear();
 
         // Re-create the empty archetype for componentless entities
-        _emptyArchetype = _archetypeRegistry.GetOrCreateArchetype(
+        _emptyArchetype = _archetypeRegistry.GetOrCreate(
             (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
+    }
+}
+
+public static class ComponentsBuilderWorldExtensions
+{
+    extension<TBuilder>(TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
+    {
+        /// <summary>
+        /// Builds the entity in the specified world.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="world">The world to create the entity in.</param>
+        /// <returns>The created entity.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Entity Build<TBits, TRegistry, TConfig>(World<TBits, TRegistry, TConfig> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            return world.CreateEntity(builder);
+        }
+
+        /// <summary>
+        /// Overwrites all components on an existing entity with the builder's components.
+        /// Any existing components are discarded. The entity must already exist and be alive.
+        /// Used for deserialization or network synchronization.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="entity">The existing entity handle.</param>
+        /// <param name="world">The world containing the entity.</param>
+        /// <returns>The entity.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Entity Overwrite<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            return world.OverwriteEntity(entity, builder);
+        }
+
+        /// <summary>
+        /// Adds the builder's components to an existing entity, preserving its current components.
+        /// This is a structural change that moves the entity to a new archetype.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="entity">The existing entity handle.</param>
+        /// <param name="world">The world containing the entity.</param>
+        /// <returns>The entity.</returns>
+        /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Entity AddTo<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            return world.AddComponents(entity, builder);
+        }
     }
 }

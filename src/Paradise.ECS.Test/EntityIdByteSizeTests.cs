@@ -299,7 +299,7 @@ public sealed class EntityIdByteSizeTests
 
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = registry.GetOrCreateArchetype(hashedKey);
+        var archetype = registry.GetOrCreate(hashedKey);
 
         // Allocate multiple entities with consecutive IDs
         var entities = new Entity[10];
@@ -333,7 +333,7 @@ public sealed class EntityIdByteSizeTests
 
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = registry.GetOrCreateArchetype(hashedKey);
+        var archetype = registry.GetOrCreate(hashedKey);
 
         // Allocate multiple entities with consecutive IDs
         var entities = new Entity[20];
@@ -365,7 +365,7 @@ public sealed class EntityIdByteSizeTests
 
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = registry.GetOrCreateArchetype(hashedKey);
+        var archetype = registry.GetOrCreate(hashedKey);
 
         // Allocate 5 entities
         for (int i = 0; i < 5; i++)
