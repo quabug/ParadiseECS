@@ -104,7 +104,7 @@ var entity = EntityBuilder.Create()
 // Create entity with tag component
 var player = EntityBuilder.Create()
     .Add(new Position { X = 0, Y = 0, Z = 0 })
-    .Add<PlayerTag>()  // Tag components use default value
+    .Add(default(PlayerTag))  // Tag components use default value
     .Build(world);
 ```
 
@@ -152,7 +152,7 @@ EntityBuilder.Create()
 // Add multiple components at once (single structural change)
 EntityBuilder.Create()
     .Add(new Velocity { X = 2, Y = 0, Z = 0 })
-    .Add<PlayerTag>()
+    .Add(default(PlayerTag))
     .AddTo(entity, world);
 ```
 
@@ -238,11 +238,11 @@ public readonly ref partial struct PlayerPosition;
 [Optional<Position>(IsReadOnly = true)]
 public readonly ref partial struct Damageable;
 
-// Any constraint (must have at least one)
+// WithAny constraint (must have at least one)
 [Queryable]
 [With<Position>]
 [With<Health>]
-[Any<Velocity>]
+[WithAny<Velocity>]
 public readonly ref partial struct ActiveEntity;
 ```
 
@@ -551,7 +551,7 @@ using var chunkManager = new ChunkManager(allocator);
 | `[With<T>(IsReadOnly = true)]` | Generates `ref readonly` property |
 | `[With<T>(QueryOnly = true)]` | Filter only, no property generated |
 | `[Without<T>]` | Excludes entities with component T |
-| `[Any<T>]` | Requires at least one Any component |
+| `[WithAny<T>]` | Requires at least one WithAny component |
 | `[Optional<T>]` | Generates `HasT` property and `GetT()` method |
 | `[Optional<T>(IsReadOnly = true)]` | Generates `ref readonly GetT()` method |
 

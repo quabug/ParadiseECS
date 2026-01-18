@@ -16,14 +16,14 @@ namespace Paradise.ECS.IntegrationTest;
 public readonly ref partial struct Player;
 
 /// <summary>
-/// Query for enemy entities with position and health, requiring velocity via Any.
-/// Demonstrates: Any constraint (at least one must match).
+/// Query for enemy entities with position and health, requiring velocity via WithAny.
+/// Demonstrates: WithAny constraint (at least one must match).
 /// </summary>
 [Queryable(Id = 4)]
 [With<Position>]
 [With<Health>]
 [Without<Name>]
-[Any<Velocity>]
+[WithAny<Velocity>]
 public readonly ref partial struct Enemy;
 
 /// <summary>

@@ -7,7 +7,7 @@ namespace Paradise.ECS;
 /// <remarks>
 /// <para>
 /// Use <see cref="WithAttribute{T}"/>, <see cref="WithoutAttribute{T}"/>, and
-/// <see cref="AnyAttribute{T}"/> to specify the query constraints.
+/// <see cref="WithAnyAttribute{T}"/> to specify the query constraints.
 /// </para>
 /// </remarks>
 /// <example>
@@ -100,20 +100,20 @@ public sealed class WithoutAttribute<T> : Attribute where T : unmanaged, ICompon
 
 /// <summary>
 /// Specifies an optional component type for a queryable struct.
-/// Entities must have at least one of the components marked with Any to match the query.
+/// Entities must have at least one of the components marked with WithAny to match the query.
 /// </summary>
 /// <typeparam name="T">A component type that may satisfy the "any" requirement.</typeparam>
 /// <example>
 /// <code>
 /// [Queryable]
 /// [With&lt;Position&gt;]
-/// [Any&lt;Player&gt;]
-/// [Any&lt;Enemy&gt;]
+/// [WithAny&lt;Player&gt;]
+/// [WithAny&lt;Enemy&gt;]
 /// public readonly ref partial struct GameEntity; // Must have Position AND (Player OR Enemy)
 /// </code>
 /// </example>
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
-public sealed class AnyAttribute<T> : Attribute where T : unmanaged, IComponent
+public sealed class WithAnyAttribute<T> : Attribute where T : unmanaged, IComponent
 {
 }
 

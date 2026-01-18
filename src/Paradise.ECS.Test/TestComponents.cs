@@ -48,7 +48,7 @@ public readonly ref partial struct TestMovableEntity;
 [Queryable(Id = 5)]
 [With<TestPosition>]
 [With<TestVelocity>]
-[Any<TestDamage>]
+[WithAny<TestDamage>]
 public readonly ref partial struct TestProjectile;
 
 /// <summary>

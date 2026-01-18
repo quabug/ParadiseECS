@@ -167,7 +167,7 @@ public class QueryableGenerator : IIncrementalGenerator
                     withoutComponents.Add(componentFullName);
                     attrType = "Without";
                 }
-                else if (metadataName.StartsWith("Paradise.ECS.AnyAttribute<", StringComparison.Ordinal))
+                else if (metadataName.StartsWith("Paradise.ECS.WithAnyAttribute<", StringComparison.Ordinal))
                 {
                     anyComponents.Add(componentFullName);
                     attrType = "Any";
@@ -700,8 +700,9 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine();
             // Pluralize property name for span (simple pluralization)
             var spanPropertyName = comp.PropertyName + "s";
-            sb.AppendLine($"{indent}    /// <summary>Gets a span over all {comp.ComponentTypeName} components in this chunk.</summary>");
-            sb.AppendLine($"{indent}    public global::System.Span<global::{comp.ComponentFullName}> {spanPropertyName}");
+            var spanType = comp.IsReadOnly ? "ReadOnlySpan" : "Span";
+            sb.AppendLine($"{indent}    /// <summary>Gets a {(comp.IsReadOnly ? "read-only " : "")}span over all {comp.ComponentTypeName} components in this chunk.</summary>");
+            sb.AppendLine($"{indent}    public global::System.{spanType}<global::{comp.ComponentFullName}> {spanPropertyName}");
             sb.AppendLine($"{indent}    {{");
             sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             sb.AppendLine($"{indent}        get");
@@ -727,10 +728,11 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine();
             // GetXxxSpan() method - pluralize name
             var spanMethodName = "Get" + opt.PropertyName + "s";
-            sb.AppendLine($"{indent}    /// <summary>Gets a span over all {opt.ComponentTypeName} components in this chunk.</summary>");
+            var optSpanType = opt.IsReadOnly ? "ReadOnlySpan" : "Span";
+            sb.AppendLine($"{indent}    /// <summary>Gets a {(opt.IsReadOnly ? "read-only " : "")}span over all {opt.ComponentTypeName} components in this chunk.</summary>");
             sb.AppendLine($"{indent}    /// <exception cref=\"global::System.InvalidOperationException\">Thrown when the component is not present. Check Has{opt.PropertyName} first.</exception>");
             sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-            sb.AppendLine($"{indent}    public global::System.Span<global::{opt.ComponentFullName}> {spanMethodName}()");
+            sb.AppendLine($"{indent}    public global::System.{optSpanType}<global::{opt.ComponentFullName}> {spanMethodName}()");
             sb.AppendLine($"{indent}    {{");
             sb.AppendLine($"{indent}        int baseOffset = _layout.GetBaseOffset<global::{opt.ComponentFullName}>();");
             sb.AppendLine($"{indent}        if (baseOffset < 0)");
