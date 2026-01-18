@@ -78,7 +78,7 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ByteConfig_SpawnUpToLimit_Succeeds()
     {
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
@@ -96,7 +96,7 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ByteConfig_SpawnBeyondLimit_ThrowsInvalidOperationException()
     {
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
@@ -114,7 +114,7 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ByteConfig_SpawnAfterDespawn_ReusesIdWithinLimit()
     {
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
@@ -143,7 +143,7 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ShortConfig_SpawnWithinLimit_Succeeds()
     {
-        using var chunkManager = new ChunkManager<ShortEntityIdConfig>(new ShortEntityIdConfig());
+        using var chunkManager = ChunkManager.Create(new ShortEntityIdConfig());
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ShortEntityIdConfig>(new ShortEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ShortEntityIdConfig>(new ShortEntityIdConfig(), sharedMetadata, chunkManager);
 
@@ -163,7 +163,7 @@ public sealed class EntityIdByteSizeTests
     [Test]
     public async Task ByteConfig_CreateEntityBeyondLimit_ThrowsInvalidOperationException()
     {
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var world = new World<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
@@ -293,13 +293,13 @@ public sealed class EntityIdByteSizeTests
         // This test verifies that entity IDs are stored using EntityIdByteSize bytes,
         // not sizeof(int). If sizeof(int) is used, writing entity ID at index N
         // would overwrite entity ID at index N+1/N+2/N+3, corrupting data.
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var registry = new ArchetypeRegistry<Bit64, ComponentRegistry, ByteEntityIdConfig>(sharedMetadata, chunkManager);
 
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = registry.GetOrCreateArchetype(hashedKey);
+        var archetype = registry.GetOrCreate(hashedKey);
 
         // Allocate multiple entities with consecutive IDs
         var entities = new Entity[10];
@@ -327,13 +327,13 @@ public sealed class EntityIdByteSizeTests
     public async Task ShortConfig_MultipleEntityIdsStoredCorrectly_NoDataCorruption()
     {
         // Similar test for 2-byte EntityIdByteSize
-        using var chunkManager = new ChunkManager<ShortEntityIdConfig>(new ShortEntityIdConfig());
+        using var chunkManager = ChunkManager.Create(new ShortEntityIdConfig());
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ShortEntityIdConfig>(new ShortEntityIdConfig());
         var registry = new ArchetypeRegistry<Bit64, ComponentRegistry, ShortEntityIdConfig>(sharedMetadata, chunkManager);
 
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = registry.GetOrCreateArchetype(hashedKey);
+        var archetype = registry.GetOrCreate(hashedKey);
 
         // Allocate multiple entities with consecutive IDs
         var entities = new Entity[20];
@@ -359,13 +359,13 @@ public sealed class EntityIdByteSizeTests
     {
         // Test specifically for the swap-remove copy path using sizeof(int)
         // When entity at middle is removed, last entity's ID should be copied correctly
-        using var chunkManager = new ChunkManager<ByteEntityIdConfig>(new ByteEntityIdConfig());
+        using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
         var registry = new ArchetypeRegistry<Bit64, ComponentRegistry, ByteEntityIdConfig>(sharedMetadata, chunkManager);
 
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId.Value);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = registry.GetOrCreateArchetype(hashedKey);
+        var archetype = registry.GetOrCreate(hashedKey);
 
         // Allocate 5 entities
         for (int i = 0; i < 5; i++)

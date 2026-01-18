@@ -89,6 +89,19 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - `[DefaultConfig]` attribute with `Paradise.ECS.DefaultConfig` fallback
   - Parameterless constructors for `World`, `ChunkManager`, `SharedArchetypeMetadata`
 
+- [x] **WorldQuery and WorldEntity** ([#33](https://github.com/quabug/ParadiseECS/pull/33))
+  - Convenient entity iteration via `WorldQuery<TBits, TRegistry, TConfig>`
+  - `WorldEntity` wrapper for fluent component access
+  - 64-bit packed `EntityLocation` for lock-free atomic operations
+  - QueryBuilder extension method `Build(world)` for ergonomic query creation
+
+### In Progress
+
+- [~] **Queryable Archetype/Query Source Generator** (`feature/queryable`)
+  - Code generation for strongly-typed query structs
+  - Zero-allocation iteration patterns via generated code
+  - Compile-time query validation
+
 ### Planned
 
 - [ ] **Per-World Component IDs**
@@ -107,12 +120,6 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Allow custom implementations beyond the default `SharedArchetypeMetadata`
   - Enable extension points for custom caching strategies, persistence, or debugging hooks
   - Support composition of metadata providers for modular functionality
-
-- [ ] **Queryable Archetype/Query Source Generator**
-  - Attribute-based archetype and query definition
-  - Code generation for strongly-typed query structs
-  - Zero-allocation iteration patterns via generated code
-  - Compile-time query validation
 
 - [ ] **Specialized World Types**
   - `SingleThreadWorld` - Optimized for single-threaded scenarios, minimal locking overhead
@@ -272,6 +279,7 @@ Minor TODOs in codebase:
 
 ### Recent Activity
 
+- **2026-01-18**: Merged [#33](https://github.com/quabug/ParadiseECS/pull/33) - Add WorldQuery and WorldEntity for convenient entity iteration
 - **2026-01-18**: Merged [#32](https://github.com/quabug/ParadiseECS/pull/32) - Static World Configuration
   - `IConfig` interface with static abstract + instance members
   - Configurable `EntityIdByteSize` for 1/2/4-byte entity IDs

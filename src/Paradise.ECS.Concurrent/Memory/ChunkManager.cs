@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -16,9 +17,7 @@ namespace Paradise.ECS.Concurrent;
 /// - Meta blocks are lazily allocated on-demand using CAS
 /// - Maximum capacity: MaxMetaBlocks * EntriesPerMetaBlock
 /// </summary>
-/// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
-public sealed unsafe class ChunkManager<TConfig> : IDisposable
-    where TConfig : IConfig, new()
+public sealed unsafe class ChunkManager : IChunkManager
 {
     /// <summary>
     /// Metadata for a single chunk slot.
@@ -31,10 +30,11 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
         public ulong VersionAndShareCount; // 8 bytes - PackedVersion raw value for atomic CAS
     }
 
-    private const int MetaSize = 16; // sizeof(ChunkMeta): 8 + 8
-    private static readonly int s_entriesPerMetaBlock = TConfig.ChunkSize / MetaSize;
-    private static readonly int s_entriesPerMetaBlockShift = System.Numerics.BitOperations.Log2((uint)s_entriesPerMetaBlock);
-    private static readonly int s_entriesPerMetaBlockMask = s_entriesPerMetaBlock - 1;
+    private readonly int _chunkSize;
+    private readonly int _maxMetaBlocks;
+    private readonly int _entriesPerMetaBlock;
+    private readonly int _entriesPerMetaBlockShift;
+    private readonly int _entriesPerMetaBlockMask;
 
     private readonly IAllocator _allocator;
     private readonly nint[] _metaBlocks;
@@ -43,34 +43,57 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
     private int _nextSlotId; // Next fresh slot ID to allocate (atomic)
     private int _disposed; // 0 = not disposed, 1 = disposed
 
+    /// <inheritdoc />
+    public int ChunkSize => _chunkSize;
+
     /// <summary>
     /// Creates a new ChunkManager with the specified configuration.
     /// </summary>
-    /// <param name="config">The configuration instance with runtime settings.</param>
-    public ChunkManager(TConfig config)
+    /// <param name="allocator">The memory allocator to use.</param>
+    /// <param name="chunkSize">The size of each chunk in bytes.</param>
+    /// <param name="maxMetaBlocks">The maximum number of meta blocks.</param>
+    /// <param name="initializeChunkCapacity">The initial chunk capacity to pre-allocate.</param>
+    public ChunkManager(IAllocator allocator, int chunkSize, int maxMetaBlocks, int initializeChunkCapacity)
     {
-        _allocator = config.ChunkAllocator ?? throw new ArgumentNullException(nameof(config), "Config.ChunkAllocator cannot be null");
-        _metaBlocks = new nint[TConfig.MaxMetaBlocks];
+        _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator), "allocator cannot be null");
+        _chunkSize = chunkSize;
+        _maxMetaBlocks = maxMetaBlocks;
+        _entriesPerMetaBlock = chunkSize / sizeof(ChunkMeta);
+        _entriesPerMetaBlockShift = BitOperations.Log2((uint)_entriesPerMetaBlock);
+        _entriesPerMetaBlockMask = _entriesPerMetaBlock - 1;
+        _metaBlocks = new nint[maxMetaBlocks];
 
-        // Pre-allocate meta blocks for initial capacity (optional optimization)
-        int metaBlocksNeeded = (config.DefaultChunkCapacity + s_entriesPerMetaBlock - 1) / s_entriesPerMetaBlock;
+        // Pre-allocate meta blocks for initial capacity
+        int metaBlocksNeeded = (initializeChunkCapacity + _entriesPerMetaBlock - 1) / _entriesPerMetaBlock;
         if (metaBlocksNeeded < 1) metaBlocksNeeded = 1;
-        else if (metaBlocksNeeded > TConfig.MaxMetaBlocks) metaBlocksNeeded = TConfig.MaxMetaBlocks;
+        else if (metaBlocksNeeded > maxMetaBlocks) metaBlocksNeeded = maxMetaBlocks;
 
         for (int i = 0; i < metaBlocksNeeded; i++)
         {
-            _metaBlocks[i] = (nint)_allocator.AllocateZeroed((nuint)TConfig.ChunkSize);
+            _metaBlocks[i] = (nint)_allocator.AllocateZeroed((nuint)chunkSize);
         }
-
-        // _nextSlotId starts at 0 - slots are allocated on-demand
     }
 
     /// <summary>
-    /// Creates a new ChunkManager using default configuration.
-    /// Uses <c>new TConfig()</c> for configuration with default property values.
+    /// Creates a new ChunkManager using the specified configuration type.
     /// </summary>
-    public ChunkManager() : this(new TConfig())
+    /// <typeparam name="TConfig">The configuration type.</typeparam>
+    /// <returns>A new ChunkManager instance.</returns>
+    public static ChunkManager Create<TConfig>() where TConfig : IConfig, new() => Create(new TConfig());
+
+    /// <summary>
+    /// Creates a new ChunkManager using the specified configuration instance.
+    /// </summary>
+    /// <typeparam name="TConfig">The configuration type.</typeparam>
+    /// <param name="config">The configuration instance.</param>
+    /// <returns>A new ChunkManager instance.</returns>
+    public static ChunkManager Create<TConfig>(TConfig config) where TConfig : IConfig, new()
     {
+        return new ChunkManager(
+            config.ChunkAllocator,
+            chunkSize: TConfig.ChunkSize,
+            maxMetaBlocks: TConfig.MaxMetaBlocks,
+            initializeChunkCapacity: config.DefaultChunkCapacity);
     }
 
     /// <summary>
@@ -79,8 +102,8 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private ref ChunkMeta GetMeta(int id)
     {
-        int blockIndex = id >> s_entriesPerMetaBlockShift;
-        int indexInBlock = id & s_entriesPerMetaBlockMask;
+        int blockIndex = id >> _entriesPerMetaBlockShift;
+        int indexInBlock = id & _entriesPerMetaBlockMask;
         return ref ((ChunkMeta*)_metaBlocks[blockIndex])[indexInBlock];
     }
 
@@ -98,9 +121,9 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
             // No free slot available, allocate a new one
             id = Interlocked.Increment(ref _nextSlotId) - 1;
 
-            int blockIndex = id >> s_entriesPerMetaBlockShift;
-            if (blockIndex >= TConfig.MaxMetaBlocks)
-                ThrowCapacityExceeded();
+            int blockIndex = id >> _entriesPerMetaBlockShift;
+            if (blockIndex >= _maxMetaBlocks)
+                ThrowHelper.ThrowChunkManagerCapacityExceeded(_maxMetaBlocks, _entriesPerMetaBlock);
 
             // Ensure the meta block is allocated (lock-free)
             EnsureBlockAllocated(blockIndex);
@@ -111,7 +134,7 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
         // Allocate data chunk memory if needed (reuse existing if available)
         if (meta.Pointer == 0)
         {
-            meta.Pointer = (ulong)_allocator.AllocateZeroed((nuint)TConfig.ChunkSize);
+            meta.Pointer = (ulong)_allocator.AllocateZeroed((nuint)_chunkSize);
             // Initialize version to 1 for new slots (version 0 indicates invalid handle)
             meta.VersionAndShareCount = new PackedVersion(version: 1, index: 0).Value;
         }
@@ -134,7 +157,7 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
             var prev = Interlocked.CompareExchange(ref slot, -1, 0);
             if (prev == 0)
             {
-                Volatile.Write(ref slot, (nint)_allocator.AllocateZeroed((nuint)TConfig.ChunkSize));
+                Volatile.Write(ref slot, (nint)_allocator.AllocateZeroed((nuint)_chunkSize));
                 return;
             }
             if ((long)prev > 0)
@@ -171,7 +194,7 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
 
             // Check if chunk is borrowed
             if (packed.Index != 0)
-                ThrowChunkInUse(handle);
+                ThrowHelper.ThrowChunkInUse(handle);
 
             // Atomically increment version (wraps on overflow) and set shareCount to 0
             ulong next = new PackedVersion(packed.Version + 1, 0).Value;
@@ -183,28 +206,58 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
 
         // Safe to clear memory - version already bumped, no one can Get() with old handle
         if (meta.Pointer != 0)
-            _allocator.Clear((void*)meta.Pointer, (nuint)TConfig.ChunkSize);
+            _allocator.Clear((void*)meta.Pointer, (nuint)_chunkSize);
 
         _freeSlots.Push(handle.Id);
     }
 
     /// <summary>
-    /// Gets a Chunk view for the given handle. The chunk borrows the memory
-    /// and must be disposed when done to allow freeing.
-    /// Returns an invalid (default) chunk if the handle is invalid or stale.
-    /// Uses lock-free CAS to atomically check version and increment ShareCount.
+    /// Gets the raw bytes of a chunk without incrementing the borrow count.
+    /// Returns an empty span if the handle is invalid or stale.
+    /// Thread-safe: Uses volatile reads.
     /// </summary>
+    /// <param name="handle">The chunk handle.</param>
+    /// <returns>A span over the chunk's raw bytes, or empty if invalid.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Chunk<TConfig> Get(ChunkHandle handle)
+    public Span<byte> GetBytes(ChunkHandle handle)
     {
         if (!handle.IsValid)
-            return default;
+            return Span<byte>.Empty;
 
         using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if ((uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
-            return default;
+            return Span<byte>.Empty;
+
+        ref var meta = ref GetMeta(handle.Id);
+        var packed = new PackedVersion(Volatile.Read(ref meta.VersionAndShareCount));
+
+        if (packed.Version != handle.Version)
+            return Span<byte>.Empty; // Stale handle
+
+        return new Span<byte>((void*)meta.Pointer, _chunkSize);
+    }
+
+    /// <summary>
+    /// Acquires a borrow on a chunk, preventing it from being freed.
+    /// Must be paired with a call to <see cref="Release(ChunkHandle)"/>.
+    /// Uses lock-free CAS to atomically check version and increment ShareCount.
+    /// </summary>
+    /// <param name="handle">The chunk handle.</param>
+    /// <returns>True if the borrow was acquired, false if the handle is invalid or stale.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Acquire(ChunkHandle handle)
+    {
+        if (!handle.IsValid)
+            return false;
+
+        using var _ = _operationGuard.EnterScope();
+        if (_disposed != 0)
+            return false;
+
+        if ((uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
+            return false;
 
         ref var meta = ref GetMeta(handle.Id);
 
@@ -215,22 +268,34 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
             var packed = new PackedVersion(current);
 
             if (packed.Version != handle.Version)
-                return default; // Stale handle
+                return false; // Stale handle
 
             ulong next = new PackedVersion(packed.Version, packed.Index + 1).Value;
             if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
-                return new Chunk<TConfig>(this, handle.Id, (void*)meta.Pointer);
+                return true;
 
             // CAS failed - retry
         }
     }
 
     /// <summary>
-    /// Releases the borrow on a chunk. Called by Chunk.Dispose().
+    /// Releases a borrow on a chunk acquired via <see cref="Acquire(ChunkHandle)"/>.
+    /// Uses lock-free CAS to atomically decrement ShareCount.
+    /// </summary>
+    /// <param name="handle">The chunk handle.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Release(ChunkHandle handle)
+    {
+        if (!handle.IsValid) return;
+        Release(handle.Id);
+    }
+
+    /// <summary>
+    /// Releases the borrow on a chunk by ID.
     /// Uses lock-free CAS to atomically decrement ShareCount.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void Release(int id)
+    private void Release(int id)
     {
         using var _ = _operationGuard.EnterScope();
         if (_disposed != 0) return;
@@ -255,14 +320,6 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
         }
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowChunkInUse(ChunkHandle handle)
-        => throw new InvalidOperationException($"Cannot free chunk while borrowed: {handle}");
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void ThrowCapacityExceeded()
-        => throw new InvalidOperationException($"ChunkManager capacity exceeded (max {TConfig.MaxMetaBlocks * s_entriesPerMetaBlock} chunks)");
-
     public void Dispose()
     {
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
@@ -272,14 +329,14 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
         _operationGuard.WaitForCompletion();
 
         // Free all data chunks and meta blocks
-        for (int blockIndex = 0; blockIndex < TConfig.MaxMetaBlocks; blockIndex++)
+        for (int blockIndex = 0; blockIndex < _maxMetaBlocks; blockIndex++)
         {
             nint metaBlockPtr = _metaBlocks[blockIndex];
             if (metaBlockPtr == 0)
                 continue;
 
             var metaBlock = (ChunkMeta*)metaBlockPtr;
-            for (int i = 0; i < s_entriesPerMetaBlock; i++)
+            for (int i = 0; i < _entriesPerMetaBlock; i++)
             {
                 if (metaBlock[i].Pointer != 0)
                 {

@@ -6,7 +6,7 @@ namespace Paradise.ECS.Test;
 public sealed class ArchetypeRegistryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
     private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
     private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
 
@@ -29,7 +29,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
         var mask = ImmutableBitSet<Bit64>.Empty;
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
 
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         await Assert.That(archetype).IsNotNull();
         await Assert.That(archetype.Layout.ComponentMask.IsEmpty).IsTrue();
@@ -41,7 +41,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
 
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         await Assert.That(archetype).IsNotNull();
         await Assert.That(archetype.Layout.HasComponent<TestPosition>()).IsTrue();
@@ -53,8 +53,8 @@ public sealed class ArchetypeRegistryTests : IDisposable
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
 
-        var arch1 = _registry.GetOrCreateArchetype(hashedKey);
-        var arch2 = _registry.GetOrCreateArchetype(hashedKey);
+        var arch1 = _registry.GetOrCreate(hashedKey);
+        var arch2 = _registry.GetOrCreate(hashedKey);
 
         await Assert.That(arch1.Id).IsEqualTo(arch2.Id);
     }
@@ -67,8 +67,8 @@ public sealed class ArchetypeRegistryTests : IDisposable
         var hashedKey1 = (HashedKey<ImmutableBitSet<Bit64>>)mask1;
         var hashedKey2 = (HashedKey<ImmutableBitSet<Bit64>>)mask2;
 
-        var arch1 = _registry.GetOrCreateArchetype(hashedKey1);
-        var arch2 = _registry.GetOrCreateArchetype(hashedKey2);
+        var arch1 = _registry.GetOrCreate(hashedKey1);
+        var arch2 = _registry.GetOrCreate(hashedKey2);
 
         await Assert.That(arch1.Id).IsNotEqualTo(arch2.Id);
     }
@@ -82,9 +82,9 @@ public sealed class ArchetypeRegistryTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
-        var retrieved = _registry.GetArchetypeById(archetype.Id);
+        var retrieved = _registry.GetById(archetype.Id);
 
         await Assert.That(retrieved).IsNotNull();
         await Assert.That(retrieved!.Id).IsEqualTo(archetype.Id);
@@ -93,7 +93,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetArchetypeById_InvalidId_ReturnsNull()
     {
-        var retrieved = _registry.GetArchetypeById(9999);
+        var retrieved = _registry.GetById(9999);
 
         await Assert.That(retrieved).IsNull();
     }
@@ -107,9 +107,9 @@ public sealed class ArchetypeRegistryTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty;
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var sourceArchetype = _registry.GetOrCreateArchetype(hashedKey);
+        var sourceArchetype = _registry.GetOrCreate(hashedKey);
 
-        var targetArchetype = _registry.GetOrCreateArchetypeWithAdd(sourceArchetype, TestPosition.TypeId);
+        var targetArchetype = _registry.GetOrCreateWithAdd(sourceArchetype, TestPosition.TypeId);
 
         await Assert.That(targetArchetype.Layout.HasComponent<TestPosition>()).IsTrue();
     }
@@ -119,9 +119,9 @@ public sealed class ArchetypeRegistryTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var sourceArchetype = _registry.GetOrCreateArchetype(hashedKey);
+        var sourceArchetype = _registry.GetOrCreate(hashedKey);
 
-        var targetArchetype = _registry.GetOrCreateArchetypeWithAdd(sourceArchetype, TestPosition.TypeId);
+        var targetArchetype = _registry.GetOrCreateWithAdd(sourceArchetype, TestPosition.TypeId);
 
         await Assert.That(targetArchetype.Layout.HasComponent<TestPosition>()).IsTrue();
         await Assert.That(targetArchetype.Layout.HasComponent<TestVelocity>()).IsTrue();
@@ -132,13 +132,13 @@ public sealed class ArchetypeRegistryTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty;
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var sourceArchetype = _registry.GetOrCreateArchetype(hashedKey);
+        var sourceArchetype = _registry.GetOrCreate(hashedKey);
 
         // First call creates and caches the edge
-        var target1 = _registry.GetOrCreateArchetypeWithAdd(sourceArchetype, TestPosition.TypeId);
+        var target1 = _registry.GetOrCreateWithAdd(sourceArchetype, TestPosition.TypeId);
 
         // Second call should use cache
-        var target2 = _registry.GetOrCreateArchetypeWithAdd(sourceArchetype, TestPosition.TypeId);
+        var target2 = _registry.GetOrCreateWithAdd(sourceArchetype, TestPosition.TypeId);
 
         await Assert.That(target1.Id).IsEqualTo(target2.Id);
     }
@@ -152,9 +152,9 @@ public sealed class ArchetypeRegistryTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var sourceArchetype = _registry.GetOrCreateArchetype(hashedKey);
+        var sourceArchetype = _registry.GetOrCreate(hashedKey);
 
-        var targetArchetype = _registry.GetOrCreateArchetypeWithRemove(sourceArchetype, TestPosition.TypeId);
+        var targetArchetype = _registry.GetOrCreateWithRemove(sourceArchetype, TestPosition.TypeId);
 
         await Assert.That(targetArchetype.Layout.HasComponent<TestPosition>()).IsFalse();
     }
@@ -166,9 +166,9 @@ public sealed class ArchetypeRegistryTests : IDisposable
             .Set(TestPosition.TypeId)
             .Set(TestVelocity.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var sourceArchetype = _registry.GetOrCreateArchetype(hashedKey);
+        var sourceArchetype = _registry.GetOrCreate(hashedKey);
 
-        var targetArchetype = _registry.GetOrCreateArchetypeWithRemove(sourceArchetype, TestPosition.TypeId);
+        var targetArchetype = _registry.GetOrCreateWithRemove(sourceArchetype, TestPosition.TypeId);
 
         await Assert.That(targetArchetype.Layout.HasComponent<TestPosition>()).IsFalse();
         await Assert.That(targetArchetype.Layout.HasComponent<TestVelocity>()).IsTrue();
@@ -179,9 +179,9 @@ public sealed class ArchetypeRegistryTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var sourceArchetype = _registry.GetOrCreateArchetype(hashedKey);
+        var sourceArchetype = _registry.GetOrCreate(hashedKey);
 
-        var targetArchetype = _registry.GetOrCreateArchetypeWithRemove(sourceArchetype, TestPosition.TypeId);
+        var targetArchetype = _registry.GetOrCreateWithRemove(sourceArchetype, TestPosition.TypeId);
 
         await Assert.That(targetArchetype.Layout.ComponentMask.IsEmpty).IsTrue();
     }
@@ -193,7 +193,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateQuery_ReturnsQuery()
     {
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -206,7 +206,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateQuery_SameDescription_ReturnsSameQuery()
     {
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -224,10 +224,10 @@ public sealed class ArchetypeRegistryTests : IDisposable
         // First create an archetype
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        _registry.GetOrCreateArchetype(hashedKey);
+        _registry.GetOrCreate(hashedKey);
 
         // Then create a query that should match
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -240,7 +240,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     public async Task GetOrCreateQuery_UpdatesWhenNewArchetypeCreated()
     {
         // First create a query
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -250,7 +250,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
         // Then create matching archetype
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        _registry.GetOrCreateArchetype(hashedKey);
+        _registry.GetOrCreate(hashedKey);
 
         // Query should now include the new archetype
         await Assert.That(query.ArchetypeCount).IsEqualTo(initialCount + 1);
@@ -265,13 +265,13 @@ public sealed class ArchetypeRegistryTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
         var id = archetype.Id;
 
         _registry.Clear();
 
         // After clear, the archetype should no longer be retrievable
-        var retrieved = _registry.GetArchetypeById(id);
+        var retrieved = _registry.GetById(id);
         await Assert.That(retrieved).IsNull();
     }
 

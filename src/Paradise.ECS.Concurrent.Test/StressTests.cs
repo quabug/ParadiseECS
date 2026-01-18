@@ -8,7 +8,7 @@ namespace Paradise.ECS.Concurrent.Test;
 public sealed class StressTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
-    private ChunkManager<DefaultConfig>? _chunkManager;
+    private ChunkManager? _chunkManager;
     private SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>? _sharedMetadata;
     private World<Bit64, ComponentRegistry, DefaultConfig>? _world;
 
@@ -21,7 +21,7 @@ public sealed class StressTests : IDisposable
 
     private void CreateWorld()
     {
-        _chunkManager = new ChunkManager<DefaultConfig>(s_config);
+        _chunkManager = ChunkManager.Create(s_config);
         _sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
         _world = new World<Bit64, ComponentRegistry, DefaultConfig>(
             s_config,
@@ -73,7 +73,7 @@ public sealed class StressTests : IDisposable
             _world.AddComponent(entity, new TestPosition { X = i });
         }
 
-        var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var query = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Build(_world!.ArchetypeRegistry);
 
@@ -193,15 +193,15 @@ public sealed class StressTests : IDisposable
         _world.AddComponent<TestHealth>(e7);
 
         // Verify queries
-        var posQuery = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var posQuery = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
-        var velQuery = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var velQuery = new QueryBuilder<Bit64>()
             .With<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
 
-        var healthQuery = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var healthQuery = new QueryBuilder<Bit64>()
             .With<TestHealth>()
             .Build(_world.ArchetypeRegistry);
 
@@ -238,7 +238,7 @@ public sealed class StressTests : IDisposable
             _world.AddComponent<TestVelocity>(e4);
         }
 
-        var posQuery = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var posQuery = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Build(_world!.ArchetypeRegistry);
 
@@ -309,11 +309,7 @@ public sealed class StressTests : IDisposable
         _world.AddComponent(entity, new TestVelocity { X = 1, Y = 2, Z = 3 });
 
         // Verify Position data preserved
-        TestPosition pos;
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            pos = posRef.Value;
-        }
+        var pos = _world.GetComponent<TestPosition>(entity);
 
         await Assert.That(pos.X).IsEqualTo(10f);
         await Assert.That(pos.Y).IsEqualTo(20f);
@@ -323,15 +319,8 @@ public sealed class StressTests : IDisposable
         _world.AddComponent(entity, new TestHealth { Current = 100, Max = 100 });
 
         // Verify both Position and Velocity preserved
-        using (var posRef = _world.GetComponent<TestPosition>(entity))
-        {
-            pos = posRef.Value;
-        }
-        TestVelocity vel;
-        using (var velRef = _world.GetComponent<TestVelocity>(entity))
-        {
-            vel = velRef.Value;
-        }
+        pos = _world.GetComponent<TestPosition>(entity);
+        var vel = _world.GetComponent<TestVelocity>(entity);
 
         await Assert.That(pos.X).IsEqualTo(10f);
         await Assert.That(vel.X).IsEqualTo(1f);
@@ -359,9 +348,9 @@ public sealed class StressTests : IDisposable
         for (int i = 0; i < entities.Count; i++)
         {
             TestPosition pos;
-            using (var posRef = _world!.GetComponent<TestPosition>(entities[i]))
+            var posRef = _world!.GetComponent<TestPosition>(entities[i]);
             {
-                pos = posRef.Value;
+                pos = posRef;
             }
 
             await Assert.That(pos.X).IsEqualTo((float)i);
@@ -383,10 +372,10 @@ public sealed class StressTests : IDisposable
         _world.AddComponent<TestPosition>(entity);
 
         // Build many queries with same description
-        var queries = new List<Query<Bit64, ComponentRegistry, DefaultConfig>>();
+        var queries = new List<Query<Bit64, ComponentRegistry, DefaultConfig, Archetype<Bit64, ComponentRegistry, DefaultConfig>>>();
         for (int i = 0; i < 100; i++)
         {
-            var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+            var query = new QueryBuilder<Bit64>()
                 .With<TestPosition>()
                 .Build(_world.ArchetypeRegistry);
             queries.Add(query);
@@ -410,7 +399,7 @@ public sealed class StressTests : IDisposable
             _world.AddComponent(entity, new TestPosition { X = i });
         }
 
-        var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var query = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Build(_world!.ArchetypeRegistry);
 
@@ -418,7 +407,7 @@ public sealed class StressTests : IDisposable
         for (int iteration = 0; iteration < 10; iteration++)
         {
             int count = 0;
-            foreach (var archetype in query)
+            foreach (var archetype in query.Archetypes)
             {
                 count += archetype.EntityCount;
             }

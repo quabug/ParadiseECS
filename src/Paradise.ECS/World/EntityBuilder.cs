@@ -22,18 +22,20 @@ public interface IComponentsBuilder
     /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
     /// <typeparam name="TRegistry">The component registry type.</typeparam>
     /// <typeparam name="TConfig">The world configuration type.</typeparam>
+    /// <typeparam name="TChunkManager">The chunk manager type.</typeparam>
     /// <param name="chunkManager">The chunk manager for memory access.</param>
     /// <param name="layout">The archetype layout with component offsets.</param>
     /// <param name="chunkHandle">The chunk where data should be written.</param>
     /// <param name="indexInChunk">The entity's index within the chunk.</param>
-    void WriteComponents<TBits, TRegistry, TConfig>(
-        ChunkManager<TConfig> chunkManager,
+    void WriteComponents<TBits, TRegistry, TConfig, TChunkManager>(
+        TChunkManager chunkManager,
         ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
         where TBits : unmanaged, IStorage
         where TRegistry : IComponentRegistry
-        where TConfig : IConfig, new();
+        where TConfig : IConfig, new()
+        where TChunkManager : IChunkManager;
 }
 
 /// <summary>
@@ -47,7 +49,7 @@ public readonly struct EntityBuilder : IComponentsBuilder
     /// </summary>
     /// <returns>A new entity builder.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static EntityBuilder Create() => default;
+    public static EntityBuilder Create() => new();
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -59,14 +61,15 @@ public readonly struct EntityBuilder : IComponentsBuilder
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void WriteComponents<TBits, TRegistry, TConfig>(
-        ChunkManager<TConfig> chunkManager,
+    public void WriteComponents<TBits, TRegistry, TConfig, TChunkManager>(
+        TChunkManager chunkManager,
         ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
         where TBits : unmanaged, IStorage
         where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
+        where TChunkManager : IChunkManager
     {
         // No components to write
     }
@@ -115,14 +118,15 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void WriteComponents<TBits, TRegistry, TConfig>(
-        ChunkManager<TConfig> chunkManager,
+    public void WriteComponents<TBits, TRegistry, TConfig, TChunkManager>(
+        TChunkManager chunkManager,
         ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
         where TBits : unmanaged, IStorage
         where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
+        where TChunkManager : IChunkManager
     {
         // Write inner components first
         InnerBuilder.WriteComponents(chunkManager, layout, chunkHandle, indexInChunk);
@@ -135,8 +139,7 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
 
         // Write this component
         int offset = layout.GetEntityComponentOffset<TComponent>(indexInChunk);
-        using var chunk = chunkManager.Get(chunkHandle);
-        chunk.GetRef<TComponent>(offset) = Value;
+        chunkManager.GetBytes(chunkHandle).GetRef<TComponent>(offset) = Value;
     }
 }
 
@@ -163,63 +166,6 @@ public static class ComponentsBuilderExtensions
                 Value = value,
                 InnerBuilder = builder
             };
-        }
-
-        /// <summary>
-        /// Builds the entity in the specified world.
-        /// </summary>
-        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
-        /// <typeparam name="TRegistry">The component registry type.</typeparam>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="world">The world to create the entity in.</param>
-        /// <returns>The created entity.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity Build<TBits, TRegistry, TConfig>(World<TBits, TRegistry, TConfig> world)
-            where TBits : unmanaged, IStorage
-            where TRegistry : IComponentRegistry
-            where TConfig : IConfig, new()
-        {
-            return world.CreateEntity(builder);
-        }
-
-        /// <summary>
-        /// Overwrites all components on an existing entity with the builder's components.
-        /// Any existing components are discarded. The entity must already exist and be alive.
-        /// Used for deserialization or network synchronization.
-        /// </summary>
-        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
-        /// <typeparam name="TRegistry">The component registry type.</typeparam>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="entity">The existing entity handle.</param>
-        /// <param name="world">The world containing the entity.</param>
-        /// <returns>The entity.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity Overwrite<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
-            where TBits : unmanaged, IStorage
-            where TRegistry : IComponentRegistry
-            where TConfig : IConfig, new()
-        {
-            return world.OverwriteEntity(entity, builder);
-        }
-
-        /// <summary>
-        /// Adds the builder's components to an existing entity, preserving its current components.
-        /// This is a structural change that moves the entity to a new archetype.
-        /// </summary>
-        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
-        /// <typeparam name="TRegistry">The component registry type.</typeparam>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="entity">The existing entity handle.</param>
-        /// <param name="world">The world containing the entity.</param>
-        /// <returns>The entity.</returns>
-        /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity AddTo<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
-            where TBits : unmanaged, IStorage
-            where TRegistry : IComponentRegistry
-            where TConfig : IConfig, new()
-        {
-            return world.AddComponents(entity, builder);
         }
     }
 }

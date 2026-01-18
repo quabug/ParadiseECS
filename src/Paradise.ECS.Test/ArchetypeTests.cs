@@ -6,7 +6,7 @@ namespace Paradise.ECS.Test;
 public sealed class ArchetypeTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
     private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
     private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
 
@@ -29,7 +29,7 @@ public sealed class ArchetypeTests : IDisposable
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
 
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         await Assert.That(archetype.EntityCount).IsEqualTo(0);
         await Assert.That(archetype.ChunkCount).IsEqualTo(0);
@@ -41,7 +41,7 @@ public sealed class ArchetypeTests : IDisposable
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
 
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         await Assert.That(archetype.Id).IsGreaterThanOrEqualTo(0);
     }
@@ -52,7 +52,7 @@ public sealed class ArchetypeTests : IDisposable
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
 
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         await Assert.That(archetype.Layout.HasComponent<TestPosition>()).IsTrue();
         await Assert.That(archetype.Layout.HasComponent<TestVelocity>()).IsFalse();
@@ -67,7 +67,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         var entity = new Entity(0, 1);
         var index = archetype.AllocateEntity(entity);
@@ -80,7 +80,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
         archetype.AllocateEntity(new Entity(1, 1));
@@ -93,7 +93,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         var idx0 = archetype.AllocateEntity(new Entity(0, 1));
         var idx1 = archetype.AllocateEntity(new Entity(1, 1));
@@ -109,7 +109,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
 
@@ -125,7 +125,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
         archetype.RemoveEntity(0);
@@ -138,7 +138,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
         var movedId = archetype.RemoveEntity(0);
@@ -151,7 +151,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
         archetype.AllocateEntity(new Entity(1, 1));
@@ -169,7 +169,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
 
@@ -185,7 +185,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
         var chunkCountBefore = archetype.ChunkCount;
@@ -205,7 +205,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
 
@@ -223,7 +223,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         var globalIndex = archetype.GetGlobalIndex(0, 0);
 
@@ -235,7 +235,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         int entitiesPerChunk = archetype.Layout.EntitiesPerChunk;
 
@@ -257,7 +257,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(0);
 
@@ -270,7 +270,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         int entitiesPerChunk = archetype.Layout.EntitiesPerChunk;
         int testIndex = entitiesPerChunk + 5;
@@ -290,7 +290,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
         archetype.AllocateEntity(new Entity(1, 1));
@@ -307,7 +307,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         // Allocate enough entities to create at least one chunk
         for (int i = 0; i < 10; i++)
@@ -328,7 +328,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
         archetype.Clear();
@@ -348,7 +348,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty;
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         var idx = archetype.AllocateEntity(new Entity(0, 1));
 
@@ -361,7 +361,7 @@ public sealed class ArchetypeTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty;
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
         archetype.AllocateEntity(new Entity(1, 1));
@@ -384,7 +384,7 @@ public sealed class ArchetypeTests : IDisposable
             .Set(TestVelocity.TypeId)
             .Set(TestHealth.TypeId);
         var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
-        var archetype = _registry.GetOrCreateArchetype(hashedKey);
+        var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
         archetype.AllocateEntity(new Entity(1, 1));

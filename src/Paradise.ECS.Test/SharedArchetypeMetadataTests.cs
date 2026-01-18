@@ -168,7 +168,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_ReturnsValidId()
     {
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -181,7 +181,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_SameDescription_ReturnsSameId()
     {
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -196,7 +196,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
     public async Task GetMatchedArchetypeIds_ReturnsMatchingArchetypes()
     {
         // Create a query first
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;

@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-namespace Paradise.ECS.Concurrent;
+namespace Paradise.ECS.Concurrent.Benchmarks;
 
 /// <summary>
 /// A mutable fixed-size bitset for component masks, generic over the backing storage.

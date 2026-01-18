@@ -6,7 +6,7 @@ namespace Paradise.ECS.Concurrent.Test;
 public sealed class WorldEntityTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
     private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
     private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
@@ -129,7 +129,7 @@ public sealed class WorldEntityTests : IDisposable
     {
         // Create world with small capacity
         var config = new DefaultConfig { DefaultEntityCapacity = 4 };
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         using var world = new World<Bit64, ComponentRegistry, DefaultConfig>(
             config,
@@ -189,17 +189,17 @@ public sealed class WorldEntityTests : IDisposable
         // The critical test: entityC's location should be updated after swap-remove
         // Without the fix, entityC's stale location points to index 2, which now has entityD's data (400)
         float posB, posC, posD;
-        using (var refB = _world.GetComponent<TestPosition>(entityB))
+        var refB = _world.GetComponent<TestPosition>(entityB);
         {
-            posB = refB.Value.X;
+            posB = refB.X;
         }
-        using (var refC = _world.GetComponent<TestPosition>(entityC))
+        var refC = _world.GetComponent<TestPosition>(entityC);
         {
-            posC = refC.Value.X;
+            posC = refC.X;
         }
-        using (var refD = _world.GetComponent<TestPosition>(entityD))
+        var refD = _world.GetComponent<TestPosition>(entityD);
         {
-            posD = refD.Value.X;
+            posD = refD.X;
         }
 
         await Assert.That(posB).IsEqualTo(200f);

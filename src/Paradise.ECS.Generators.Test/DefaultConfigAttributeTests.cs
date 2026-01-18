@@ -65,7 +65,6 @@ public class DefaultConfigAttributeTests
 
         await Assert.That(aliases).IsNotNull();
         await Assert.That(aliases).Contains("global using ComponentMask = global::Paradise.ECS.ImmutableBitSet<");
-        await Assert.That(aliases).Contains("global using ChunkManager = global::Paradise.ECS.ChunkManager<global::TestNamespace.MyConfig>");
         await Assert.That(aliases).Contains("global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<");
         await Assert.That(aliases).Contains("global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<");
         await Assert.That(aliases).Contains("global using World = global::Paradise.ECS.World<");

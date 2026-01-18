@@ -1,14 +1,14 @@
 namespace Paradise.ECS.Test;
 
 /// <summary>
-/// Tests for <see cref="ChunkManager{TConfig}"/> and <see cref="Chunk{TConfig}"/>.
+/// Tests for <see cref="ChunkManager"/>.
 /// </summary>
 public sealed class ChunkManagerTests
 {
     [Test]
     public async Task Create_WithDefaultCapacity_DisposeSucceeds()
     {
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var manager = ChunkManager.Create(new DefaultConfig());
         manager.Dispose();
 
         await Assert.That(manager).IsNotNull();
@@ -18,7 +18,7 @@ public sealed class ChunkManagerTests
     public async Task Create_WithDefaultCapacity_DisposeSucceeds2()
     {
         // TConfig.DefaultChunkCapacity is now used automatically
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var manager = ChunkManager.Create(new DefaultConfig());
         manager.Dispose();
 
         await Assert.That(manager).IsNotNull();
@@ -27,7 +27,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Allocate_ReturnsValidHandle()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
 
         var handle = manager.Allocate();
 
@@ -37,7 +37,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Allocate_MultipleHandles_ReturnsDistinctIds()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
 
         var handle1 = manager.Allocate();
         var handle2 = manager.Allocate();
@@ -49,70 +49,54 @@ public sealed class ChunkManagerTests
     }
 
     [Test]
-    public async Task Get_ValidHandle_ReturnsValidChunk()
+    public async Task GetBytes_ValidHandle_ReturnsNonEmptySpan()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        bool isValid;
-        {
-            using var chunk = manager.Get(handle);
-            isValid = chunk.IsValid;
-        }
+        var bytes = manager.GetBytes(handle);
 
-        await Assert.That(isValid).IsTrue();
+        await Assert.That(bytes.IsEmpty).IsFalse();
     }
 
     [Test]
-    public async Task Get_InvalidHandle_ReturnsInvalidChunk()
+    public async Task GetBytes_InvalidHandle_ReturnsEmptySpan()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
 
-        bool isValid;
-        {
-            using var chunk = manager.Get(ChunkHandle.Invalid);
-            isValid = chunk.IsValid;
-        }
+        var bytes = manager.GetBytes(ChunkHandle.Invalid);
 
-        await Assert.That(isValid).IsFalse();
+        await Assert.That(bytes.IsEmpty).IsTrue();
     }
 
     [Test]
-    public async Task Get_StaleHandle_ReturnsInvalidChunk()
+    public async Task GetBytes_StaleHandle_ReturnsEmptySpan()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
         manager.Free(handle);
 
-        bool isValid;
-        {
-            using var chunk = manager.Get(handle);
-            isValid = chunk.IsValid;
-        }
+        var bytes = manager.GetBytes(handle);
 
-        await Assert.That(isValid).IsFalse();
+        await Assert.That(bytes.IsEmpty).IsTrue();
     }
 
     [Test]
     public async Task Free_ValidHandle_InvalidatesHandle()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         manager.Free(handle);
 
-        bool isValid;
-        {
-            using var chunk = manager.Get(handle);
-            isValid = chunk.IsValid;
-        }
-        await Assert.That(isValid).IsFalse();
+        var bytes = manager.GetBytes(handle);
+        await Assert.That(bytes.IsEmpty).IsTrue();
     }
 
     [Test]
     public async Task Free_InvalidHandle_DoesNotThrow()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
 
         manager.Free(ChunkHandle.Invalid);
 
@@ -122,7 +106,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_StaleHandle_DoesNotThrow()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
         manager.Free(handle);
 
@@ -132,52 +116,48 @@ public sealed class ChunkManagerTests
     }
 
     [Test]
-    public async Task Free_WhileBorrowed_ThrowsInvalidOperationException()
+    public async Task Free_WhileAcquired_ThrowsInvalidOperationException()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
+        manager.Acquire(handle);
         Exception? caught = null;
+        try
         {
-            using var chunk = manager.Get(handle);
-            try
-            {
-                manager.Free(handle);
-            }
-            catch (Exception ex)
-            {
-                caught = ex;
-            }
+            manager.Free(handle);
+        }
+        catch (Exception ex)
+        {
+            caught = ex;
+        }
+        finally
+        {
+            manager.Release(handle);
         }
 
         await Assert.That(caught).IsTypeOf<InvalidOperationException>();
     }
 
     [Test]
-    public async Task Free_AfterBorrowReleased_Succeeds()
+    public async Task Free_AfterRelease_Succeeds()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        {
-            using var chunk = manager.Get(handle);
-            // Borrow is released when chunk is disposed
-        }
+        manager.Acquire(handle);
+        manager.Release(handle);
 
         manager.Free(handle);
 
-        bool isValid;
-        {
-            using var chunk = manager.Get(handle);
-            isValid = chunk.IsValid;
-        }
-        await Assert.That(isValid).IsFalse();
+        var bytes = manager.GetBytes(handle);
+        await Assert.That(bytes.IsEmpty).IsTrue();
     }
 
     [Test]
     public async Task Allocate_AfterFree_ReusesSlot()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle1 = manager.Allocate();
         var id1 = handle1.Id;
         manager.Free(handle1);
@@ -189,162 +169,155 @@ public sealed class ChunkManagerTests
     }
 
     [Test]
-    public async Task Chunk_GetSpan_ReturnsWritableMemory()
+    public async Task GetBytes_ReturnsWritableMemory()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        int[] captured;
+        var span = manager.GetBytes(handle).GetSpan<int>(0, 10);
+        for (int i = 0; i < 10; i++)
         {
-            using var chunk = manager.Get(handle);
-            var span = chunk.GetSpan<int>(0, 10);
-            for (int i = 0; i < 10; i++)
-            {
-                span[i] = i * 100;
-            }
-            captured = span.ToArray();
+            span[i] = i * 100;
         }
 
-        await Assert.That(captured[0]).IsEqualTo(0);
-        await Assert.That(captured[5]).IsEqualTo(500);
-        await Assert.That(captured[9]).IsEqualTo(900);
+        // Capture values before await
+        var v0 = span[0];
+        var v5 = span[5];
+        var v9 = span[9];
+
+        await Assert.That(v0).IsEqualTo(0);
+        await Assert.That(v5).IsEqualTo(500);
+        await Assert.That(v9).IsEqualTo(900);
     }
 
     [Test]
-    public async Task Chunk_GetSpan_PersistsAcrossGet()
+    public async Task GetBytes_DataPersistsAcrossCalls()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         // Write data
+        var span1 = manager.GetBytes(handle).GetSpan<int>(0, 10);
+        for (int i = 0; i < 10; i++)
         {
-            using var chunk = manager.Get(handle);
-            var span = chunk.GetSpan<int>(0, 10);
-            for (int i = 0; i < 10; i++)
-            {
-                span[i] = i * 100;
-            }
+            span1[i] = i * 100;
         }
 
-        // Read data back
-        int[] captured;
-        {
-            using var chunk = manager.Get(handle);
-            var span = chunk.GetSpan<int>(0, 10);
-            captured = span.ToArray();
-        }
+        // Read data back and capture values before await
+        var span2 = manager.GetBytes(handle).GetSpan<int>(0, 10);
+        var v0 = span2[0];
+        var v5 = span2[5];
+        var v9 = span2[9];
 
-        await Assert.That(captured[0]).IsEqualTo(0);
-        await Assert.That(captured[5]).IsEqualTo(500);
-        await Assert.That(captured[9]).IsEqualTo(900);
+        await Assert.That(v0).IsEqualTo(0);
+        await Assert.That(v5).IsEqualTo(500);
+        await Assert.That(v9).IsEqualTo(900);
     }
 
     [Test]
-    public async Task Chunk_GetRef_ReturnsWritableReference()
+    public async Task GetBytes_GetRef_ReturnsWritableReference()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        int value;
-        {
-            using var chunk = manager.Get(handle);
-            ref int refValue = ref chunk.GetRef<int>(0);
-            refValue = 42;
-            value = chunk.GetRef<int>(0);
-        }
+        ref int refValue = ref manager.GetBytes(handle).GetRef<int>(0);
+        refValue = 42;
+
+        var value = manager.GetBytes(handle).GetRef<int>(0);
 
         await Assert.That(value).IsEqualTo(42);
     }
 
     [Test]
-    public async Task Chunk_GetDataBytes_ReturnsFullChunkSize()
+    public async Task GetBytes_ReturnsFullChunkSize()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        int length;
-        {
-            using var chunk = manager.Get(handle);
-            var bytes = chunk.GetDataBytes();
-            length = bytes.Length;
-        }
+        var bytes = manager.GetBytes(handle);
 
-        await Assert.That(length).IsEqualTo(DefaultConfig.ChunkSize);
+        await Assert.That(bytes.Length).IsEqualTo(DefaultConfig.ChunkSize);
     }
 
     [Test]
-    public async Task Chunk_GetDataBytes_WithSize_ReturnsSpecifiedSize()
+    public async Task GetBytes_Slice_ReturnsSpecifiedSize()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        int length;
-        {
-            using var chunk = manager.Get(handle);
-            var bytes = chunk.GetDataBytes(100);
-            length = bytes.Length;
-        }
+        var bytes = manager.GetBytes(handle).Slice(0, 100);
 
-        await Assert.That(length).IsEqualTo(100);
+        await Assert.That(bytes.Length).IsEqualTo(100);
     }
 
     [Test]
-    public async Task Chunk_GetRawBytes_ReturnsChunkSize()
+    public async Task GetBytes_GetBytesAt_ReturnsCorrectSlice()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        int length;
-        {
-            using var chunk = manager.Get(handle);
-            var bytes = chunk.GetRawBytes();
-            length = bytes.Length;
-        }
+        var bytes = manager.GetBytes(handle).GetBytesAt(100, 50);
 
-        await Assert.That(length).IsEqualTo(DefaultConfig.ChunkSize);
+        await Assert.That(bytes.Length).IsEqualTo(50);
     }
 
     [Test]
-    public async Task Chunk_GetBytesAt_ReturnsCorrectSlice()
+    public async Task Acquire_ValidHandle_ReturnsTrue()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        int length;
-        {
-            using var chunk = manager.Get(handle);
-            var bytes = chunk.GetBytesAt(100, 50);
-            length = bytes.Length;
-        }
+        var result = manager.Acquire(handle);
 
-        await Assert.That(length).IsEqualTo(50);
+        manager.Release(handle);
+        await Assert.That(result).IsTrue();
     }
 
     [Test]
-    public async Task MultipleBorrows_AllValid()
+    public async Task Acquire_InvalidHandle_ReturnsFalse()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
+
+        var result = manager.Acquire(ChunkHandle.Invalid);
+
+        await Assert.That(result).IsFalse();
+    }
+
+    [Test]
+    public async Task Acquire_StaleHandle_ReturnsFalse()
+    {
+        using var manager = ChunkManager.Create(new DefaultConfig());
+        var handle = manager.Allocate();
+        manager.Free(handle);
+
+        var result = manager.Acquire(handle);
+
+        await Assert.That(result).IsFalse();
+    }
+
+    [Test]
+    public async Task MultipleAcquires_AllSucceed()
+    {
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        bool valid1, valid2, valid3;
-        {
-            using var chunk1 = manager.Get(handle);
-            using var chunk2 = manager.Get(handle);
-            using var chunk3 = manager.Get(handle);
-            valid1 = chunk1.IsValid;
-            valid2 = chunk2.IsValid;
-            valid3 = chunk3.IsValid;
-        }
+        var r1 = manager.Acquire(handle);
+        var r2 = manager.Acquire(handle);
+        var r3 = manager.Acquire(handle);
 
-        await Assert.That(valid1).IsTrue();
-        await Assert.That(valid2).IsTrue();
-        await Assert.That(valid3).IsTrue();
+        manager.Release(handle);
+        manager.Release(handle);
+        manager.Release(handle);
+
+        await Assert.That(r1).IsTrue();
+        await Assert.That(r2).IsTrue();
+        await Assert.That(r3).IsTrue();
     }
 
     [Test]
     public async Task ManyAllocations_AllValid()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handles = new ChunkHandle[100];
 
         for (int i = 0; i < 100; i++)
@@ -352,14 +325,13 @@ public sealed class ChunkManagerTests
             handles[i] = manager.Allocate();
         }
 
-        bool[] validities = new bool[100];
+        bool[] nonEmpty = new bool[100];
         for (int i = 0; i < 100; i++)
         {
-            using var chunk = manager.Get(handles[i]);
-            validities[i] = chunk.IsValid;
+            nonEmpty[i] = !manager.GetBytes(handles[i]).IsEmpty;
         }
 
-        foreach (var valid in validities)
+        foreach (var valid in nonEmpty)
         {
             await Assert.That(valid).IsTrue();
         }
@@ -368,7 +340,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Dispose_InvalidatesFurtherAllocations()
     {
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var manager = ChunkManager.Create(new DefaultConfig());
         manager.Dispose();
 
         var caught = false;
@@ -385,16 +357,16 @@ public sealed class ChunkManagerTests
     }
 
     [Test]
-    public async Task Dispose_InvalidatesFurtherGet()
+    public async Task Dispose_InvalidatesFurtherGetBytes()
     {
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
         manager.Dispose();
 
         var caught = false;
         try
         {
-            using var chunk = manager.Get(handle);
+            _ = manager.GetBytes(handle);
         }
         catch (ObjectDisposedException)
         {
@@ -405,34 +377,17 @@ public sealed class ChunkManagerTests
     }
 
     [Test]
-    public async Task Default_Chunk_IsInvalid()
-    {
-        // Note: default Chunk has null ChunkManager, so Dispose() is a safe no-op
-        bool isValid;
-        {
-            var chunk = default(Chunk<DefaultConfig>);
-            isValid = chunk.IsValid;
-            chunk.Dispose();
-        }
-
-        await Assert.That(isValid).IsFalse();
-    }
-
-    [Test]
     public async Task StructTypes_WorkCorrectly()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
-        TestStruct captured;
-        {
-            using var chunk = manager.Get(handle);
-            ref var data = ref chunk.GetRef<TestStruct>(0);
-            data.X = 1.5f;
-            data.Y = 2.5f;
-            data.Value = 42;
-            captured = chunk.GetRef<TestStruct>(0);
-        }
+        ref var data = ref manager.GetBytes(handle).GetRef<TestStruct>(0);
+        data.X = 1.5f;
+        data.Y = 2.5f;
+        data.Value = 42;
+
+        var captured = manager.GetBytes(handle).GetRef<TestStruct>(0);
 
         await Assert.That(captured.X).IsEqualTo(1.5f);
         await Assert.That(captured.Y).IsEqualTo(2.5f);

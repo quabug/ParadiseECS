@@ -9,7 +9,7 @@ public sealed class WorldTests
     public async Task Constructor_CreatesValidWorld()
     {
         var config = new DefaultConfig();
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         using var world = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager);
 
@@ -21,7 +21,7 @@ public sealed class WorldTests
     public async Task Constructor_WithCapacity_CreatesValidWorld()
     {
         var config = new DefaultConfig { DefaultEntityCapacity = 512 };
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         using var world = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager);
 
@@ -33,7 +33,7 @@ public sealed class WorldTests
     public async Task Constructor_WithChunkManager_CreatesValidWorld()
     {
         var config = new DefaultConfig();
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         using var world = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager);
 
@@ -56,7 +56,7 @@ public sealed class WorldTests
     {
         // With hybrid config design, invalid capacities throw rather than using defaults
         var config0 = new DefaultConfig { DefaultEntityCapacity = 0 };
-        using var chunkManager1 = new ChunkManager<DefaultConfig>(config0);
+        using var chunkManager1 = ChunkManager.Create(config0);
         using var sharedMetadata1 = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config0);
         await Assert.That(() =>
         {
@@ -64,7 +64,7 @@ public sealed class WorldTests
         }).Throws<ArgumentOutOfRangeException>();
 
         var configNeg = new DefaultConfig { DefaultEntityCapacity = -1 };
-        using var chunkManager2 = new ChunkManager<DefaultConfig>(configNeg);
+        using var chunkManager2 = ChunkManager.Create(configNeg);
         using var sharedMetadata2 = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(configNeg);
         await Assert.That(() =>
         {
@@ -76,7 +76,7 @@ public sealed class WorldTests
     public async Task Dispose_MultipleTimes_DoesNotThrow()
     {
         var config = new DefaultConfig();
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         using var world = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager);
 
@@ -91,7 +91,7 @@ public sealed class WorldTests
     public async Task Dispose_PreventsNewOperations()
     {
         var config = new DefaultConfig();
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         var world = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager);
         world.Dispose();
@@ -103,7 +103,7 @@ public sealed class WorldTests
     public async Task Dispose_DoesNotDisposeChunkManager()
     {
         var config = new DefaultConfig();
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         var world = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager);
 
@@ -125,7 +125,7 @@ public sealed class WorldSharedMetadataTests
     {
         var config = new DefaultConfig();
         using var customMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
         using var world = new World<Bit64, ComponentRegistry, DefaultConfig>(config, customMetadata, chunkManager);
 
         await Assert.That(world.SharedMetadata).IsSameReferenceAs(customMetadata);
@@ -135,7 +135,7 @@ public sealed class WorldSharedMetadataTests
     public async Task Constructor_NullSharedMetadata_Throws()
     {
         var config = new DefaultConfig();
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
 
         await Assert.That(() => new World<Bit64, ComponentRegistry, DefaultConfig>(config, null!, chunkManager))
             .ThrowsExactly<ArgumentNullException>();
@@ -146,8 +146,8 @@ public sealed class WorldSharedMetadataTests
     {
         var config = new DefaultConfig();
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
-        using var chunkManager1 = new ChunkManager<DefaultConfig>(config);
-        using var chunkManager2 = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager1 = ChunkManager.Create(config);
+        using var chunkManager2 = ChunkManager.Create(config);
         using var world1 = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager1);
         using var world2 = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager2);
 
@@ -160,8 +160,8 @@ public sealed class WorldSharedMetadataTests
         // Use isolated metadata to avoid interference from other tests
         var config = new DefaultConfig();
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
-        using var chunkManager1 = new ChunkManager<DefaultConfig>(config);
-        using var chunkManager2 = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager1 = ChunkManager.Create(config);
+        using var chunkManager2 = ChunkManager.Create(config);
         using var world1 = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager1);
         using var world2 = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager2);
 
@@ -189,8 +189,8 @@ public sealed class WorldSharedMetadataTests
         var config = new DefaultConfig();
         using var metadata1 = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         using var metadata2 = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
-        using var chunkManager1 = new ChunkManager<DefaultConfig>(config);
-        using var chunkManager2 = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager1 = ChunkManager.Create(config);
+        using var chunkManager2 = ChunkManager.Create(config);
         using var world1 = new World<Bit64, ComponentRegistry, DefaultConfig>(config, metadata1, chunkManager1);
         using var world2 = new World<Bit64, ComponentRegistry, DefaultConfig>(config, metadata2, chunkManager2);
 
@@ -219,7 +219,7 @@ public sealed class WorldSharedMetadataTests
     {
         var config = new DefaultConfig();
         using var metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
 
         var world = new World<Bit64, ComponentRegistry, DefaultConfig>(config, metadata, chunkManager);
         world.Dispose();
@@ -235,8 +235,8 @@ public sealed class WorldSharedMetadataTests
     {
         var config = new DefaultConfig();
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
-        using var chunkManager1 = new ChunkManager<DefaultConfig>(config);
-        using var chunkManager2 = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager1 = ChunkManager.Create(config);
+        using var chunkManager2 = ChunkManager.Create(config);
         using var world1 = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager1);
         using var world2 = new World<Bit64, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager2);
 

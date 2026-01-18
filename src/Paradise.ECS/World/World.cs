@@ -15,7 +15,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
-    private readonly ChunkManager<TConfig> _chunkManager;
+    private readonly ChunkManager _chunkManager;
     private readonly ArchetypeRegistry<TBits, TRegistry, TConfig> _archetypeRegistry;
     private readonly EntityManager _entityManager;
     private Archetype<TBits, TRegistry, TConfig> _emptyArchetype;
@@ -38,7 +38,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
     public World(TConfig config,
                  SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
-                 ChunkManager<TConfig> chunkManager)
+                 ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);
@@ -48,7 +48,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         _entityManager = new EntityManager(config.DefaultEntityCapacity);
 
         // Create the empty archetype for componentless entities
-        _emptyArchetype = _archetypeRegistry.GetOrCreateArchetype(
+        _emptyArchetype = _archetypeRegistry.GetOrCreate(
             (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
     }
 
@@ -60,7 +60,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
     public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
-                 ChunkManager<TConfig> chunkManager)
+                 ChunkManager chunkManager)
         : this(new TConfig(), sharedMetadata, chunkManager)
     {
     }
@@ -74,7 +74,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     public Entity Spawn()
     {
         // Validate before creating to avoid inconsistent state if limit exceeded
-        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
+        ThrowHelper.ThrowIfEntityIdExceedsLimit(_entityManager.PeekNextId(), Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
         var entity = _entityManager.Create();
         int globalIndex = _emptyArchetype.AllocateEntity(entity);
         _entityManager.SetLocation(entity.Id, new EntityLocation(entity.Version, _emptyArchetype.Id, globalIndex));
@@ -95,11 +95,11 @@ public sealed class World<TBits, TRegistry, TConfig>
         builder.CollectTypes(ref mask);
 
         // Validate before creating to avoid inconsistent state if limit exceeded
-        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
+        ThrowHelper.ThrowIfEntityIdExceedsLimit(_entityManager.PeekNextId(), Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
 
         // Create entity and place in target archetype (returns empty archetype if mask is empty)
         var entity = _entityManager.Create();
-        var archetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)mask);
+        var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
         PlaceEntityWithComponents(entity, archetype, builder);
 
         return entity;
@@ -126,7 +126,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         RemoveFromCurrentArchetype(location);
 
         // Get target archetype (returns empty archetype if mask is empty)
-        var archetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)mask);
+        var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
 
         // Place in target archetype and write components
         PlaceEntityWithComponents(entity, archetype, builder);
@@ -155,7 +155,7 @@ public sealed class World<TBits, TRegistry, TConfig>
             return entity;
 
         // Get current mask from entity's archetype
-        var sourceArchetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
         var currentMask = sourceArchetype.Layout.ComponentMask;
 
         // Merge masks and get target archetype
@@ -170,7 +170,7 @@ public sealed class World<TBits, TRegistry, TConfig>
             return entity;
         }
 
-        var targetArchetype = _archetypeRegistry.GetOrCreateArchetype((HashedKey<ImmutableBitSet<TBits>>)targetMask);
+        var targetArchetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)targetMask);
 
         // Allocate in target archetype
         int newGlobalIndex = targetArchetype.AllocateEntity(entity);
@@ -218,14 +218,14 @@ public sealed class World<TBits, TRegistry, TConfig>
     /// </summary>
     private void RemoveFromCurrentArchetype(EntityLocation location)
     {
-        var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
         int movedEntityId = archetype.RemoveEntity(location.GlobalIndex);
 
         // If an entity was moved during swap-remove, update its location
         if (movedEntityId >= 0)
         {
             var movedLocation = _entityManager.GetLocation(movedEntityId);
-            _entityManager.SetLocation(movedEntityId, movedLocation with { GlobalIndex = location.GlobalIndex });
+            _entityManager.SetLocation(movedEntityId, new EntityLocation(movedLocation.Version, movedLocation.ArchetypeId, location.GlobalIndex));
         }
     }
 
@@ -265,7 +265,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     }
 
     /// <summary>
-    /// Gets a reference to a component on an entity.
+    /// Gets a component value from an entity.
     /// </summary>
     /// <typeparam name="T">The component type.</typeparam>
     /// <param name="entity">The entity.</param>
@@ -275,8 +275,21 @@ public sealed class World<TBits, TRegistry, TConfig>
     public T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         var (handle, offset) = GetComponentLocation<T>(entity);
-        using var chunk = _chunkManager.Get(handle);
-        return chunk.GetRef<T>(offset);
+        return _chunkManager.GetBytes(handle).GetRef<T>(offset);
+    }
+
+    /// <summary>
+    /// Gets a reference to a component on an entity.
+    /// </summary>
+    /// <typeparam name="T">The component type.</typeparam>
+    /// <param name="entity">The entity.</param>
+    /// <returns>A reference to the component.</returns>
+    /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetComponentRef<T>(Entity entity) where T : unmanaged, IComponent
+    {
+        var (handle, offset) = GetComponentLocation<T>(entity);
+        return ref _chunkManager.GetBytes(handle).GetRef<T>(offset);
     }
 
     /// <summary>
@@ -290,8 +303,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
     {
         var (handle, offset) = GetComponentLocation<T>(entity);
-        using var chunk = _chunkManager.Get(handle);
-        chunk.GetRef<T>(offset) = value;
+        _chunkManager.GetBytes(handle).GetRef<T>(offset) = value;
     }
 
     /// <summary>
@@ -305,7 +317,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     private (ChunkHandle Handle, int Offset) GetComponentLocation<T>(Entity entity) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-        var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)
+        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
 
         var layout = archetype.Layout;
@@ -331,7 +343,7 @@ public sealed class World<TBits, TRegistry, TConfig>
             return false;
 
         var location = _entityManager.GetLocation(entity.Id);
-        var archetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var archetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
         return archetype.Layout.HasComponent<T>();
     }
 
@@ -345,14 +357,14 @@ public sealed class World<TBits, TRegistry, TConfig>
     public void AddComponent<T>(Entity entity, T value = default) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-        var sourceArchetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if already has component
         if (sourceArchetype.Layout.HasComponent<T>())
             throw new InvalidOperationException($"Entity {entity} already has component {typeof(T).Name}.");
 
         // Get target archetype using O(1) edge cache
-        var targetArchetype = _archetypeRegistry.GetOrCreateArchetypeWithAdd(sourceArchetype, T.TypeId);
+        var targetArchetype = _archetypeRegistry.GetOrCreateWithAdd(sourceArchetype, T.TypeId);
 
         // Move entity to target archetype
         MoveEntity(entity, location, sourceArchetype, targetArchetype);
@@ -362,9 +374,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(updatedLocation.GlobalIndex);
         var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
         int newOffset = targetArchetype.Layout.GetEntityComponentOffset<T>(newIndexInChunk);
-        using var newChunk = _chunkManager.Get(newChunkHandle);
-        var newSpan = newChunk.GetSpan<T>(newOffset, 1);
-        newSpan[0] = value;
+        _chunkManager.GetBytes(newChunkHandle).GetRef<T>(newOffset) = value;
     }
 
     /// <summary>
@@ -376,27 +386,39 @@ public sealed class World<TBits, TRegistry, TConfig>
     public void RemoveComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         var location = GetValidatedLocation(entity);
-        var sourceArchetype = _archetypeRegistry.GetArchetypeById(location.ArchetypeId)!;
+        var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if has component
         if (!sourceArchetype.Layout.HasComponent<T>())
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
         // Get target archetype using O(1) edge cache (returns empty archetype if removing last component)
-        var targetArchetype = _archetypeRegistry.GetOrCreateArchetypeWithRemove(sourceArchetype, T.TypeId);
+        var targetArchetype = _archetypeRegistry.GetOrCreateWithRemove(sourceArchetype, T.TypeId);
 
         // Move entity to target archetype
         MoveEntity(entity, location, sourceArchetype, targetArchetype);
     }
 
     /// <summary>
-    /// Creates a query builder for this world.
+    /// Gets the archetype registry for this world.
+    /// Used for building queries via <see cref="QueryBuilder{TBits}"/>.
     /// </summary>
-    /// <returns>A new query builder.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static QueryBuilder<TBits, TRegistry, TConfig> Query()
+    public ArchetypeRegistry<TBits, TRegistry, TConfig> Registry
     {
-        return new QueryBuilder<TBits, TRegistry, TConfig>();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _archetypeRegistry;
+    }
+
+    /// <summary>
+    /// Gets the Entity handle for a given entity ID.
+    /// </summary>
+    /// <param name="entityId">The entity ID.</param>
+    /// <returns>The Entity handle with current version.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Entity GetEntity(int entityId)
+    {
+        var location = _entityManager.GetLocation(entityId);
+        return new Entity(entityId, location.Version);
     }
 
     private void MoveEntity(
@@ -425,7 +447,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         if (movedEntityId >= 0)
         {
             var movedLocation = _entityManager.GetLocation(movedEntityId);
-            _entityManager.SetLocation(movedEntityId, movedLocation with { GlobalIndex = oldGlobalIndex });
+            _entityManager.SetLocation(movedEntityId, new EntityLocation(movedLocation.Version, movedLocation.ArchetypeId, oldGlobalIndex));
         }
 
         // Update the entity's location to the new archetype
@@ -447,8 +469,8 @@ public sealed class World<TBits, TRegistry, TConfig>
         if (sharedMask.IsEmpty)
             return;
 
-        using var srcChunk = _chunkManager.Get(srcChunkHandle);
-        using var dstChunk = _chunkManager.Get(dstChunkHandle);
+        var srcBytes = _chunkManager.GetBytes(srcChunkHandle);
+        var dstBytes = _chunkManager.GetBytes(dstChunkHandle);
 
         var typeInfos = TRegistry.TypeInfos;
 
@@ -461,8 +483,8 @@ public sealed class World<TBits, TRegistry, TConfig>
             int srcOffset = srcLayout.GetEntityComponentOffset(srcIndexInChunk, new ComponentId(componentId));
             int dstOffset = dstLayout.GetEntityComponentOffset(dstIndexInChunk, new ComponentId(componentId));
 
-            var srcData = srcChunk.GetBytesAt(srcOffset, info.Size);
-            var dstData = dstChunk.GetBytesAt(dstOffset, info.Size);
+            var srcData = srcBytes.GetBytesAt(srcOffset, info.Size);
+            var dstData = dstBytes.GetBytesAt(dstOffset, info.Size);
             srcData.CopyTo(dstData);
         }
     }
@@ -489,7 +511,94 @@ public sealed class World<TBits, TRegistry, TConfig>
         _entityManager.Clear();
 
         // Re-create the empty archetype for componentless entities
-        _emptyArchetype = _archetypeRegistry.GetOrCreateArchetype(
+        _emptyArchetype = _archetypeRegistry.GetOrCreate(
             (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
+    }
+}
+
+public static class ComponentsBuilderWorldExtensions
+{
+    extension<TBuilder>(TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
+    {
+        /// <summary>
+        /// Builds the entity in the specified world.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="world">The world to create the entity in.</param>
+        /// <returns>The created entity.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Entity Build<TBits, TRegistry, TConfig>(World<TBits, TRegistry, TConfig> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            return world.CreateEntity(builder);
+        }
+
+        /// <summary>
+        /// Overwrites all components on an existing entity with the builder's components.
+        /// Any existing components are discarded. The entity must already exist and be alive.
+        /// Used for deserialization or network synchronization.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="entity">The existing entity handle.</param>
+        /// <param name="world">The world containing the entity.</param>
+        /// <returns>The entity.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Entity Overwrite<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            return world.OverwriteEntity(entity, builder);
+        }
+
+        /// <summary>
+        /// Adds the builder's components to an existing entity, preserving its current components.
+        /// This is a structural change that moves the entity to a new archetype.
+        /// </summary>
+        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="entity">The existing entity handle.</param>
+        /// <param name="world">The world containing the entity.</param>
+        /// <returns>The entity.</returns>
+        /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Entity AddTo<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
+            where TBits : unmanaged, IStorage
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            return world.AddComponents(entity, builder);
+        }
+    }
+}
+
+public static class QueryBuilderWorldExtensions
+{
+    extension<TBits>(QueryBuilder<TBits> builder) where TBits : unmanaged, IStorage
+    {
+        /// <summary>
+        /// Builds a WorldQuery from this description, enabling WorldEntity enumeration.
+        /// </summary>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="world">The world to query.</param>
+        /// <returns>A WorldQuery that iterates over WorldEntity handles.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public WorldQuery<TBits, TRegistry, TConfig> Build<TRegistry, TConfig>(
+            World<TBits, TRegistry, TConfig> world)
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            var query = world.Registry.GetOrCreateQuery(
+                (HashedKey<ImmutableQueryDescription<TBits>>)builder.Description);
+            return new WorldQuery<TBits, TRegistry, TConfig>(world, query);
+        }
     }
 }

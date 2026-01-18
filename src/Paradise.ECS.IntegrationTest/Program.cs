@@ -9,7 +9,7 @@ Console.WriteLine();
 
 // Create shared resources
 using var sharedMetadata = new SharedArchetypeMetadata();
-using var chunkManager = new ChunkManager();
+using var chunkManager = DefaultChunkManager.Create();
 
 // Create the world using the generated World alias
 var world = new World(sharedMetadata, chunkManager);
@@ -104,38 +104,110 @@ Console.WriteLine();
 Console.WriteLine("5. Simulating Game Loop (5 frames)");
 Console.WriteLine("----------------------------");
 
-// Simple movement system simulation
+// Create a query for movable entities using WorldQuery (returns WorldEntity)
+var movableWorldQuery = QueryBuilder
+    .Create()
+    .With<Position>()
+    .With<Velocity>()
+    .Build(world);
+
+// Simple movement system simulation using WorldEntity
 for (int frame = 0; frame < 5; frame++)
 {
     Console.WriteLine($"  Frame {frame + 1}:");
 
-    // Update player position based on velocity
-    if (world.IsAlive(playerEntity))
+    int movedEntities = 0;
+    foreach (var entity in movableWorldQuery)
     {
-        var pos = world.GetComponent<Position>(playerEntity);
-        var vel = world.GetComponent<Velocity>(playerEntity);
-        var newPos = new Position(pos.X + vel.X, pos.Y + vel.Y);
-        world.SetComponent(playerEntity, newPos);
-        Console.WriteLine($"    Player moved to {newPos}");
-    }
+        // Use WorldEntity's convenient Get method (returns ref)
+        ref var pos = ref entity.Get<Position>();
+        var vel = entity.Get<Velocity>();
+        pos = new Position(pos.X + vel.X, pos.Y + vel.Y);
+        movedEntities++;
 
-    // Update enemy positions
-    int aliveEnemies = 0;
-    foreach (var enemy in enemies)
-    {
-        if (!world.IsAlive(enemy)) continue;
-        aliveEnemies++;
-
-        var pos = world.GetComponent<Position>(enemy);
-        var vel = world.GetComponent<Velocity>(enemy);
-        var newPos = new Position(pos.X + vel.X, pos.Y + vel.Y);
-        world.SetComponent(enemy, newPos);
+        // Check if this is the player
+        if (entity.Has<PlayerTag>())
+        {
+            Console.WriteLine($"    Player moved to {pos}");
+        }
     }
-    Console.WriteLine($"    Updated {aliveEnemies} enemies");
+    Console.WriteLine($"    Moved {movedEntities} entities total");
 }
 Console.WriteLine();
 
-Console.WriteLine("6. Testing Entity Overwrite");
+Console.WriteLine("6. Testing Query Enumerators");
+Console.WriteLine("----------------------------");
+
+// WorldQuery API - iterates WorldEntity with convenient Get/Set/Has methods
+Console.WriteLine("  WorldQuery API (Build with World):");
+Console.WriteLine($"    EntityCount: {movableWorldQuery.EntityCount}");
+Console.WriteLine($"    IsEmpty: {movableWorldQuery.IsEmpty}");
+
+Console.WriteLine("  Iterating over WorldEntity:");
+foreach (var entity in movableWorldQuery)
+{
+    var pos = entity.Get<Position>();
+    var isPlayer = entity.Has<PlayerTag>();
+    Console.WriteLine($"    Entity {entity.Entity.Id}: Position={pos}, IsPlayer={isPlayer}");
+}
+
+// Access underlying Query for low-level iteration
+var underlyingQuery = movableWorldQuery.Query;
+Console.WriteLine($"  Underlying Query - ArchetypeCount: {underlyingQuery.ArchetypeCount}");
+
+// Iterate over entity IDs using underlying Query
+Console.WriteLine("  Iterating over entity IDs (underlying Query):");
+var entityIdList = new List<int>();
+foreach (var entityId in underlyingQuery)
+{
+    entityIdList.Add(entityId);
+}
+Console.WriteLine($"    Found {entityIdList.Count} entity IDs: [{string.Join(", ", entityIdList)}]");
+
+// Iterate over archetypes using Archetypes property
+Console.WriteLine("  Iterating over archetypes:");
+foreach (var archetype in underlyingQuery.Archetypes)
+{
+    Console.WriteLine($"    Archetype {archetype.Id}: {archetype.EntityCount} entities, {archetype.ChunkCount} chunks");
+}
+
+// Iterate over chunks using Chunks enumerator
+Console.WriteLine("  Iterating over chunks:");
+foreach (var chunkInfo in underlyingQuery.Chunks)
+{
+    Console.WriteLine($"    Chunk from archetype {chunkInfo.Archetype.Id}: {chunkInfo.EntityCount} entities");
+}
+
+// Query with exclusion filter using WorldQuery
+var nonPlayerMovableQuery = QueryBuilder
+    .Create()
+    .With<Position>()
+    .With<Velocity>()
+    .Without<PlayerTag>()
+    .Build(world);
+
+Console.WriteLine($"  Query for movable non-players:");
+Console.WriteLine($"    EntityCount: {nonPlayerMovableQuery.EntityCount}");
+foreach (var entity in nonPlayerMovableQuery)
+{
+    Console.WriteLine($"    Enemy at {entity.Get<Position>()}");
+}
+
+// Query with Health using WorldQuery
+var healthQuery = QueryBuilder
+    .Create()
+    .With<Health>()
+    .Build(world);
+
+Console.WriteLine($"  Query for entities with Health:");
+Console.WriteLine($"    EntityCount: {healthQuery.EntityCount}");
+foreach (var entity in healthQuery)
+{
+    Console.WriteLine($"    Entity {entity.Entity.Id} health: {entity.Get<Health>()}");
+}
+Console.WriteLine();
+
+Console.WriteLine("7. Testing Entity Overwrite");
 Console.WriteLine("----------------------------");
 
 // Overwrite player with completely new components
@@ -153,7 +225,7 @@ Console.WriteLine($"  Player has Velocity: {world.HasComponent<Velocity>(playerE
 Console.WriteLine($"  Player health: {world.GetComponent<Health>(playerEntity)}");
 Console.WriteLine();
 
-Console.WriteLine("7. Testing World Clear");
+Console.WriteLine("8. Testing World Clear");
 Console.WriteLine("----------------------------");
 
 Console.WriteLine($"  Entity count before clear: {world.EntityCount}");
@@ -163,7 +235,7 @@ Console.WriteLine($"  Entity count after clear: {world.EntityCount}");
 Console.WriteLine($"  Player is alive after clear: {world.IsAlive(playerEntity)}");
 Console.WriteLine();
 
-Console.WriteLine("8. Verifying Generated Types");
+Console.WriteLine("9. Verifying Generated Types");
 Console.WriteLine("----------------------------");
 
 // Verify the ComponentMask alias works

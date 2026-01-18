@@ -3,6 +3,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Paradise.ECS.Test" />
     <InternalsVisibleTo Include="Paradise.ECS.Concurrent" />
+    <InternalsVisibleTo Include="Paradise.ECS.Concurrent.Test" />
   </ItemGroup>
 
   <ItemGroup>

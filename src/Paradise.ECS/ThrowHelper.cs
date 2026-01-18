@@ -32,21 +32,19 @@ internal static class ThrowHelper
     /// Throws if <paramref name="totalBytes"/> exceeds chunk size.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ThrowIfExceedsChunkSize<TConfig>(int totalBytes)
-        where TConfig : IConfig, new()
-        => ThrowIfGreaterThan(totalBytes, TConfig.ChunkSize);
+    public static void ThrowIfExceedsChunkSize(int chunkSize, int totalBytes)
+        => ThrowIfGreaterThan(totalBytes, chunkSize);
 
     /// <summary>
     /// Validates byte offset and size for chunk bounds.
     /// Throws if offset or size is negative, or if the range exceeds chunk size.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateChunkRange<TConfig>(int byteOffset, int size)
-        where TConfig : IConfig, new()
+    public static void ValidateChunkRange(int chunkSize, int byteOffset, int size)
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(size);
-        ThrowIfGreaterThan(size, TConfig.ChunkSize - byteOffset);
+        ThrowIfGreaterThan(size, chunkSize - byteOffset);
     }
 
     /// <summary>
@@ -54,13 +52,12 @@ internal static class ThrowHelper
     /// Throws if offset or count is negative, or if the range exceeds chunk size.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateChunkRange<TConfig>(int byteOffset, int count, int elementSize)
-        where TConfig : IConfig, new()
+    public static void ValidateChunkRange(int chunkSize, int byteOffset, int count, int elementSize)
     {
         ThrowIfNegative(byteOffset);
         ThrowIfNegative(count);
         // Validate count against max possible elements to prevent overflow in multiplication
-        int maxCount = (TConfig.ChunkSize - byteOffset) / elementSize;
+        int maxCount = (chunkSize - byteOffset) / elementSize;
         ThrowIfGreaterThan(count, maxCount);
     }
 
@@ -69,11 +66,10 @@ internal static class ThrowHelper
     /// Throws if size is negative or exceeds chunk size.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ValidateChunkSize<TConfig>(int size)
-        where TConfig : IConfig, new()
+    public static void ValidateChunkSize(int chunkSize, int size)
     {
         ThrowIfNegative(size);
-        ThrowIfGreaterThan(size, TConfig.ChunkSize);
+        ThrowIfGreaterThan(size, chunkSize);
     }
 
     /// <summary>
@@ -153,14 +149,14 @@ internal static class ThrowHelper
     /// <summary>
     /// Throws if the entity ID exceeds what can be stored in EntityIdByteSize bytes.
     /// </summary>
-    /// <typeparam name="TConfig">The world configuration type that determines entity ID limits.</typeparam>
     /// <param name="entityId">The entity ID to validate.</param>
+    /// <param name="maxEntityId">The maximum allowed entity ID.</param>
+    /// <param name="byteSize">The entity ID byte size for error message.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void ThrowIfEntityIdExceedsLimit<TConfig>(int entityId)
-        where TConfig : IConfig, new()
+    public static void ThrowIfEntityIdExceedsLimit(int entityId, int maxEntityId, int byteSize)
     {
-        if (entityId > Config<TConfig>.MaxEntityId)
-            ThrowEntityIdExceedsLimit(entityId, Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
+        if (entityId > maxEntityId)
+            ThrowEntityIdExceedsLimit(entityId, maxEntityId, byteSize);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -176,4 +172,18 @@ internal static class ThrowHelper
     public static T ThrowInvalidEntityIdByteSize<T>(int entityIdByteSize)
         => throw new InvalidOperationException(
             $"Invalid EntityIdByteSize: {entityIdByteSize}. Supported values are 1, 2, and 4.");
+
+    /// <summary>
+    /// Throws when attempting to free a chunk that is currently borrowed.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowChunkInUse(ChunkHandle handle)
+        => throw new InvalidOperationException($"Cannot free chunk while borrowed: {handle}");
+
+    /// <summary>
+    /// Throws when ChunkManager capacity is exceeded.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowChunkManagerCapacityExceeded(int maxMetaBlocks, int entriesPerMetaBlock)
+        => throw new InvalidOperationException($"ChunkManager capacity exceeded (max {maxMetaBlocks * entriesPerMetaBlock} chunks)");
 }
