@@ -410,6 +410,16 @@ public sealed class World<TBits, TRegistry, TConfig>
     }
 
     /// <summary>
+    /// Gets the chunk manager for this world.
+    /// Used by generated queryable types for direct component access.
+    /// </summary>
+    public ChunkManager ChunkManager
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunkManager;
+    }
+
+    /// <summary>
     /// Gets the Entity handle for a given entity ID.
     /// </summary>
     /// <param name="entityId">The entity ID.</param>
@@ -599,6 +609,24 @@ public static class QueryBuilderWorldExtensions
             var query = world.Registry.GetOrCreateQuery(
                 (HashedKey<ImmutableQueryDescription<TBits>>)builder.Description);
             return new WorldQuery<TBits, TRegistry, TConfig>(world, query);
+        }
+
+        /// <summary>
+        /// Builds a WorldChunkQuery from this description, enabling chunk-level iteration with batch component access.
+        /// </summary>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="world">The world to query.</param>
+        /// <returns>A WorldChunkQuery that iterates over WorldChunk instances.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public WorldChunkQuery<TBits, TRegistry, TConfig> BuildChunk<TRegistry, TConfig>(
+            World<TBits, TRegistry, TConfig> world)
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            var query = world.Registry.GetOrCreateQuery(
+                (HashedKey<ImmutableQueryDescription<TBits>>)builder.Description);
+            return new WorldChunkQuery<TBits, TRegistry, TConfig>(world, query);
         }
     }
 }

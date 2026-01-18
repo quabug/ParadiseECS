@@ -126,4 +126,64 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Types marked with [DefaultConfig] must implement the IConfig interface.");
+
+    /// <summary>
+    /// PECS011: Queryable must be a ref struct.
+    /// </summary>
+    public static readonly DiagnosticDescriptor QueryableMustBeRefStruct = new(
+        id: "PECS011",
+        title: "Queryable must be ref struct",
+        messageFormat: "Type '{0}' marked with [Queryable] must be a ref struct",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Queryable types must be ref structs for safe iteration over entity data.");
+
+    /// <summary>
+    /// PECS012: Queryable must be partial.
+    /// </summary>
+    public static readonly DiagnosticDescriptor QueryableMustBePartial = new(
+        id: "PECS012",
+        title: "Queryable must be partial",
+        messageFormat: "Type '{0}' marked with [Queryable] must be partial",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Queryable types must be partial so the generator can implement IQueryable interface members.");
+
+    /// <summary>
+    /// PECS013: Duplicate component type in queryable attributes.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateComponentInQueryable = new(
+        id: "PECS013",
+        title: "Duplicate component in queryable",
+        messageFormat: "Component '{0}' appears multiple times in queryable '{1}' attributes ({2})",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Each component type should only appear once across With, Without, and Any attributes in a queryable.");
+
+    /// <summary>
+    /// PECS014: Duplicate manual Queryable ID.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateQueryableId = new(
+        id: "PECS014",
+        title: "Duplicate queryable ID",
+        messageFormat: "Queryable ID {0} is used by multiple types: {1}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Each manual Queryable ID must be unique. Multiple queryables with the same ID will cause incorrect query behavior.");
+
+    /// <summary>
+    /// PECS015: Duplicate manual Component ID.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateComponentId = new(
+        id: "PECS015",
+        title: "Duplicate component ID",
+        messageFormat: "Component ID {0} is used by multiple types: {1}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Each manual Component ID must be unique. Multiple components with the same ID will cause data corruption.");
 }

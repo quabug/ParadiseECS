@@ -6,7 +6,7 @@ namespace Paradise.ECS;
 /// <summary>
 /// Extension methods for Span&lt;byte&gt; to access typed data at byte offsets.
 /// </summary>
-internal static class SpanExtensions
+public static class SpanExtensions
 {
     /// <param name="span">The byte span.</param>
     extension(Span<byte> span)

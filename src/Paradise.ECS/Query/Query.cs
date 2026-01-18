@@ -177,6 +177,232 @@ public readonly struct WorldQuery<TBits, TRegistry, TConfig>
 }
 
 /// <summary>
+/// A wrapper combining chunk data with layout information, providing typed component span access.
+/// </summary>
+/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TRegistry">The component registry type.</typeparam>
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
+public readonly ref struct WorldChunk<TBits, TRegistry, TConfig>
+    where TBits : unmanaged, IStorage
+    where TRegistry : IComponentRegistry
+    where TConfig : IConfig, new()
+{
+    private readonly ChunkManager _chunkManager;
+    private readonly ImmutableArchetypeLayout<TBits, TRegistry, TConfig> _layout;
+    private readonly ChunkHandle _handle;
+    private readonly int _entityCount;
+
+    /// <summary>
+    /// Creates a new WorldChunk wrapper.
+    /// </summary>
+    /// <param name="chunkManager">The chunk manager for memory access.</param>
+    /// <param name="layout">The archetype layout describing component positions.</param>
+    /// <param name="handle">The chunk handle.</param>
+    /// <param name="entityCount">The number of entities in this chunk.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal WorldChunk(
+        ChunkManager chunkManager,
+        ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
+        ChunkHandle handle,
+        int entityCount)
+    {
+        _chunkManager = chunkManager;
+        _layout = layout;
+        _handle = handle;
+        _entityCount = entityCount;
+    }
+
+    /// <summary>
+    /// Gets the number of entities in this chunk.
+    /// </summary>
+    public int EntityCount
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _entityCount;
+    }
+
+    /// <summary>
+    /// Gets the chunk handle for low-level access.
+    /// </summary>
+    public ChunkHandle Handle
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _handle;
+    }
+
+    /// <summary>
+    /// Gets the archetype layout for this chunk.
+    /// </summary>
+    public ImmutableArchetypeLayout<TBits, TRegistry, TConfig> Layout
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _layout;
+    }
+
+    /// <summary>
+    /// Checks if this chunk's archetype has a specific component.
+    /// </summary>
+    /// <typeparam name="T">The component type.</typeparam>
+    /// <returns>True if the component is present.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Has<T>() where T : unmanaged, IComponent
+        => _layout.HasComponent<T>();
+
+    /// <summary>
+    /// Gets a span over all component data of the specified type in this chunk.
+    /// </summary>
+    /// <typeparam name="T">The component type.</typeparam>
+    /// <returns>A span over the component data for all entities in the chunk.</returns>
+    /// <exception cref="InvalidOperationException">The chunk's archetype doesn't have this component.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Span<T> GetSpan<T>() where T : unmanaged, IComponent
+    {
+        int baseOffset = _layout.GetBaseOffset<T>();
+        if (baseOffset < 0)
+            throw new InvalidOperationException($"Chunk does not contain component {typeof(T).Name}.");
+
+        return _chunkManager.GetBytes(_handle).GetSpan<T>(baseOffset, _entityCount);
+    }
+
+    /// <summary>
+    /// Tries to get a span over all component data of the specified type in this chunk.
+    /// </summary>
+    /// <typeparam name="T">The component type.</typeparam>
+    /// <param name="span">The resulting span if the component exists.</param>
+    /// <returns>True if the component exists and the span was retrieved.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool TryGetSpan<T>(out Span<T> span) where T : unmanaged, IComponent
+    {
+        int baseOffset = _layout.GetBaseOffset<T>();
+        if (baseOffset < 0)
+        {
+            span = default;
+            return false;
+        }
+
+        span = _chunkManager.GetBytes(_handle).GetSpan<T>(baseOffset, _entityCount);
+        return true;
+    }
+
+    /// <summary>
+    /// Gets a reference to a component at the specified index within this chunk.
+    /// </summary>
+    /// <typeparam name="T">The component type.</typeparam>
+    /// <param name="index">The entity index within the chunk.</param>
+    /// <returns>A reference to the component.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetRef<T>(int index) where T : unmanaged, IComponent
+    {
+        int offset = _layout.GetEntityComponentOffset<T>(index);
+        return ref _chunkManager.GetBytes(_handle).GetRef<T>(offset);
+    }
+}
+
+/// <summary>
+/// A wrapper combining a World and a Query, providing WorldChunk enumeration for batch processing.
+/// </summary>
+/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TRegistry">The component registry type.</typeparam>
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
+public readonly struct WorldChunkQuery<TBits, TRegistry, TConfig>
+    where TBits : unmanaged, IStorage
+    where TRegistry : IComponentRegistry
+    where TConfig : IConfig, new()
+{
+    private readonly ChunkManager _chunkManager;
+    private readonly Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>> _query;
+
+    /// <summary>
+    /// Creates a new WorldChunkQuery wrapper.
+    /// </summary>
+    /// <param name="world">The world containing the entities.</param>
+    /// <param name="query">The query to iterate.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal WorldChunkQuery(
+        World<TBits, TRegistry, TConfig> world,
+        Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>> query)
+    {
+        _chunkManager = world.ChunkManager;
+        _query = query;
+    }
+
+    /// <summary>
+    /// Gets the underlying query for accessing archetypes directly.
+    /// </summary>
+    public Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>> Query
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _query;
+    }
+
+    /// <summary>
+    /// Gets the total number of entities matching this query across all archetypes.
+    /// </summary>
+    public int EntityCount
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _query.EntityCount;
+    }
+
+    /// <summary>
+    /// Gets whether this query has any matching entities.
+    /// </summary>
+    public bool IsEmpty
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _query.IsEmpty;
+    }
+
+    /// <summary>
+    /// Returns an enumerator that iterates through all chunks in the matching archetypes.
+    /// </summary>
+    /// <returns>A struct enumerator for WorldChunk.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Enumerator GetEnumerator() => new(_chunkManager, _query);
+
+    /// <summary>
+    /// Enumerator for iterating over WorldChunk in the query.
+    /// </summary>
+    public ref struct Enumerator
+    {
+        private readonly ChunkManager _chunkManager;
+        private Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>>.ChunkEnumerator _inner;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal Enumerator(
+            ChunkManager chunkManager,
+            Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>> query)
+        {
+            _chunkManager = chunkManager;
+            _inner = query.Chunks.GetEnumerator();
+        }
+
+        /// <summary>
+        /// Gets the current WorldChunk.
+        /// </summary>
+        public WorldChunk<TBits, TRegistry, TConfig> Current
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get
+            {
+                var info = _inner.Current;
+                return new WorldChunk<TBits, TRegistry, TConfig>(
+                    _chunkManager,
+                    info.Archetype.Layout,
+                    info.Handle,
+                    info.EntityCount);
+            }
+        }
+
+        /// <summary>
+        /// Advances to the next chunk.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool MoveNext() => _inner.MoveNext();
+    }
+}
+
+/// <summary>
 /// A lightweight, read-only view over a collection of archetypes that match specific component criteria.
 /// The underlying list of archetypes is managed by the <see cref="ArchetypeRegistry{TBits, TRegistry, TConfig}"/>
 /// and is updated automatically as new matching archetypes are created.

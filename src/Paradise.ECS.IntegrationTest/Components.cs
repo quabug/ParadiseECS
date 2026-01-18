@@ -1,23 +1,8 @@
 namespace Paradise.ECS.IntegrationTest;
-//
-// [QueryableEntity]
-// public readonly ref partial struct Player
-// {
-//     public partial Entity Entity { get; }
-//     public partial ref Position Position { get; }
-//     public partial Velocity Velocity { get; set; }
-//     public partial Health Health { get; set; }
-//     [Optional] public partial Name Name { get; }
-// }
-//
-// public partial struct Player(Chunk chunk, int entityId)
-// {
-//     public Entity Entity { get; }
-//     public ref Position Position { get; }
-//     public Velocity Velocity { get; set; }
-//     public Health Health { get; set; }
-//     [Optional] public Name Name { get; }
-// }
+
+// ============================================================================
+// Component Definitions
+// ============================================================================
 
 /// <summary>
 /// Position component for 2D game entities.

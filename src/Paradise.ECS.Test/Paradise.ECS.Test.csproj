@@ -9,6 +9,8 @@
     <NoWarn>$(NoWarn);CA1707;CA1515</NoWarn>
     <!-- Native AOT support -->
     <PublishAot>true</PublishAot>
+    <!-- Emit generated source files for inspection -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>
