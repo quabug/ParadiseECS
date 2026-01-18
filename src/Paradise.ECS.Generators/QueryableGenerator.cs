@@ -626,30 +626,13 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine("    where TBits : unmanaged, global::Paradise.ECS.IStorage");
         sb.AppendLine("{");
         sb.AppendLine($"    private static readonly global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TBits>>> s_descriptions;");
-        sb.AppendLine($"    private static readonly global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ImmutableBitSet<TBits>> s_allMasks;");
-        sb.AppendLine($"    private static readonly global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ImmutableBitSet<TBits>> s_noneMasks;");
-        sb.AppendLine($"    private static readonly global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ImmutableBitSet<TBits>> s_anyMasks;");
         sb.AppendLine();
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Gets the query descriptions for all queryable types, indexed by QueryableId.");
         sb.AppendLine("    /// Descriptions are pre-wrapped in HashedKey for efficient lookup without re-computing hash.");
+        sb.AppendLine("    /// Access All, None, Any masks via Description[id].Value.All/None/Any.");
         sb.AppendLine("    /// </summary>");
         sb.AppendLine($"    public static global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TBits>>> Descriptions => s_descriptions;");
-        sb.AppendLine();
-        sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Gets the All (required) component masks for all queryable types, indexed by QueryableId.");
-        sb.AppendLine("    /// </summary>");
-        sb.AppendLine($"    public static global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ImmutableBitSet<TBits>> AllMasks => s_allMasks;");
-        sb.AppendLine();
-        sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Gets the None (excluded) component masks for all queryable types, indexed by QueryableId.");
-        sb.AppendLine("    /// </summary>");
-        sb.AppendLine($"    public static global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ImmutableBitSet<TBits>> NoneMasks => s_noneMasks;");
-        sb.AppendLine();
-        sb.AppendLine("    /// <summary>");
-        sb.AppendLine("    /// Gets the Any (optional) component masks for all queryable types, indexed by QueryableId.");
-        sb.AppendLine("    /// </summary>");
-        sb.AppendLine($"    public static global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ImmutableBitSet<TBits>> AnyMasks => s_anyMasks;");
         sb.AppendLine();
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Gets the total number of registered queryable types.");
@@ -659,32 +642,26 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine("    static QueryableRegistry()");
         sb.AppendLine("    {");
         sb.AppendLine($"        var descriptions = new global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TBits>>[{maxId + 1}];");
-        sb.AppendLine($"        var allMasks = new global::Paradise.ECS.ImmutableBitSet<TBits>[{maxId + 1}];");
-        sb.AppendLine($"        var noneMasks = new global::Paradise.ECS.ImmutableBitSet<TBits>[{maxId + 1}];");
-        sb.AppendLine($"        var anyMasks = new global::Paradise.ECS.ImmutableBitSet<TBits>[{maxId + 1}];");
         sb.AppendLine();
 
         // Generate mask initialization for each queryable
         foreach (var (info, typeId) in queryables)
         {
             sb.AppendLine($"        // {info.FullyQualifiedName} (QueryableId = {typeId})");
-            sb.Append($"        allMasks[{typeId}] = ");
+            sb.Append($"        var allMask{typeId} = ");
             GenerateMask(sb, info.WithComponents);
             sb.AppendLine(";");
-            sb.Append($"        noneMasks[{typeId}] = ");
+            sb.Append($"        var noneMask{typeId} = ");
             GenerateMask(sb, info.WithoutComponents);
             sb.AppendLine(";");
-            sb.Append($"        anyMasks[{typeId}] = ");
+            sb.Append($"        var anyMask{typeId} = ");
             GenerateMask(sb, info.AnyComponents);
             sb.AppendLine(";");
-            sb.AppendLine($"        descriptions[{typeId}] = (global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TBits>>)new global::Paradise.ECS.ImmutableQueryDescription<TBits>(allMasks[{typeId}], noneMasks[{typeId}], anyMasks[{typeId}]);");
+            sb.AppendLine($"        descriptions[{typeId}] = (global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TBits>>)new global::Paradise.ECS.ImmutableQueryDescription<TBits>(allMask{typeId}, noneMask{typeId}, anyMask{typeId});");
             sb.AppendLine();
         }
 
         sb.AppendLine("        s_descriptions = global::System.Collections.Immutable.ImmutableArray.Create(descriptions);");
-        sb.AppendLine("        s_allMasks = global::System.Collections.Immutable.ImmutableArray.Create(allMasks);");
-        sb.AppendLine("        s_noneMasks = global::System.Collections.Immutable.ImmutableArray.Create(noneMasks);");
-        sb.AppendLine("        s_anyMasks = global::System.Collections.Immutable.ImmutableArray.Create(anyMasks);");
         sb.AppendLine("    }");
         sb.AppendLine("}");
 

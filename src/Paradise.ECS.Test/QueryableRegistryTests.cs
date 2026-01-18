@@ -44,36 +44,9 @@ public sealed class QueryableRegistryTests
     }
 
     [Test]
-    public async Task QueryableRegistry_Initialize_PopulatesAllMasks()
-    {
-        var allMasks = QueryableRegistry<Bit64>.AllMasks;
-
-        await Assert.That(allMasks.IsDefault).IsFalse();
-        await Assert.That(allMasks.Length).IsEqualTo(11);
-    }
-
-    [Test]
-    public async Task QueryableRegistry_Initialize_PopulatesNoneMasks()
-    {
-        var noneMasks = QueryableRegistry<Bit64>.NoneMasks;
-
-        await Assert.That(noneMasks.IsDefault).IsFalse();
-        await Assert.That(noneMasks.Length).IsEqualTo(11);
-    }
-
-    [Test]
-    public async Task QueryableRegistry_Initialize_PopulatesAnyMasks()
-    {
-        var anyMasks = QueryableRegistry<Bit64>.AnyMasks;
-
-        await Assert.That(anyMasks.IsDefault).IsFalse();
-        await Assert.That(anyMasks.Length).IsEqualTo(11);
-    }
-
-    [Test]
     public async Task QueryableRegistry_TestMovableEntity_HasCorrectAllMask()
     {
-        var allMask = QueryableRegistry<Bit64>.AllMasks[TestMovableEntity.QueryableId];
+        var allMask = QueryableRegistry<Bit64>.Descriptions[TestMovableEntity.QueryableId].Value.All;
 
         // TestMovableEntity requires TestPosition and TestHealth
         await Assert.That(allMask.Get(TestPosition.TypeId.Value)).IsTrue();
@@ -85,7 +58,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestMovableEntity_HasCorrectNoneMask()
     {
-        var noneMask = QueryableRegistry<Bit64>.NoneMasks[TestMovableEntity.QueryableId];
+        var noneMask = QueryableRegistry<Bit64>.Descriptions[TestMovableEntity.QueryableId].Value.None;
 
         // TestMovableEntity excludes TestVelocity
         await Assert.That(noneMask.Get(TestVelocity.TypeId.Value)).IsTrue();
@@ -97,7 +70,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestMovableEntity_HasEmptyAnyMask()
     {
-        var anyMask = QueryableRegistry<Bit64>.AnyMasks[TestMovableEntity.QueryableId];
+        var anyMask = QueryableRegistry<Bit64>.Descriptions[TestMovableEntity.QueryableId].Value.Any;
 
         // TestMovableEntity has no Any constraints
         await Assert.That(anyMask.IsEmpty).IsTrue();
@@ -106,7 +79,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestProjectile_HasCorrectAllMask()
     {
-        var allMask = QueryableRegistry<Bit64>.AllMasks[TestProjectile.QueryableId];
+        var allMask = QueryableRegistry<Bit64>.Descriptions[TestProjectile.QueryableId].Value.All;
 
         // TestProjectile requires TestPosition and TestVelocity
         await Assert.That(allMask.Get(TestPosition.TypeId.Value)).IsTrue();
@@ -116,7 +89,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestProjectile_HasEmptyNoneMask()
     {
-        var noneMask = QueryableRegistry<Bit64>.NoneMasks[TestProjectile.QueryableId];
+        var noneMask = QueryableRegistry<Bit64>.Descriptions[TestProjectile.QueryableId].Value.None;
 
         // TestProjectile has no Without constraints
         await Assert.That(noneMask.IsEmpty).IsTrue();
@@ -125,7 +98,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestProjectile_HasCorrectAnyMask()
     {
-        var anyMask = QueryableRegistry<Bit64>.AnyMasks[TestProjectile.QueryableId];
+        var anyMask = QueryableRegistry<Bit64>.Descriptions[TestProjectile.QueryableId].Value.Any;
 
         // TestProjectile optionally has TestDamage
         await Assert.That(anyMask.Get(TestDamage.TypeId.Value)).IsTrue();
@@ -134,7 +107,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestHealthEntity_HasCorrectAllMask()
     {
-        var allMask = QueryableRegistry<Bit64>.AllMasks[TestHealthEntity.QueryableId];
+        var allMask = QueryableRegistry<Bit64>.Descriptions[TestHealthEntity.QueryableId].Value.All;
 
         // TestHealthEntity requires only TestHealth
         await Assert.That(allMask.Get(TestHealth.TypeId.Value)).IsTrue();
