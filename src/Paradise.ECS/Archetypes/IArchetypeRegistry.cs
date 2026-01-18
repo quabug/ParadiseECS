@@ -45,4 +45,12 @@ public interface IArchetypeRegistry<TBits, TRegistry, TConfig, TArchetype>
     /// <param name="archetypeId">The archetype ID.</param>
     /// <returns>The archetype, or null if not found.</returns>
     TArchetype? GetById(int archetypeId);
+
+    /// <summary>
+    /// Gets or creates a query for the given description.
+    /// Queries are cached and reused for the same description.
+    /// </summary>
+    /// <param name="description">The query description defining matching criteria.</param>
+    /// <returns>The query for this description.</returns>
+    Query<TBits, TRegistry, TConfig, TArchetype> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description);
 }

@@ -372,7 +372,7 @@ public sealed class StressTests : IDisposable
         _world.AddComponent<TestPosition>(entity);
 
         // Build many queries with same description
-        var queries = new List<Query<Bit64, ComponentRegistry, DefaultConfig>>();
+        var queries = new List<Query<Bit64, ComponentRegistry, DefaultConfig, Archetype<Bit64, ComponentRegistry, DefaultConfig>>>();
         for (int i = 0; i < 100; i++)
         {
             var query = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
