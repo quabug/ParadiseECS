@@ -393,10 +393,10 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    public static int QueryableId => {typeId};");
         sb.AppendLine();
         sb.AppendLine($"{indent}    /// <summary>Gets the query builder for this queryable type.</summary>");
-        sb.AppendLine($"{indent}    public static {queryable.TypeName}QueryBuilder Query => default;");
+        sb.AppendLine($"{indent}    public static {queryable.HelperStructPrefix}QueryBuilder Query => default;");
         sb.AppendLine();
         sb.AppendLine($"{indent}    /// <summary>Gets the chunk query builder for batch component access.</summary>");
-        sb.AppendLine($"{indent}    public static {queryable.TypeName}ChunkQueryBuilder ChunkQuery => default;");
+        sb.AppendLine($"{indent}    public static {queryable.HelperStructPrefix}ChunkQueryBuilder ChunkQuery => default;");
         sb.AppendLine();
 
         // Generate nested Data<TBits, TRegistry, TConfig> struct
@@ -503,11 +503,14 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine();
             // GetXxx() method
             var refType = opt.IsReadOnly ? "ref readonly" : "ref";
-            sb.AppendLine($"{indent}    /// <summary>Gets a {(opt.IsReadOnly ? "read-only " : "")}reference to the {opt.ComponentTypeName} component. Only call if Has{opt.PropertyName} is true.</summary>");
+            sb.AppendLine($"{indent}    /// <summary>Gets a {(opt.IsReadOnly ? "read-only " : "")}reference to the {opt.ComponentTypeName} component.</summary>");
+            sb.AppendLine($"{indent}    /// <exception cref=\"global::System.InvalidOperationException\">Thrown when the component is not present. Check Has{opt.PropertyName} first.</exception>");
             sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             sb.AppendLine($"{indent}    public {refType} global::{opt.ComponentFullName} Get{opt.PropertyName}()");
             sb.AppendLine($"{indent}    {{");
             sb.AppendLine($"{indent}        int offset = _layout.GetEntityComponentOffset<global::{opt.ComponentFullName}>(_indexInChunk);");
+            sb.AppendLine($"{indent}        if (offset < 0)");
+            sb.AppendLine($"{indent}            throw new global::System.InvalidOperationException(\"Optional component {opt.ComponentTypeName} is not present. Check Has{opt.PropertyName} before calling Get{opt.PropertyName}().\");");
             sb.AppendLine($"{indent}        return ref _chunkManager.GetBytes(_chunk).GetRef<global::{opt.ComponentFullName}>(offset);");
             sb.AppendLine($"{indent}    }}");
         }
@@ -517,11 +520,12 @@ public class QueryableGenerator : IIncrementalGenerator
 
     private static void GenerateQueryBuilderStruct(StringBuilder sb, QueryableInfo queryable, string indent)
     {
+        var prefix = queryable.HelperStructPrefix;
         sb.AppendLine();
         sb.AppendLine($"{indent}/// <summary>");
         sb.AppendLine($"{indent}/// Query builder for {queryable.TypeName}. Builds a typed query that returns {queryable.TypeName}.Data instances.");
         sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}public readonly struct {queryable.TypeName}QueryBuilder");
+        sb.AppendLine($"{indent}public readonly struct {prefix}QueryBuilder");
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{indent}    /// <summary>Builds a typed query for the specified world.</summary>");
         sb.AppendLine($"{indent}    /// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
@@ -530,7 +534,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    /// <param name=\"world\">The world to query.</param>");
         sb.AppendLine($"{indent}    /// <returns>A typed query that iterates over {queryable.TypeName}.Data instances.</returns>");
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    public {queryable.TypeName}Query<TBits, TRegistry, TConfig> Build<TBits, TRegistry, TConfig>(");
+        sb.AppendLine($"{indent}    public {prefix}Query<TBits, TRegistry, TConfig> Build<TBits, TRegistry, TConfig>(");
         sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world)");
         sb.AppendLine($"{indent}        where TBits : unmanaged, global::Paradise.ECS.IStorage");
         sb.AppendLine($"{indent}        where TRegistry : global::Paradise.ECS.IComponentRegistry");
@@ -538,13 +542,14 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TBits>.Descriptions[{queryable.TypeName}.QueryableId];");
         sb.AppendLine($"{indent}        var query = world.Registry.GetOrCreateQuery(hashedDescription);");
-        sb.AppendLine($"{indent}        return new {queryable.TypeName}Query<TBits, TRegistry, TConfig>(world, query);");
+        sb.AppendLine($"{indent}        return new {prefix}Query<TBits, TRegistry, TConfig>(world, query);");
         sb.AppendLine($"{indent}    }}");
         sb.AppendLine($"{indent}}}");
     }
 
     private static void GenerateTypedQueryStruct(StringBuilder sb, QueryableInfo queryable, string indent)
     {
+        var prefix = queryable.HelperStructPrefix;
         sb.AppendLine();
         var dataType = $"{queryable.TypeName}.Data<TBits, TRegistry, TConfig>";
 
@@ -554,7 +559,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}/// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly struct {queryable.TypeName}Query<TBits, TRegistry, TConfig>");
+        sb.AppendLine($"{indent}public readonly struct {prefix}Query<TBits, TRegistry, TConfig>");
         sb.AppendLine($"{indent}    where TBits : unmanaged, global::Paradise.ECS.IStorage");
         sb.AppendLine($"{indent}    where TRegistry : global::Paradise.ECS.IComponentRegistry");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
@@ -563,7 +568,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> _query;");
         sb.AppendLine();
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    internal {queryable.TypeName}Query(");
+        sb.AppendLine($"{indent}    internal {prefix}Query(");
         sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> query)");
         sb.AppendLine($"{indent}    {{");
@@ -722,11 +727,14 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine();
             // GetXxxSpan() method - pluralize name
             var spanMethodName = "Get" + opt.PropertyName + "s";
-            sb.AppendLine($"{indent}    /// <summary>Gets a span over all {opt.ComponentTypeName} components in this chunk. Only call if Has{opt.PropertyName} is true.</summary>");
+            sb.AppendLine($"{indent}    /// <summary>Gets a span over all {opt.ComponentTypeName} components in this chunk.</summary>");
+            sb.AppendLine($"{indent}    /// <exception cref=\"global::System.InvalidOperationException\">Thrown when the component is not present. Check Has{opt.PropertyName} first.</exception>");
             sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             sb.AppendLine($"{indent}    public global::System.Span<global::{opt.ComponentFullName}> {spanMethodName}()");
             sb.AppendLine($"{indent}    {{");
             sb.AppendLine($"{indent}        int baseOffset = _layout.GetBaseOffset<global::{opt.ComponentFullName}>();");
+            sb.AppendLine($"{indent}        if (baseOffset < 0)");
+            sb.AppendLine($"{indent}            throw new global::System.InvalidOperationException(\"Optional component {opt.ComponentTypeName} is not present. Check Has{opt.PropertyName} before calling {spanMethodName}().\");");
             sb.AppendLine($"{indent}        return _chunkManager.GetBytes(_chunk).GetSpan<global::{opt.ComponentFullName}>(baseOffset, _entityCount);");
             sb.AppendLine($"{indent}    }}");
         }
@@ -736,11 +744,12 @@ public class QueryableGenerator : IIncrementalGenerator
 
     private static void GenerateChunkQueryBuilderStruct(StringBuilder sb, QueryableInfo queryable, string indent)
     {
+        var prefix = queryable.HelperStructPrefix;
         sb.AppendLine();
         sb.AppendLine($"{indent}/// <summary>");
         sb.AppendLine($"{indent}/// Chunk query builder for {queryable.TypeName}. Builds a typed chunk query for batch component access.");
         sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}public readonly struct {queryable.TypeName}ChunkQueryBuilder");
+        sb.AppendLine($"{indent}public readonly struct {prefix}ChunkQueryBuilder");
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{indent}    /// <summary>Builds a typed chunk query for the specified world.</summary>");
         sb.AppendLine($"{indent}    /// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
@@ -749,7 +758,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    /// <param name=\"world\">The world to query.</param>");
         sb.AppendLine($"{indent}    /// <returns>A typed chunk query that iterates over {queryable.TypeName}.ChunkData instances.</returns>");
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    public {queryable.TypeName}ChunkQuery<TBits, TRegistry, TConfig> Build<TBits, TRegistry, TConfig>(");
+        sb.AppendLine($"{indent}    public {prefix}ChunkQuery<TBits, TRegistry, TConfig> Build<TBits, TRegistry, TConfig>(");
         sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world)");
         sb.AppendLine($"{indent}        where TBits : unmanaged, global::Paradise.ECS.IStorage");
         sb.AppendLine($"{indent}        where TRegistry : global::Paradise.ECS.IComponentRegistry");
@@ -757,13 +766,14 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TBits>.Descriptions[{queryable.TypeName}.QueryableId];");
         sb.AppendLine($"{indent}        var query = world.Registry.GetOrCreateQuery(hashedDescription);");
-        sb.AppendLine($"{indent}        return new {queryable.TypeName}ChunkQuery<TBits, TRegistry, TConfig>(world, query);");
+        sb.AppendLine($"{indent}        return new {prefix}ChunkQuery<TBits, TRegistry, TConfig>(world, query);");
         sb.AppendLine($"{indent}    }}");
         sb.AppendLine($"{indent}}}");
     }
 
     private static void GenerateTypedChunkQueryStruct(StringBuilder sb, QueryableInfo queryable, string indent)
     {
+        var prefix = queryable.HelperStructPrefix;
         sb.AppendLine();
         var chunkDataType = $"{queryable.TypeName}.ChunkData<TBits, TRegistry, TConfig>";
 
@@ -773,7 +783,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}/// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly struct {queryable.TypeName}ChunkQuery<TBits, TRegistry, TConfig>");
+        sb.AppendLine($"{indent}public readonly struct {prefix}ChunkQuery<TBits, TRegistry, TConfig>");
         sb.AppendLine($"{indent}    where TBits : unmanaged, global::Paradise.ECS.IStorage");
         sb.AppendLine($"{indent}    where TRegistry : global::Paradise.ECS.IComponentRegistry");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
@@ -782,7 +792,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> _query;");
         sb.AppendLine();
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    internal {queryable.TypeName}ChunkQuery(");
+        sb.AppendLine($"{indent}    internal {prefix}ChunkQuery(");
         sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> query)");
         sb.AppendLine($"{indent}    {{");
@@ -990,6 +1000,28 @@ public class QueryableGenerator : IIncrementalGenerator
         public ImmutableArray<(string Component, List<string> Attributes)> DuplicateComponents { get; }
 
         public bool HasDuplicates => !DuplicateComponents.IsEmpty;
+
+        /// <summary>
+        /// Gets the unique helper struct name prefix that includes containing type names.
+        /// For nested types like A.B.Player, returns "ABPlayer".
+        /// For non-nested types like Player, returns "Player".
+        /// </summary>
+        public string HelperStructPrefix
+        {
+            get
+            {
+                if (ContainingTypes.IsEmpty)
+                    return TypeName;
+
+                var sb = new StringBuilder();
+                foreach (var containingType in ContainingTypes)
+                {
+                    sb.Append(containingType.Name);
+                }
+                sb.Append(TypeName);
+                return sb.ToString();
+            }
+        }
 
         public QueryableInfo(
             string fullyQualifiedName,
