@@ -291,12 +291,33 @@ public class ComponentGenerator : IIncrementalGenerator
             }
         }
 
+        // Detect duplicate manual IDs
+        var manualIdGroups = sorted
+            .Where(c => c.ManualId.HasValue)
+            .GroupBy(c => c.ManualId!.Value)
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        // Report diagnostics for duplicate manual IDs
+        var duplicateManualIds = new HashSet<int>();
+        foreach (var group in manualIdGroups)
+        {
+            duplicateManualIds.Add(group.Key);
+            var typeNames = string.Join(", ", group.Select(c => c.FullyQualifiedName));
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.DuplicateComponentId,
+                group.First().Location,
+                group.Key,
+                typeNames));
+        }
+
         // Filter to only valid components for code generation
-        // Exclude components with invalid manual IDs
+        // Exclude components with invalid manual IDs or duplicate manual IDs
         var validComponents = sorted.Where(c =>
             c.IsUnmanaged &&
             c.HasValidNesting &&
-            (!c.ManualId.HasValue || c.ManualId.Value <= maxComponentTypeId)).ToList();
+            (!c.ManualId.HasValue || c.ManualId.Value <= maxComponentTypeId) &&
+            (!c.ManualId.HasValue || !duplicateManualIds.Contains(c.ManualId.Value))).ToList();
 
         if (validComponents.Count == 0)
             return;

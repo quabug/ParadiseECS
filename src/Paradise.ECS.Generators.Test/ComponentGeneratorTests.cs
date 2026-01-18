@@ -946,3 +946,37 @@ public class ComponentGeneratorNamespaceTests
         await Assert.That(registry).Contains("namespace Paradise.ECS;");
     }
 }
+
+/// <summary>
+/// Tests for ComponentGenerator duplicate ID detection (PECS015).
+/// </summary>
+public class ComponentGeneratorDuplicateManualIdTests
+{
+    /// <summary>
+    /// Verifies that the PECS015 diagnostic descriptor is properly defined.
+    /// </summary>
+    [Test]
+    public async Task DuplicateComponentIdDiagnostic_HasCorrectProperties()
+    {
+        var descriptor = DiagnosticDescriptors.DuplicateComponentId;
+
+        await Assert.That(descriptor.Id).IsEqualTo("PECS015");
+        await Assert.That(descriptor.Title.ToString(System.Globalization.CultureInfo.InvariantCulture)).IsEqualTo("Duplicate component ID");
+        await Assert.That(descriptor.DefaultSeverity).IsEqualTo(Microsoft.CodeAnalysis.DiagnosticSeverity.Error);
+        await Assert.That(descriptor.IsEnabledByDefault).IsTrue();
+    }
+
+    /// <summary>
+    /// Verifies the diagnostic message format contains expected placeholders.
+    /// </summary>
+    [Test]
+    public async Task DuplicateComponentIdDiagnostic_MessageFormat_ContainsPlaceholders()
+    {
+        var descriptor = DiagnosticDescriptors.DuplicateComponentId;
+        var format = descriptor.MessageFormat.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        // Message format should include ID and type names placeholders
+        await Assert.That(format).Contains("{0}"); // ID placeholder
+        await Assert.That(format).Contains("{1}"); // Type names placeholder
+    }
+}

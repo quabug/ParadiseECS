@@ -282,6 +282,34 @@ public class QueryableGenerator : IIncrementalGenerator
         if (validQueryables.Count == 0)
             return;
 
+        // Detect duplicate manual IDs
+        var manualIdGroups = validQueryables
+            .Where(q => q.ManualId.HasValue)
+            .GroupBy(q => q.ManualId!.Value)
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        // Report diagnostics for duplicate manual IDs
+        var duplicateManualIds = new HashSet<int>();
+        foreach (var group in manualIdGroups)
+        {
+            duplicateManualIds.Add(group.Key);
+            var typeNames = string.Join(", ", group.Select(q => q.FullyQualifiedName));
+            // Report on the first occurrence's location
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.DuplicateQueryableId,
+                group.First().Location,
+                group.Key,
+                typeNames));
+        }
+
+        // Filter out queryables with duplicate manual IDs
+        validQueryables = validQueryables
+            .Where(q => !q.ManualId.HasValue || !duplicateManualIds.Contains(q.ManualId.Value))
+            .ToList();
+        if (validQueryables.Count == 0)
+            return;
+
         // Assign IDs (manual first, then auto-assign)
         var manualIds = new HashSet<int>(validQueryables
             .Where(q => q.ManualId.HasValue)

@@ -17,6 +17,22 @@ public static class GeneratorTestHelper
     /// </summary>
     public static GeneratorDriverRunResult RunGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null)
     {
+        return RunGenerators(source, [new ComponentGenerator()], includeEcsReferences, rootNamespace);
+    }
+
+    /// <summary>
+    /// Creates a compilation with the given source code and runs the QueryableGenerator.
+    /// </summary>
+    public static GeneratorDriverRunResult RunQueryableGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null)
+    {
+        return RunGenerators(source, [new ComponentGenerator(), new QueryableGenerator()], includeEcsReferences, rootNamespace);
+    }
+
+    /// <summary>
+    /// Creates a compilation with the given source code and runs specified generators.
+    /// </summary>
+    private static GeneratorDriverRunResult RunGenerators(string source, IIncrementalGenerator[] generators, bool includeEcsReferences = true, string? rootNamespace = null)
+    {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 
         var references = new List<MetadataReference>
@@ -50,15 +66,13 @@ public static class GeneratorTestHelper
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        var generator = new ComponentGenerator();
-
         // Create analyzer config options provider if root namespace is specified
         var optionsProvider = rootNamespace != null
             ? new TestAnalyzerConfigOptionsProvider(rootNamespace)
             : null;
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            generators: [generator.AsSourceGenerator()],
+            generators: generators.Select(g => g.AsSourceGenerator()).ToArray(),
             optionsProvider: optionsProvider);
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
 
@@ -126,11 +140,32 @@ public static class GeneratorTestHelper
     }
 
     /// <summary>
+    /// Runs the queryable generator and returns the generated source texts.
+    /// </summary>
+    public static ImmutableArray<(string HintName, string Source)> GetQueryableGeneratedSources(string source)
+    {
+        var result = RunQueryableGenerator(source);
+        return [.. result.GeneratedTrees.Select(t => (
+            Path.GetFileName(t.FilePath),
+            t.GetText().ToString()
+        ))];
+    }
+
+    /// <summary>
     /// Runs the generator and returns diagnostics.
     /// </summary>
     public static ImmutableArray<Diagnostic> GetDiagnostics(string source)
     {
         var result = RunGenerator(source);
+        return result.Diagnostics;
+    }
+
+    /// <summary>
+    /// Runs the queryable generator and returns diagnostics.
+    /// </summary>
+    public static ImmutableArray<Diagnostic> GetQueryableDiagnostics(string source)
+    {
+        var result = RunQueryableGenerator(source);
         return result.Diagnostics;
     }
 

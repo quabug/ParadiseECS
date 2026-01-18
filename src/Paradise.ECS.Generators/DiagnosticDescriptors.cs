@@ -162,4 +162,28 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Each component type should only appear once across With, Without, and Any attributes in a queryable.");
+
+    /// <summary>
+    /// PECS014: Duplicate manual Queryable ID.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateQueryableId = new(
+        id: "PECS014",
+        title: "Duplicate queryable ID",
+        messageFormat: "Queryable ID {0} is used by multiple types: {1}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Each manual Queryable ID must be unique. Multiple queryables with the same ID will cause incorrect query behavior.");
+
+    /// <summary>
+    /// PECS015: Duplicate manual Component ID.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateComponentId = new(
+        id: "PECS015",
+        title: "Duplicate component ID",
+        messageFormat: "Component ID {0} is used by multiple types: {1}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Each manual Component ID must be unique. Multiple components with the same ID will cause data corruption.");
 }
