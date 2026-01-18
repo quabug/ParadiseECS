@@ -10,7 +10,7 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 **Core ECS foundation is complete.** All fundamental systems (Memory Management, Entities, Archetypes, Queries, World API, Source Generator) are implemented, tested, and production-ready. The codebase has comprehensive test coverage (5,870 LOC tests for 4,919 LOC source).
 
-**Current focus**: Queryable Archetype/Query Source Generator.
+**Current focus**: System Scheduling and Specialized World Types.
 
 **Architecture Score: 8.5/10** - Solid foundation with clean, modular design following SOLID principles.
 
@@ -95,15 +95,18 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - 64-bit packed `EntityLocation` for lock-free atomic operations
   - QueryBuilder extension method `Build(world)` for ergonomic query creation
 
+- [x] **Query Code Generator** ([#35](https://github.com/quabug/ParadiseECS/pull/35))
+  - Source generator for strongly-typed query structs
+  - Zero-allocation iteration patterns via generated code
+  - Compile-time query validation
+  - KGP-style typed iteration with direct component property access
+  - `WithAttribute<T>` with Name, IsReadOnly, QueryOnly parameters
+  - `OptionalAttribute<T>` for optional components with Has/Get pattern
+  - Chunk-level batch iteration with span properties for SIMD-friendly processing
+
 ### In Progress
 
-- [~] **Query Code Generator** (`feature/query-code-gen`)
-  - [x] Source generator for strongly-typed query structs
-  - [x] Zero-allocation iteration patterns via generated code
-  - [x] Compile-time query validation
-  - [x] KGP-style typed iteration with direct component property access
-  - [x] `WithAttribute<T>` with Name, IsReadOnly, QueryOnly parameters
-  - [x] `OptionalAttribute<T>` for optional components with Has/Get pattern
+*No items currently in progress*
 
 ### Planned
 
@@ -285,14 +288,15 @@ Minor TODOs in codebase:
 
 ### Next Priority
 
-1. **Queryable Archetype/Query Source Generator** - Enables type-safe, zero-allocation query patterns
-2. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
+1. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
+2. **System Scheduling** - Enables writing actual game logic using the ECS
 3. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
 4. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
 5. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
 
 ### Recent Activity
 
+- **2026-01-19**: Merged [#35](https://github.com/quabug/ParadiseECS/pull/35) - Add QueryableGenerator for compile-time query type registration
 - **2026-01-18**: Merged [#33](https://github.com/quabug/ParadiseECS/pull/33) - Add WorldQuery and WorldEntity for convenient entity iteration
 - **2026-01-18**: Merged [#32](https://github.com/quabug/ParadiseECS/pull/32) - Static World Configuration
   - `IConfig` interface with static abstract + instance members
