@@ -116,8 +116,7 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
 
         // Write this component
         int offset = layout.GetEntityComponentOffset<TComponent>(indexInChunk);
-        using var chunk = chunkManager.Get(chunkHandle);
-        chunk.GetRef<TComponent>(offset) = Value;
+        System.Runtime.InteropServices.MemoryMarshal.Write(chunkManager.GetBytes(chunkHandle).Slice(offset), in Value);
     }
 }
 

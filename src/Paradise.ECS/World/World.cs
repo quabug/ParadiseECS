@@ -275,8 +275,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     public T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         var (handle, offset) = GetComponentLocation<T>(entity);
-        using var chunk = _chunkManager.Get(handle);
-        return chunk.GetRawBytes().GetRef<T>(offset);
+        return _chunkManager.GetBytes(handle).GetRef<T>(offset);
     }
 
     /// <summary>
@@ -290,8 +289,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
     {
         var (handle, offset) = GetComponentLocation<T>(entity);
-        using var chunk = _chunkManager.Get(handle);
-        chunk.GetRawBytes().GetRef<T>(offset) = value;
+        _chunkManager.GetBytes(handle).GetRef<T>(offset) = value;
     }
 
     /// <summary>
@@ -362,9 +360,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(updatedLocation.GlobalIndex);
         var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
         int newOffset = targetArchetype.Layout.GetEntityComponentOffset<T>(newIndexInChunk);
-        using var newChunk = _chunkManager.Get(newChunkHandle);
-        var newSpan = newChunk.GetRawBytes().GetSpan<T>(newOffset, 1);
-        newSpan[0] = value;
+        _chunkManager.GetBytes(newChunkHandle).GetRef<T>(newOffset) = value;
     }
 
     /// <summary>
@@ -447,8 +443,8 @@ public sealed class World<TBits, TRegistry, TConfig>
         if (sharedMask.IsEmpty)
             return;
 
-        using var srcChunk = _chunkManager.Get(srcChunkHandle);
-        using var dstChunk = _chunkManager.Get(dstChunkHandle);
+        var srcBytes = _chunkManager.GetBytes(srcChunkHandle);
+        var dstBytes = _chunkManager.GetBytes(dstChunkHandle);
 
         var typeInfos = TRegistry.TypeInfos;
 
@@ -461,8 +457,8 @@ public sealed class World<TBits, TRegistry, TConfig>
             int srcOffset = srcLayout.GetEntityComponentOffset(srcIndexInChunk, new ComponentId(componentId));
             int dstOffset = dstLayout.GetEntityComponentOffset(dstIndexInChunk, new ComponentId(componentId));
 
-            var srcData = srcChunk.GetRawBytes().GetBytesAt(srcOffset, info.Size);
-            var dstData = dstChunk.GetRawBytes().GetBytesAt(dstOffset, info.Size);
+            var srcData = srcBytes.GetBytesAt(srcOffset, info.Size);
+            var dstData = dstBytes.GetBytesAt(dstOffset, info.Size);
             srcData.CopyTo(dstData);
         }
     }

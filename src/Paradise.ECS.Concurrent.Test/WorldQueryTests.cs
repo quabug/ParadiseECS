@@ -339,7 +339,7 @@ public sealed class WorldQueryTests : IDisposable
             var layout = archetype.Layout;
             foreach (var chunkHandle in archetype.GetChunks())
             {
-                using var chunk = _chunkManager.Get(chunkHandle);
+                var bytes = _chunkManager.GetBytes(chunkHandle);
                 int entitiesInChunk = Math.Min(
                     archetype.EntityCount - archetype.GetGlobalIndex(0, 0),
                     archetype.Layout.EntitiesPerChunk);
@@ -347,8 +347,8 @@ public sealed class WorldQueryTests : IDisposable
                 for (int i = 0; i < entitiesInChunk; i++)
                 {
                     int offset = layout.GetEntityComponentOffset<TestPosition>(i);
-                    var span = chunk.GetSpan<TestPosition>(offset, 1);
-                    sumX += span[0].X;
+                    var position = System.Runtime.InteropServices.MemoryMarshal.Read<TestPosition>(bytes.Slice(offset));
+                    sumX += position.X;
                 }
             }
         }

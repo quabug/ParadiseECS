@@ -164,36 +164,75 @@ public sealed unsafe class ChunkManager : IDisposable
     }
 
     /// <summary>
-    /// Gets a Chunk view for the given handle. The chunk borrows the memory
-    /// and must be disposed when done to allow freeing.
-    /// Returns an invalid (default) chunk if the handle is invalid or stale.
+    /// Gets the raw bytes of a chunk without incrementing the borrow count.
+    /// Returns an empty span if the handle is invalid or stale.
     /// </summary>
+    /// <param name="handle">The chunk handle.</param>
+    /// <returns>A span over the chunk's raw bytes, or empty if invalid.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Chunk Get(ChunkHandle handle)
+    public Span<byte> GetBytes(ChunkHandle handle)
     {
         if (!handle.IsValid)
-            return default;
+            return Span<byte>.Empty;
 
         ThrowHelper.ThrowIfDisposed(_disposed, this);
 
         if ((uint)handle.Id >= (uint)_nextSlotId)
-            return default;
+            return Span<byte>.Empty;
 
         ref var meta = ref GetMeta(handle.Id);
         var packed = new PackedVersion(meta.VersionAndShareCount);
 
         if (packed.Version != handle.Version)
-            return default; // Stale handle
+            return Span<byte>.Empty; // Stale handle
 
-        meta.VersionAndShareCount = new PackedVersion(packed.Version, packed.Index + 1).Value;
-        return new Chunk(this, handle.Id, (nint)meta.Pointer);
+        return new Span<byte>((void*)meta.Pointer, _chunkSize);
     }
 
     /// <summary>
-    /// Releases the borrow on a chunk. Called by Chunk.Dispose().
+    /// Acquires a borrow on a chunk, preventing it from being freed.
+    /// Must be paired with a call to <see cref="Release(ChunkHandle)"/>.
+    /// </summary>
+    /// <param name="handle">The chunk handle.</param>
+    /// <returns>True if the borrow was acquired, false if the handle is invalid or stale.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Acquire(ChunkHandle handle)
+    {
+        if (!handle.IsValid)
+            return false;
+
+        if (_disposed)
+            return false;
+
+        if ((uint)handle.Id >= (uint)_nextSlotId)
+            return false;
+
+        ref var meta = ref GetMeta(handle.Id);
+        var packed = new PackedVersion(meta.VersionAndShareCount);
+
+        if (packed.Version != handle.Version)
+            return false; // Stale handle
+
+        meta.VersionAndShareCount = new PackedVersion(packed.Version, packed.Index + 1).Value;
+        return true;
+    }
+
+    /// <summary>
+    /// Releases a borrow on a chunk acquired via <see cref="Acquire(ChunkHandle)"/>.
+    /// </summary>
+    /// <param name="handle">The chunk handle.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Release(ChunkHandle handle)
+    {
+        if (!handle.IsValid) return;
+        Release(handle.Id);
+    }
+
+    /// <summary>
+    /// Releases the borrow on a chunk by ID.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void Release(int id)
+    private void Release(int id)
     {
         if (_disposed) return;
         if (id >= _nextSlotId) return;

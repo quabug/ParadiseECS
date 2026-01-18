@@ -189,22 +189,52 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
     }
 
     /// <summary>
-    /// Gets a Chunk view for the given handle. The chunk borrows the memory
-    /// and must be disposed when done to allow freeing.
-    /// Returns an invalid (default) chunk if the handle is invalid or stale.
-    /// Uses lock-free CAS to atomically check version and increment ShareCount.
+    /// Gets the raw bytes of a chunk without incrementing the borrow count.
+    /// Returns an empty span if the handle is invalid or stale.
+    /// Thread-safe: Uses volatile reads.
     /// </summary>
+    /// <param name="handle">The chunk handle.</param>
+    /// <returns>A span over the chunk's raw bytes, or empty if invalid.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Chunk<TConfig> Get(ChunkHandle handle)
+    public Span<byte> GetBytes(ChunkHandle handle)
     {
         if (!handle.IsValid)
-            return default;
+            return Span<byte>.Empty;
 
         using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         if ((uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
-            return default;
+            return Span<byte>.Empty;
+
+        ref var meta = ref GetMeta(handle.Id);
+        var packed = new PackedVersion(Volatile.Read(ref meta.VersionAndShareCount));
+
+        if (packed.Version != handle.Version)
+            return Span<byte>.Empty; // Stale handle
+
+        return new Span<byte>((void*)meta.Pointer, TConfig.ChunkSize);
+    }
+
+    /// <summary>
+    /// Acquires a borrow on a chunk, preventing it from being freed.
+    /// Must be paired with a call to <see cref="Release(ChunkHandle)"/>.
+    /// Uses lock-free CAS to atomically check version and increment ShareCount.
+    /// </summary>
+    /// <param name="handle">The chunk handle.</param>
+    /// <returns>True if the borrow was acquired, false if the handle is invalid or stale.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public bool Acquire(ChunkHandle handle)
+    {
+        if (!handle.IsValid)
+            return false;
+
+        using var _ = _operationGuard.EnterScope();
+        if (_disposed != 0)
+            return false;
+
+        if ((uint)handle.Id >= (uint)Volatile.Read(ref _nextSlotId))
+            return false;
 
         ref var meta = ref GetMeta(handle.Id);
 
@@ -215,22 +245,34 @@ public sealed unsafe class ChunkManager<TConfig> : IDisposable
             var packed = new PackedVersion(current);
 
             if (packed.Version != handle.Version)
-                return default; // Stale handle
+                return false; // Stale handle
 
             ulong next = new PackedVersion(packed.Version, packed.Index + 1).Value;
             if (Interlocked.CompareExchange(ref meta.VersionAndShareCount, next, current) == current)
-                return new Chunk<TConfig>(this, handle.Id, (void*)meta.Pointer);
+                return true;
 
             // CAS failed - retry
         }
     }
 
     /// <summary>
-    /// Releases the borrow on a chunk. Called by Chunk.Dispose().
+    /// Releases a borrow on a chunk acquired via <see cref="Acquire(ChunkHandle)"/>.
+    /// Uses lock-free CAS to atomically decrement ShareCount.
+    /// </summary>
+    /// <param name="handle">The chunk handle.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Release(ChunkHandle handle)
+    {
+        if (!handle.IsValid) return;
+        Release(handle.Id);
+    }
+
+    /// <summary>
+    /// Releases the borrow on a chunk by ID.
     /// Uses lock-free CAS to atomically decrement ShareCount.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void Release(int id)
+    private void Release(int id)
     {
         using var _ = _operationGuard.EnterScope();
         if (_disposed != 0) return;

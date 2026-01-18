@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 
 namespace Paradise.ECS.Concurrent.Test;
 
@@ -71,12 +72,11 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
                     localHandles.Add(handle);
 
                     // Write thread-specific data
-                    {
-                        using var chunk = _manager.Get(handle);
-                        chunk.GetSpan<int>(0, 4)[0] = threadId;
-                        chunk.GetSpan<int>(0, 4)[1] = i;
-                        chunk.GetSpan<int>(0, 4)[2] = handle.Id;
-                    }
+                    var bytes = _manager.GetBytes(handle);
+                    var span = MemoryMarshal.Cast<byte, int>(bytes.Slice(0, sizeof(int) * 4));
+                    span[0] = threadId;
+                    span[1] = i;
+                    span[2] = handle.Id;
 
                     // Periodically free some handles
                     if (localHandles.Count > 10 && i % 3 == 0)
@@ -85,13 +85,11 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
                         localHandles.RemoveAt(0);
 
                         // Verify data before freeing
+                        var verifyBytes = _manager.GetBytes(toFree);
+                        var data = MemoryMarshal.Cast<byte, int>(verifyBytes.Slice(0, sizeof(int) * 4));
+                        if (data[2] != toFree.Id)
                         {
-                            using var chunk = _manager.Get(toFree);
-                            var data = chunk.GetSpan<int>(0, 4);
-                            if (data[2] != toFree.Id)
-                            {
-                                throw new Exception($"Data corruption: expected id {toFree.Id}, got {data[2]}");
-                            }
+                            throw new Exception($"Data corruption: expected id {toFree.Id}, got {data[2]}");
                         }
 
                         _manager.Free(toFree);
@@ -116,7 +114,7 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
     }
 
     [Test]
-    public async Task ConcurrentGetAndRelease_BorrowCountCorrect()
+    public async Task ConcurrentAcquireAndRelease_BorrowCountCorrect()
     {
         const int threadCount = 8;
         const int getsPerThread = 100;
@@ -124,10 +122,8 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
 
         // Pre-allocate a handle that all threads will access
         var sharedHandle = _manager.Allocate();
-        {
-            using var chunk = _manager.Get(sharedHandle);
-            chunk.GetSpan<int>(0, 1)[0] = 42;
-        }
+        var bytes = _manager.GetBytes(sharedHandle);
+        MemoryMarshal.Cast<byte, int>(bytes.Slice(0, sizeof(int)))[0] = 42;
 
         var tasks = Enumerable.Range(0, threadCount).Select(_ => Task.Run(() =>
         {
@@ -135,14 +131,22 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
             {
                 for (int i = 0; i < getsPerThread; i++)
                 {
-                    using var chunk = _manager.Get(sharedHandle);
-                    var value = chunk.GetSpan<int>(0, 1)[0];
-                    if (value != 42)
+                    _manager.Acquire(sharedHandle);
+                    try
                     {
-                        throw new Exception($"Data corruption: expected 42, got {value}");
+                        var readBytes = _manager.GetBytes(sharedHandle);
+                        var value = MemoryMarshal.Cast<byte, int>(readBytes.Slice(0, sizeof(int)))[0];
+                        if (value != 42)
+                        {
+                            throw new Exception($"Data corruption: expected 42, got {value}");
+                        }
+                        // Small delay to increase contention
+                        Thread.SpinWait(10);
                     }
-                    // Small delay to increase contention
-                    Thread.SpinWait(10);
+                    finally
+                    {
+                        _manager.Release(sharedHandle);
+                    }
                 }
             }
             catch (Exception ex)
@@ -186,10 +190,8 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
                     allHandles.Add(handle);
 
                     // Verify we can use the handle
-                    {
-                        using var chunk = smallManager.Get(handle);
-                        chunk.GetSpan<long>(0, 1)[0] = handle.Id;
-                    }
+                    var bytes = smallManager.GetBytes(handle);
+                    MemoryMarshal.Cast<byte, long>(bytes.Slice(0, sizeof(long)))[0] = handle.Id;
                 }
             }
             catch (Exception ex)
@@ -207,8 +209,8 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
         int verifiedCount = 0;
         foreach (var handle in allHandles)
         {
-            using var chunk = smallManager.Get(handle);
-            var storedId = chunk.GetSpan<long>(0, 1)[0];
+            var bytes = smallManager.GetBytes(handle);
+            var storedId = MemoryMarshal.Cast<byte, long>(bytes.Slice(0, sizeof(long)))[0];
             if (storedId == handle.Id)
                 verifiedCount++;
         }
@@ -244,11 +246,10 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
                         Interlocked.Increment(ref totalAllocations);
 
                         // Write marker data
-                        {
-                            using var chunk = _manager.Get(handle);
-                            chunk.GetSpan<int>(0, 2)[0] = threadId;
-                            chunk.GetSpan<int>(0, 2)[1] = handle.Id;
-                        }
+                        var bytes = _manager.GetBytes(handle);
+                        var span = MemoryMarshal.Cast<byte, int>(bytes.Slice(0, sizeof(int) * 2));
+                        span[0] = threadId;
+                        span[1] = handle.Id;
                     }
                     else if (op < 70)
                     {
@@ -256,8 +257,8 @@ public sealed class ChunkManagerConcurrencyTests : IDisposable
                         var idx = random.Next(localHandles.Count);
                         var handle = localHandles[idx];
 
-                        using var chunk = _manager.Get(handle);
-                        var data = chunk.GetSpan<int>(0, 2);
+                        var bytes = _manager.GetBytes(handle);
+                        var data = MemoryMarshal.Cast<byte, int>(bytes.Slice(0, sizeof(int) * 2));
                         if (data[1] != handle.Id)
                         {
                             throw new Exception($"Data mismatch: expected {handle.Id}, got {data[1]}");

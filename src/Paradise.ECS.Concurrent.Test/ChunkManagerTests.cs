@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Paradise.ECS.Concurrent.Test;
 
 public class ChunkManagerTests : IDisposable
@@ -45,10 +47,10 @@ public class ChunkManagerTests : IDisposable
         var handle = _manager.Allocate();
 
         // Should work before free
-        {
-            using var chunk = _manager.Get(handle); // Borrow and release
-        }
+        var bytes = _manager.GetBytes(handle);
+        var isEmpty = bytes.IsEmpty;
         await Assert.That(handle.IsValid).IsTrue();
+        await Assert.That(isEmpty).IsFalse();
 
         _manager.Free(handle);
 
@@ -64,22 +66,16 @@ public class ChunkManagerTests : IDisposable
     public async Task Allocate_ReusesMemoryAfterFree()
     {
         var handle1 = _manager.Allocate();
-        {
-            using var chunk1 = _manager.Get(handle1);
-            // Write some data
-            chunk1.GetSpan<int>(0, 10)[0] = 12345;
-        }
+        var bytes1 = _manager.GetBytes(handle1);
+        MemoryMarshal.Cast<byte, int>(bytes1.Slice(0, sizeof(int) * 10))[0] = 12345;
 
         _manager.Free(handle1);
 
         // Reallocate - should reuse the same slot and memory
         var handle2 = _manager.Allocate();
-        int value;
-        {
-            using var chunk2 = _manager.Get(handle2);
-            // Memory should be cleared (zeroed)
-            value = chunk2.GetSpan<int>(0, 10)[0];
-        }
+        var bytes2 = _manager.GetBytes(handle2);
+        // Memory should be cleared (zeroed)
+        var value = MemoryMarshal.Cast<byte, int>(bytes2.Slice(0, sizeof(int) * 10))[0];
         await Assert.That(value).IsEqualTo(0);
     }
 }
@@ -99,45 +95,25 @@ public class ChunkManagerExceptionTests : IDisposable
     }
 
     [Test]
-    public async Task Get_WithInvalidHandleId_ReturnsDefaultChunk()
+    public async Task GetBytes_WithInvalidHandleId_ReturnsEmptySpan()
     {
         // Version 0 makes this handle invalid; Id is also out of range
         var invalidHandle = new ChunkHandle(99999, 0);
 
-        // Should not throw - returns default chunk
-        bool noException = true;
-        try
-        {
-            using var chunk = _manager.Get(invalidHandle);
-            // Default chunk's Dispose() is safe (checks for null manager)
-        }
-        catch
-        {
-            noException = false;
-        }
+        var bytes = _manager.GetBytes(invalidHandle);
 
-        await Assert.That(noException).IsTrue();
+        await Assert.That(bytes.IsEmpty).IsTrue();
     }
 
     [Test]
-    public async Task Get_WithStaleHandle_ReturnsDefaultChunk()
+    public async Task GetBytes_WithStaleHandle_ReturnsEmptySpan()
     {
         var handle = _manager.Allocate();
         _manager.Free(handle);
 
-        // Should not throw - returns default chunk
-        bool noException = true;
-        try
-        {
-            using var chunk = _manager.Get(handle);
-            // Default chunk's Dispose() is safe (checks for null manager)
-        }
-        catch
-        {
-            noException = false;
-        }
+        var bytes = _manager.GetBytes(handle);
 
-        await Assert.That(noException).IsTrue();
+        await Assert.That(bytes.IsEmpty).IsTrue();
     }
 
     [Test]
@@ -150,20 +126,23 @@ public class ChunkManagerExceptionTests : IDisposable
     }
 
     [Test]
-    public async Task Free_WhileBorrowed_ThrowsInvalidOperationException()
+    public async Task Free_WhileAcquired_ThrowsInvalidOperationException()
     {
         var handle = _manager.Allocate();
-        // Note: Cannot use fluent assertion here because Chunk is a ref struct
-        // that cannot be preserved across await boundaries
+        _manager.Acquire(handle);
+
         bool threw = false;
         try
         {
-            using var chunk = _manager.Get(handle);
             _manager.Free(handle);
         }
         catch (InvalidOperationException)
         {
             threw = true;
+        }
+        finally
+        {
+            _manager.Release(handle);
         }
 
         await Assert.That(threw).IsTrue();
@@ -194,25 +173,15 @@ public class ChunkManagerExceptionTests : IDisposable
     }
 
     [Test]
-    public async Task Get_WithNegativeId_ReturnsDefaultChunk()
+    public async Task GetBytes_WithNegativeId_ReturnsEmptySpan()
     {
         // With packed representation, -1 becomes 0xFFFFFF (max 24-bit value) for Id
         // Version 0 means invalid, so this handle is invalid
         var negativeHandle = new ChunkHandle(-1, 0);
 
-        // Should not throw - returns default chunk
-        bool noException = true;
-        try
-        {
-            using var chunk = _manager.Get(negativeHandle);
-            // Default chunk's Dispose() is safe (checks for null manager)
-        }
-        catch
-        {
-            noException = false;
-        }
+        var bytes = _manager.GetBytes(negativeHandle);
 
-        await Assert.That(noException).IsTrue();
+        await Assert.That(bytes.IsEmpty).IsTrue();
     }
 
     [Test]
@@ -240,7 +209,7 @@ public class ChunkManagerExceptionTests : IDisposable
     }
 
     [Test]
-    public async Task Get_AfterDispose_ThrowsObjectDisposedException()
+    public async Task GetBytes_AfterDispose_ThrowsObjectDisposedException()
     {
         var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
         var handle = manager.Allocate();
@@ -249,7 +218,7 @@ public class ChunkManagerExceptionTests : IDisposable
         bool threw = false;
         try
         {
-            using var chunk = manager.Get(handle);
+            _ = manager.GetBytes(handle);
         }
         catch (ObjectDisposedException)
         {
@@ -261,21 +230,18 @@ public class ChunkManagerExceptionTests : IDisposable
     [Test]
     public async Task Release_WithOutOfRangeId_DoesNotThrow()
     {
-        // This tests the Release path when id >= _nextSlotId
-        // Internally called by Chunk.Dispose() with default chunk
         var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
 
-        // Get a default chunk by using a stale handle
+        // Get a handle, then use a stale handle
         var handle = manager.Allocate();
         manager.Free(handle);
 
-        // Get with stale handle returns default chunk
-        // When disposed, the default chunk calls Release which should be a no-op
-        await Assert.That(() =>
-        {
-            using var chunk = manager.Get(handle);
-            // chunk is default, its Dispose() calls Release with invalid data
-        }).ThrowsNothing();
+        // GetBytes with stale handle returns empty span
+        var bytes = manager.GetBytes(handle);
+        await Assert.That(bytes.IsEmpty).IsTrue();
+
+        // Release with out of range should not throw
+        await Assert.That(() => manager.Release(new ChunkHandle(99999, 1))).ThrowsNothing();
 
         manager.Dispose();
     }
@@ -289,8 +255,8 @@ public class ChunkManagerExceptionTests : IDisposable
         // Only allocate 1 chunk, so _nextSlotId is 1
         _ = manager.Allocate();
 
-        // Call Release with an id that's out of range (>= _nextSlotId)
-        await Assert.That(() => manager.Release(9999)).ThrowsNothing();
+        // Call Release with a handle that's out of range (>= _nextSlotId)
+        await Assert.That(() => manager.Release(new ChunkHandle(9999, 1))).ThrowsNothing();
 
         manager.Dispose();
     }
@@ -300,13 +266,57 @@ public class ChunkManagerExceptionTests : IDisposable
     {
         var manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 4 });
         var handle = manager.Allocate();
-        {
-            using var chunk = manager.Get(handle); // Borrow to increment share count
-        }
+        manager.Acquire(handle); // Increment share count
+        manager.Release(handle); // Release it
 
         manager.Dispose();
 
-        await Assert.That(() => manager.Release(handle.Id)).ThrowsNothing();
+        await Assert.That(() => manager.Release(handle)).ThrowsNothing();
+    }
+
+    [Test]
+    public async Task Acquire_ValidHandle_ReturnsTrue()
+    {
+        var handle = _manager.Allocate();
+
+        var result = _manager.Acquire(handle);
+        _manager.Release(handle);
+
+        await Assert.That(result).IsTrue();
+    }
+
+    [Test]
+    public async Task Acquire_StaleHandle_ReturnsFalse()
+    {
+        var handle = _manager.Allocate();
+        _manager.Free(handle);
+
+        var result = _manager.Acquire(handle);
+
+        await Assert.That(result).IsFalse();
+    }
+
+    [Test]
+    public async Task Acquire_Release_AllowsFree()
+    {
+        var handle = _manager.Allocate();
+
+        // Acquire and release
+        _manager.Acquire(handle);
+        _manager.Release(handle);
+
+        // Should be able to free after release
+        bool threw = false;
+        try
+        {
+            _manager.Free(handle);
+        }
+        catch (InvalidOperationException)
+        {
+            threw = true;
+        }
+
+        await Assert.That(threw).IsFalse();
     }
 }
 

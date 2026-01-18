@@ -8,22 +8,27 @@ namespace Paradise.ECS.Concurrent;
 /// </summary>
 /// <typeparam name="T">The component type.</typeparam>
 /// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
-public readonly ref struct ComponentRef<T, TConfig>
+public readonly unsafe ref struct ComponentRef<T, TConfig>
     where T : unmanaged, IComponent
     where TConfig : IConfig, new()
 {
-    private readonly Chunk<TConfig> _chunk;
-    private readonly int _offset;
+    private readonly ChunkManager<TConfig> _manager;
+    private readonly ChunkHandle _handle;
+    private readonly T* _pointer;
 
     /// <summary>
     /// Creates a new component reference.
     /// </summary>
-    /// <param name="chunk">The borrowed chunk containing the component.</param>
+    /// <param name="manager">The chunk manager.</param>
+    /// <param name="handle">The chunk handle.</param>
     /// <param name="offset">The byte offset to the component data.</param>
-    internal ComponentRef(Chunk<TConfig> chunk, int offset)
+    internal ComponentRef(ChunkManager<TConfig> manager, ChunkHandle handle, int offset)
     {
-        _chunk = chunk;
-        _offset = offset;
+        _manager = manager;
+        _handle = handle;
+        manager.Acquire(handle);
+        var bytes = manager.GetBytes(handle);
+        _pointer = (T*)Unsafe.AsPointer(ref bytes[offset]);
     }
 
     /// <summary>
@@ -32,12 +37,12 @@ public readonly ref struct ComponentRef<T, TConfig>
     public ref T Value
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => ref _chunk.GetRef<T>(_offset);
+        get => ref Unsafe.AsRef<T>(_pointer);
     }
 
     /// <summary>
     /// Releases the chunk borrow.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Dispose() => _chunk.Dispose();
+    public void Dispose() => _manager?.Release(_handle);
 }

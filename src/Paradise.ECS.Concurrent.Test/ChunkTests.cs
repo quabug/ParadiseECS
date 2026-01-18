@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Paradise.ECS.Concurrent.Test;
 
 public class ChunkTests : IDisposable
@@ -25,50 +27,43 @@ public class ChunkTests : IDisposable
     public async Task Allocate_CreatesValidChunk()
     {
         var handle = _manager.Allocate();
-        {
-            using var chunk = _manager.Get(handle); // Should not throw
-        }
+        var bytes = _manager.GetBytes(handle);
 
         await Assert.That(handle.IsValid).IsTrue();
         await Assert.That(handle.Version).IsGreaterThanOrEqualTo(0u);
+        await Assert.That(bytes.IsEmpty).IsFalse();
     }
 
     [Test]
-    public async Task GetSpan_ReturnsCorrectSpan()
+    public async Task GetBytes_ReturnsCorrectSize()
     {
         var handle = _manager.Allocate();
-        int spanLength;
-        {
-            using var chunk = _manager.Get(handle);
-            spanLength = chunk.GetSpan<float>(byteOffset: 0, count: 64).Length;
-        }
+        var bytes = _manager.GetBytes(handle);
 
-        await Assert.That(spanLength).IsEqualTo(64);
+        await Assert.That(bytes.Length).IsEqualTo(DefaultConfig.ChunkSize);
     }
 
     [Test]
-    public async Task GetSpan_AllowsReadWrite()
+    public async Task GetBytes_AllowsReadWrite()
     {
         var handle = _manager.Allocate();
-        bool allMatch;
+        var bytes = _manager.GetBytes(handle);
+
+        // Write data
+        var span = MemoryMarshal.Cast<byte, int>(bytes.Slice(0, 64 * sizeof(int)));
+        for (int i = 0; i < span.Length; i++)
+            span[i] = i * 10;
+
+        // Verify
+        var verifyBytes = _manager.GetBytes(handle);
+        var verifySpan = MemoryMarshal.Cast<byte, int>(verifyBytes.Slice(0, 64 * sizeof(int)));
+        bool allMatch = true;
+        for (int i = 0; i < verifySpan.Length; i++)
         {
-            using var chunk = _manager.Get(handle);
-
-            // Write data
-            var span = chunk.GetSpan<int>(byteOffset: 0, count: 64);
-            for (int i = 0; i < span.Length; i++)
-                span[i] = i * 10;
-
-            // Verify
-            var verifySpan = chunk.GetSpan<int>(byteOffset: 0, count: 64);
-            allMatch = true;
-            for (int i = 0; i < verifySpan.Length; i++)
+            if (verifySpan[i] != i * 10)
             {
-                if (verifySpan[i] != i * 10)
-                {
-                    allMatch = false;
-                    break;
-                }
+                allMatch = false;
+                break;
             }
         }
 
@@ -76,72 +71,25 @@ public class ChunkTests : IDisposable
     }
 
     [Test]
-    public async Task GetSpan_WithOffset_ReturnsCorrectData()
+    public async Task GetBytes_WithOffset_ReturnsCorrectData()
     {
         var handle = _manager.Allocate();
-        int value1, value2;
-        {
-            using var chunk = _manager.Get(handle);
+        var bytes = _manager.GetBytes(handle);
 
-            // Write
-            var firstSpan = chunk.GetSpan<int>(byteOffset: 0, count: 32);
-            for (int i = 0; i < 32; i++) firstSpan[i] = 100 + i;
+        // Write
+        var firstSpan = MemoryMarshal.Cast<byte, int>(bytes.Slice(0, 32 * sizeof(int)));
+        for (int i = 0; i < 32; i++) firstSpan[i] = 100 + i;
 
-            var secondSpan = chunk.GetSpan<int>(byteOffset: 128, count: 32);
-            for (int i = 0; i < 32; i++) secondSpan[i] = 200 + i;
+        var secondSpan = MemoryMarshal.Cast<byte, int>(bytes.Slice(128, 32 * sizeof(int)));
+        for (int i = 0; i < 32; i++) secondSpan[i] = 200 + i;
 
-            // Read
-            value1 = chunk.GetSpan<int>(byteOffset: 0, count: 32)[0];
-            value2 = chunk.GetSpan<int>(byteOffset: 128, count: 32)[0];
-        }
+        // Read
+        var readBytes = _manager.GetBytes(handle);
+        var value1 = MemoryMarshal.Cast<byte, int>(readBytes.Slice(0, sizeof(int)))[0];
+        var value2 = MemoryMarshal.Cast<byte, int>(readBytes.Slice(128, sizeof(int)))[0];
 
         await Assert.That(value1).IsEqualTo(100);
         await Assert.That(value2).IsEqualTo(200);
-    }
-
-    [Test]
-    public async Task GetDataBytes_ReturnsEntireChunk()
-    {
-        var handle = _manager.Allocate();
-        int bytesLength;
-        {
-            using var chunk = _manager.Get(handle);
-            bytesLength = chunk.GetDataBytes().Length;
-        }
-
-        await Assert.That(bytesLength).IsEqualTo(DefaultConfig.ChunkSize);
-    }
-
-    [Test]
-    public async Task GetDataBytes_WithSize_ReturnsRequestedSize()
-    {
-        var handle = _manager.Allocate();
-        int bytesLength;
-        {
-            using var chunk = _manager.Get(handle);
-            bytesLength = chunk.GetDataBytes(256).Length;
-        }
-
-        await Assert.That(bytesLength).IsEqualTo(256);
-    }
-
-    [Test]
-    public async Task GetDataBytes_WithOversizedRequest_ThrowsException()
-    {
-        var handle = _manager.Allocate();
-
-        bool threw = false;
-        try
-        {
-            using var chunk = _manager.Get(handle);
-            _ = chunk.GetDataBytes(DefaultConfig.ChunkSize + 1);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsTrue();
     }
 
     [Test]
@@ -149,11 +97,10 @@ public class ChunkTests : IDisposable
     {
         var handle = _manager.Allocate();
 
-        // Handle should be valid and Get should succeed
+        // Handle should be valid and GetBytes should succeed
         bool wasValid = handle.IsValid;
-        {
-            using var chunk = _manager.Get(handle); // Borrow and release
-        }
+        var bytes = _manager.GetBytes(handle);
+        bool hadBytes = !bytes.IsEmpty;
 
         _manager.Free(handle);
 
@@ -163,6 +110,7 @@ public class ChunkTests : IDisposable
         bool differentVersion = handle2.Version != handle.Version;
 
         await Assert.That(wasValid).IsTrue();
+        await Assert.That(hadBytes).IsTrue();
         await Assert.That(sameSlot).IsTrue();
         await Assert.That(differentVersion).IsTrue();
 
@@ -170,38 +118,26 @@ public class ChunkTests : IDisposable
     }
 
     [Test]
-    public async Task Free_WhileBorrowed_Throws()
+    public async Task Free_WhileAcquired_Throws()
     {
         var handle = _manager.Allocate();
-        bool threw;
-        {
-            using var chunk = _manager.Get(handle);
+        _manager.Acquire(handle);
 
-            threw = false;
-            try
-            {
-                _manager.Free(handle);
-            }
-            catch (InvalidOperationException)
-            {
-                threw = true;
-            }
+        bool threw = false;
+        try
+        {
+            _manager.Free(handle);
+        }
+        catch (InvalidOperationException)
+        {
+            threw = true;
+        }
+        finally
+        {
+            _manager.Release(handle);
         }
 
         await Assert.That(threw).IsTrue();
-    }
-
-    [Test]
-    public async Task GetRawBytes_ReturnsEntireChunkMemory()
-    {
-        var handle = _manager.Allocate();
-        int rawBytesLength;
-        {
-            using var chunk = _manager.Get(handle);
-            rawBytesLength = chunk.GetRawBytes().Length;
-        }
-
-        await Assert.That(rawBytesLength).IsEqualTo(DefaultConfig.ChunkSize);
     }
 
     [Test]
@@ -221,37 +157,26 @@ public class ChunkTests : IDisposable
     }
 
     [Test]
-    public async Task Get_WithStaleHandle_ReturnsDefaultChunk()
+    public async Task GetBytes_WithStaleHandle_ReturnsEmptySpan()
     {
         var handle = _manager.Allocate();
         _manager.Free(handle);
 
-        // Should not throw - returns default chunk
-        bool noException = true;
-        try
-        {
-            using var chunk = _manager.Get(handle);
-            // Default chunk's Dispose() is safe (checks for null manager)
-        }
-        catch
-        {
-            noException = false;
-        }
+        var bytes = _manager.GetBytes(handle);
 
-        await Assert.That(noException).IsTrue();
+        await Assert.That(bytes.IsEmpty).IsTrue();
     }
 
     [Test]
-    public async Task Chunk_Dispose_ReleasesLock()
+    public async Task Acquire_Release_AllowsFree()
     {
         var handle = _manager.Allocate();
 
-        // Borrow and release
-        {
-            using var chunk = _manager.Get(handle);
-        }
+        // Acquire and release
+        _manager.Acquire(handle);
+        _manager.Release(handle);
 
-        // Should be able to free after dispose
+        // Should be able to free after release
         bool threw = false;
         try
         {
@@ -266,148 +191,42 @@ public class ChunkTests : IDisposable
     }
 
     [Test]
-    public async Task Chunk_IsValid_ReturnsTrueForValidChunk()
+    public async Task Acquire_ValidHandle_ReturnsTrue()
     {
         var handle = _manager.Allocate();
-        bool isValid;
-        {
-            using var chunk = _manager.Get(handle);
-            isValid = chunk.IsValid;
-        }
 
-        await Assert.That(isValid).IsTrue();
+        var result = _manager.Acquire(handle);
+        _manager.Release(handle);
+
+        await Assert.That(result).IsTrue();
     }
 
     [Test]
-    public async Task Chunk_IsValid_ReturnsFalseForDefaultChunk()
+    public async Task Acquire_StaleHandle_ReturnsFalse()
     {
         var handle = _manager.Allocate();
         _manager.Free(handle);
 
-        // Get with stale handle returns default chunk
-        bool isValid;
-        {
-            using var chunk = _manager.Get(handle);
-            isValid = chunk.IsValid;
-        }
-        await Assert.That(isValid).IsFalse();
+        var result = _manager.Acquire(handle);
+
+        await Assert.That(result).IsFalse();
     }
 
     [Test]
-    public async Task GetBytesAt_ReturnsCorrectSlice()
+    public async Task GetBytes_Slice_ReturnsCorrectSlice()
     {
         var handle = _manager.Allocate();
-        int length;
-        byte firstByte;
-        {
-            using var chunk = _manager.Get(handle);
+        var bytes = _manager.GetBytes(handle);
 
-            // Write some data first
-            var rawBytes = chunk.GetRawBytes();
-            rawBytes[100] = 42;
+        // Write some data first
+        bytes[100] = 42;
 
-            // Get bytes at offset
-            var bytes = chunk.GetBytesAt(100, 50);
-            length = bytes.Length;
-            firstByte = bytes[0];
-        }
+        // Get bytes at offset
+        var slice = bytes.Slice(100, 50);
+        var length = slice.Length;
+        var firstByte = slice[0];
 
         await Assert.That(length).IsEqualTo(50);
         await Assert.That(firstByte).IsEqualTo((byte)42);
-    }
-
-    [Test]
-    public async Task GetBytesAt_WithNegativeOffset_Throws()
-    {
-        var handle = _manager.Allocate();
-
-        bool threw = false;
-        try
-        {
-            using var chunk = _manager.Get(handle);
-            _ = chunk.GetBytesAt(-1, 10);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsTrue();
-    }
-
-    [Test]
-    public async Task GetBytesAt_WithOversizedRange_Throws()
-    {
-        var handle = _manager.Allocate();
-
-        bool threw = false;
-        try
-        {
-            using var chunk = _manager.Get(handle);
-            _ = chunk.GetBytesAt(DefaultConfig.ChunkSize - 10, 20); // Would exceed chunk size
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsTrue();
-    }
-
-    [Test]
-    public async Task GetSpan_WithNegativeOffset_Throws()
-    {
-        var handle = _manager.Allocate();
-
-        bool threw = false;
-        try
-        {
-            using var chunk = _manager.Get(handle);
-            _ = chunk.GetSpan<int>(-1, 10);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsTrue();
-    }
-
-    [Test]
-    public async Task GetSpan_WithNegativeCount_Throws()
-    {
-        var handle = _manager.Allocate();
-
-        bool threw = false;
-        try
-        {
-            using var chunk = _manager.Get(handle);
-            _ = chunk.GetSpan<int>(0, -1);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsTrue();
-    }
-
-    [Test]
-    public async Task GetDataBytes_WithNegativeSize_Throws()
-    {
-        var handle = _manager.Allocate();
-
-        bool threw = false;
-        try
-        {
-            using var chunk = _manager.Get(handle);
-            _ = chunk.GetDataBytes(-1);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            threw = true;
-        }
-
-        await Assert.That(threw).IsTrue();
     }
 }

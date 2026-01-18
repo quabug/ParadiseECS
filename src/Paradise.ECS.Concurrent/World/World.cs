@@ -361,9 +361,8 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
         int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
-        var chunk = _chunkManager.Get(chunkHandle);
 
-        return new ComponentRef<T, TConfig>(chunk, offset);
+        return new ComponentRef<T, TConfig>(_chunkManager, chunkHandle, offset);
     }
 
     /// <summary>
@@ -389,9 +388,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
         int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
-        using var chunk = _chunkManager.Get(chunkHandle);
-        var span = chunk.GetSpan<T>(offset, 1);
-        span[0] = value;
+        System.Runtime.InteropServices.MemoryMarshal.Write(_chunkManager.GetBytes(chunkHandle).Slice(offset), in value);
     }
 
     /// <summary>
@@ -449,9 +446,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
             var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(globalIndex);
             var chunkHandle = archetype.GetChunk(chunkIndex);
             int offset = archetype.Layout.GetEntityComponentOffset<T>(indexInChunk);
-            using var chunk = _chunkManager.Get(chunkHandle);
-            var span = chunk.GetSpan<T>(offset, 1);
-            span[0] = value;
+            System.Runtime.InteropServices.MemoryMarshal.Write(_chunkManager.GetBytes(chunkHandle).Slice(offset), in value);
             return;
         }
 
@@ -471,9 +466,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(location.GlobalIndex);
         var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
         int newOffset = targetArchetype.Layout.GetEntityComponentOffset<T>(newIndexInChunk);
-        using var newChunk = _chunkManager.Get(newChunkHandle);
-        var newSpan = newChunk.GetSpan<T>(newOffset, 1);
-        newSpan[0] = value;
+        System.Runtime.InteropServices.MemoryMarshal.Write(_chunkManager.GetBytes(newChunkHandle).Slice(newOffset), in value);
     }
 
     /// <summary>
@@ -573,8 +566,8 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         if (sharedMask.IsEmpty)
             return;
 
-        using var srcChunk = _chunkManager.Get(srcChunkHandle);
-        using var dstChunk = _chunkManager.Get(dstChunkHandle);
+        var srcBytes = _chunkManager.GetBytes(srcChunkHandle);
+        var dstBytes = _chunkManager.GetBytes(dstChunkHandle);
 
         var typeInfos = TRegistry.TypeInfos;
 
@@ -587,8 +580,8 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
             int srcOffset = srcLayout.GetEntityComponentOffset(srcIndexInChunk, new ComponentId(componentId));
             int dstOffset = dstLayout.GetEntityComponentOffset(dstIndexInChunk, new ComponentId(componentId));
 
-            var srcData = srcChunk.GetBytesAt(srcOffset, info.Size);
-            var dstData = dstChunk.GetBytesAt(dstOffset, info.Size);
+            var srcData = srcBytes.Slice(srcOffset, info.Size);
+            var dstData = dstBytes.Slice(dstOffset, info.Size);
             srcData.CopyTo(dstData);
         }
     }
