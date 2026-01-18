@@ -97,8 +97,8 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 ### In Progress
 
-- [~] **Queryable Archetype/Query Source Generator** (`feature/queryable`)
-  - Code generation for strongly-typed query structs
+- [~] **Query Code Generator** (`feature/query-code-gen`)
+  - Source generator for strongly-typed query structs
   - Zero-allocation iteration patterns via generated code
   - Compile-time query validation
 
