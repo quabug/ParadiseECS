@@ -9,7 +9,7 @@ Console.WriteLine();
 
 // Create shared resources
 using var sharedMetadata = new SharedArchetypeMetadata();
-using var chunkManager = Paradise.ECS.ChunkManager.Create<Paradise.ECS.DefaultConfig>();
+using var chunkManager = DefaultChunkManager.Create();
 
 // Create the world using the generated World alias
 var world = new World(sharedMetadata, chunkManager);
