@@ -21,7 +21,6 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     private readonly Lock _structuralChangeLock = new();
 
     private readonly OperationGuard _operationGuard = new();
-    private EntityLocation[] _entityLocations;
     private int _disposed;
 
     /// <summary>
@@ -62,7 +61,6 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         _chunkManager = chunkManager;
         _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry, TConfig>(sharedMetadata, chunkManager);
         _entityManager = new EntityManager(config.DefaultEntityCapacity);
-        _entityLocations = new EntityLocation[config.DefaultEntityCapacity];
     }
 
     /// <summary>
@@ -117,15 +115,12 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
 
         if (mask.IsEmpty)
         {
-            // No components - location will be lazily initialized if needed
+            // No components - entity starts with invalid location
             return entity;
         }
 
-        EnsureEntityLocationCapacity(entity.Id);
-        ref var location = ref _entityLocations[entity.Id];
-
         var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
-        PlaceEntityWithComponents(entity, ref location, archetype, builder);
+        PlaceEntityWithComponents(entity, archetype, builder);
 
         return entity;
     }
@@ -146,24 +141,24 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
 
         using var lockScope = _structuralChangeLock.EnterScope();
 
-        ref var location = ref GetValidatedLocation(entity);
+        var location = GetValidatedLocation(entity);
 
         // Collect component mask
         var mask = ImmutableBitSet<TBits>.Empty;
         builder.CollectTypes(ref mask);
 
         // Remove from old archetype if it had one
-        RemoveFromCurrentArchetype(ref location);
+        RemoveFromCurrentArchetype(location);
 
         if (mask.IsEmpty)
         {
             // No components - entity is now componentless
-            location = EntityLocation.Invalid;
+            _entityManager.SetLocation(entity, EntityLocation.Invalid);
             return entity;
         }
 
         var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
-        PlaceEntityWithComponents(entity, ref location, archetype, builder);
+        PlaceEntityWithComponents(entity, archetype, builder);
 
         return entity;
     }
@@ -185,7 +180,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
 
         using var lockScope = _structuralChangeLock.EnterScope();
 
-        ref var location = ref GetValidatedLocation(entity);
+        var location = GetValidatedLocation(entity);
 
         // Collect new component mask from builder
         var newMask = ImmutableBitSet<TBits>.Empty;
@@ -227,16 +222,11 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
             var dstChunkHandle = targetArchetype.GetChunk(dstChunkIndex);
 
             CopySharedComponents(sourceArchetype, targetArchetype, srcChunkHandle, srcIndexInChunk, dstChunkHandle, dstIndexInChunk);
-            RemoveFromCurrentArchetype(ref location);
+            RemoveFromCurrentArchetype(location);
         }
 
         // Update location
-        location = new EntityLocation
-        {
-            Version = entity.Version,
-            ArchetypeId = targetArchetype.Id,
-            GlobalIndex = newGlobalIndex
-        };
+        _entityManager.SetLocation(entity, new EntityLocation(entity.Version, targetArchetype.Id, newGlobalIndex));
 
         // Write new component data
         var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(newGlobalIndex);
@@ -251,19 +241,12 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// </summary>
     private void PlaceEntityWithComponents<TBuilder>(
         Entity entity,
-        ref EntityLocation location,
         Archetype<TBits, TRegistry, TConfig> archetype,
         TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
         int globalIndex = archetype.AllocateEntity(entity);
-
-        location = new EntityLocation
-        {
-            Version = entity.Version,
-            ArchetypeId = archetype.Id,
-            GlobalIndex = globalIndex
-        };
+        _entityManager.SetLocation(entity, new EntityLocation(entity.Version, archetype.Id, globalIndex));
 
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(globalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
@@ -274,7 +257,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// Removes an entity from its current archetype if it has one.
     /// Updates the moved entity's location if a swap-remove occurred.
     /// </summary>
-    private void RemoveFromCurrentArchetype(ref EntityLocation location)
+    private void RemoveFromCurrentArchetype(EntityLocation location)
     {
         if (!location.IsValid)
             return;
@@ -285,8 +268,20 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         // If an entity was moved during swap-remove, update its location
         if (movedEntityId >= 0)
         {
-            _entityLocations[movedEntityId] = _entityLocations[movedEntityId] with { GlobalIndex = location.GlobalIndex };
+            var movedEntity = GetEntityFromId(movedEntityId);
+            var movedLocation = _entityManager.GetLocation(movedEntity);
+            _entityManager.SetLocation(movedEntity, new EntityLocation(movedLocation.Version, movedLocation.ArchetypeId, location.GlobalIndex));
         }
+    }
+
+    /// <summary>
+    /// Gets the Entity handle for a given entity ID by reading its version from storage.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Entity GetEntityFromId(int entityId)
+    {
+        var location = _entityManager.GetLocation(new Entity(entityId, 1)); // Version doesn't matter for GetLocation
+        return new Entity(entityId, location.Version);
     }
 
     /// <summary>
@@ -307,15 +302,9 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
 
         using var lockScope = _structuralChangeLock.EnterScope();
 
-        // Handle lazy initialization - location may not exist yet
-        if (entity.Id < _entityLocations.Length)
+        if (_entityManager.TryGetLocation(entity, out var location) && location.MatchesEntity(entity))
         {
-            ref var location = ref _entityLocations[entity.Id];
-            if (location.MatchesEntity(entity))
-            {
-                RemoveFromCurrentArchetype(ref location);
-            }
-            location = EntityLocation.Invalid;
+            RemoveFromCurrentArchetype(location);
         }
 
         _entityManager.Destroy(entity);
@@ -351,7 +340,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
-        ref var location = ref GetValidatedLocation(entity);
+        var location = GetValidatedLocation(entity);
         var archetype = _archetypeRegistry.GetById(location.ArchetypeId)
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
 
@@ -377,7 +366,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
-        ref var location = ref GetValidatedLocation(entity);
+        var location = GetValidatedLocation(entity);
         var archetype = _archetypeRegistry.GetById(location.ArchetypeId)
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
 
@@ -405,7 +394,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
-        if (!TryGetLocation(entity, out var location))
+        if (!_entityManager.TryGetLocation(entity, out var location))
             return false;
 
         if (!location.IsValid)
@@ -429,7 +418,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
 
         using var lockScope = _structuralChangeLock.EnterScope();
 
-        ref var location = ref GetValidatedLocation(entity);
+        var location = GetValidatedLocation(entity);
 
         if (!location.IsValid)
         {
@@ -438,8 +427,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
             var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
 
             int globalIndex = archetype.AllocateEntity(entity);
-
-            location = location with { ArchetypeId = archetype.Id, GlobalIndex = globalIndex };
+            _entityManager.SetLocation(entity, new EntityLocation(entity.Version, archetype.Id, globalIndex));
 
             // Write component value
             var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(globalIndex);
@@ -459,10 +447,10 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         var targetArchetype = _archetypeRegistry.GetOrCreateWithAdd(sourceArchetype, T.TypeId);
 
         // Move entity to target archetype
-        MoveEntity(entity, ref location, sourceArchetype, targetArchetype);
+        int newGlobalIndex = MoveEntity(entity, location, sourceArchetype, targetArchetype);
 
         // Write the new component value
-        var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(location.GlobalIndex);
+        var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(newGlobalIndex);
         var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
         int newOffset = targetArchetype.Layout.GetEntityComponentOffset<T>(newIndexInChunk);
         System.Runtime.InteropServices.MemoryMarshal.Write(_chunkManager.GetBytes(newChunkHandle).Slice(newOffset), in value);
@@ -481,7 +469,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
 
         using var lockScope = _structuralChangeLock.EnterScope();
 
-        ref var location = ref GetValidatedLocation(entity);
+        var location = GetValidatedLocation(entity);
 
         if (!location.IsValid)
             throw new InvalidOperationException($"Entity {entity} has no components.");
@@ -498,13 +486,14 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         if (targetArchetype.Layout.ComponentMask.IsEmpty)
         {
             // Removing the last component - remove from archetype entirely
-            RemoveFromCurrentArchetype(ref location);
-            location = EntityLocation.Invalid with { Version = location.Version };
+            RemoveFromCurrentArchetype(location);
+            // Preserve entity version, just mark as having no archetype
+            _entityManager.SetLocation(entity, new EntityLocation(entity.Version, -1, -1));
             return;
         }
 
         // Move entity to target archetype
-        MoveEntity(entity, ref location, sourceArchetype, targetArchetype);
+        MoveEntity(entity, location, sourceArchetype, targetArchetype);
     }
 
     /// <summary>
@@ -516,9 +505,9 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         return new QueryBuilder<TBits>();
     }
 
-    private void MoveEntity(
+    private int MoveEntity(
         Entity entity,
-        ref EntityLocation location,
+        EntityLocation location,
         Archetype<TBits, TRegistry, TConfig> source,
         Archetype<TBits, TRegistry, TConfig> target)
     {
@@ -541,11 +530,15 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         // If an entity was moved during swap-remove, update its location
         if (movedEntityId >= 0)
         {
-            _entityLocations[movedEntityId] = _entityLocations[movedEntityId] with { GlobalIndex = oldGlobalIndex };
+            var movedEntity = GetEntityFromId(movedEntityId);
+            var movedLocation = _entityManager.GetLocation(movedEntity);
+            _entityManager.SetLocation(movedEntity, new EntityLocation(movedLocation.Version, movedLocation.ArchetypeId, oldGlobalIndex));
         }
 
         // Update the entity's location to the new archetype
-        location = location with { ArchetypeId = target.Id, GlobalIndex = newGlobalIndex };
+        _entityManager.SetLocation(entity, new EntityLocation(location.Version, target.Id, newGlobalIndex));
+
+        return newGlobalIndex;
     }
 
     private void CopySharedComponents(
@@ -583,7 +576,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         }
     }
 
-    private ref EntityLocation GetValidatedLocation(Entity entity)
+    private EntityLocation GetValidatedLocation(Entity entity)
     {
         if (!entity.IsValid)
             throw new InvalidOperationException("Invalid entity handle.");
@@ -591,46 +584,16 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         if (!_entityManager.IsAlive(entity))
             throw new InvalidOperationException($"Entity {entity} is not alive.");
 
-        // Ensure location array has capacity (lazy initialization)
-        EnsureEntityLocationCapacity(entity.Id);
+        var location = _entityManager.GetLocation(entity);
 
-        ref var location = ref _entityLocations[entity.Id];
-
-        // Initialize location if it was never set or was from a previous entity at this ID
+        // Initialize location if it was never set (no archetype yet)
         if (location.Version == 0)
         {
-            // Never initialized or was despawned - initialize with current entity's version
-            location = EntityLocation.Invalid with { Version = entity.Version };
-        }
-        else if (!location.MatchesEntity(entity))
-        {
-            throw new InvalidOperationException($"Entity {entity} location version mismatch (stale handle).");
+            // Never initialized - return invalid location with current entity's version
+            return new EntityLocation(entity.Version, -1, -1);
         }
 
-        return ref location;
-    }
-
-    private bool TryGetLocation(Entity entity, out EntityLocation location)
-    {
-        if (!entity.IsValid || entity.Id >= _entityLocations.Length)
-        {
-            location = EntityLocation.Invalid;
-            return false;
-        }
-
-        location = _entityLocations[entity.Id];
-        return location.MatchesEntity(entity);
-    }
-
-    private void EnsureEntityLocationCapacity(int entityId)
-    {
-        if (entityId < _entityLocations.Length)
-            return;
-
-        int newCapacity = Math.Max(_entityLocations.Length * 2, entityId + 1);
-        var newLocations = new EntityLocation[newCapacity];
-        Array.Copy(_entityLocations, newLocations, _entityLocations.Length);
-        _entityLocations = newLocations;
+        return location;
     }
 
     public void Dispose()
@@ -643,8 +606,6 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
 
         _archetypeRegistry.Dispose();
         _entityManager.Dispose();
-
-        _entityLocations = [];
     }
 }
 

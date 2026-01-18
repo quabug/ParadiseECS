@@ -49,7 +49,7 @@ public readonly struct EntityBuilder : IComponentsBuilder
     /// </summary>
     /// <returns>A new entity builder.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static EntityBuilder Create() => default;
+    public static EntityBuilder Create() => new();
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

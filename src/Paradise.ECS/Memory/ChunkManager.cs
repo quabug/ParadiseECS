@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -240,6 +241,7 @@ public sealed unsafe class ChunkManager : IChunkManager
 
         ref var meta = ref GetMeta(id);
         var packed = new PackedVersion(meta.VersionAndShareCount);
+        Debug.Assert(packed.Index > 0, "ShareCount underflow - Release called without matching Acquire");
         meta.VersionAndShareCount = new PackedVersion(packed.Version, packed.Index - 1).Value;
     }
 

@@ -225,7 +225,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         if (movedEntityId >= 0)
         {
             var movedLocation = _entityManager.GetLocation(movedEntityId);
-            _entityManager.SetLocation(movedEntityId, movedLocation with { GlobalIndex = location.GlobalIndex });
+            _entityManager.SetLocation(movedEntityId, new EntityLocation(movedLocation.Version, movedLocation.ArchetypeId, location.GlobalIndex));
         }
     }
 
@@ -447,7 +447,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         if (movedEntityId >= 0)
         {
             var movedLocation = _entityManager.GetLocation(movedEntityId);
-            _entityManager.SetLocation(movedEntityId, movedLocation with { GlobalIndex = oldGlobalIndex });
+            _entityManager.SetLocation(movedEntityId, new EntityLocation(movedLocation.Version, movedLocation.ArchetypeId, oldGlobalIndex));
         }
 
         // Update the entity's location to the new archetype

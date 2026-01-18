@@ -26,7 +26,7 @@ public readonly ref struct QueryBuilder<TBits> where TBits : unmanaged, IStorage
     /// </summary>
     /// <returns>A new query builder with no constraints.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static QueryBuilder<TBits> Create() => default;
+    public static QueryBuilder<TBits> Create() => new();
 
     /// <summary>
     /// Adds a required component constraint.

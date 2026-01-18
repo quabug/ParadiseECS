@@ -8,10 +8,11 @@ namespace Paradise.ECS.Concurrent;
 /// Handles entity creation, destruction, validation, and archetype location using version-based handles.
 /// Uses a contiguous array for entity metadata indexed by Entity.Id for O(1) lookups.
 /// Array growth uses a lock to prevent wasted allocations.
+/// Destroy operations use lock-free CAS for minimal contention.
 /// </summary>
 public sealed class EntityManager : IEntityManager, IDisposable
 {
-    private EntityLocation[] _locations;
+    private ulong[] _packedLocations; // Uses packed EntityLocation format for lock-free CAS
     private readonly ConcurrentStack<int> _freeSlots = new();
     private readonly Lock _growLock = new();
     private readonly OperationGuard _operationGuard = new();
@@ -26,7 +27,7 @@ public sealed class EntityManager : IEntityManager, IDisposable
     public EntityManager(int initialCapacity)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(initialCapacity, 0);
-        _locations = new EntityLocation[initialCapacity];
+        _packedLocations = new ulong[initialCapacity];
     }
 
     /// <summary>
@@ -37,7 +38,7 @@ public sealed class EntityManager : IEntityManager, IDisposable
     /// <summary>
     /// Gets the current capacity of the entity storage.
     /// </summary>
-    public int Capacity => Volatile.Read(ref _locations).Length;
+    public int Capacity => Volatile.Read(ref _packedLocations).Length;
 
     /// <summary>
     /// Returns the ID that would be assigned to the next created entity,
@@ -72,10 +73,10 @@ public sealed class EntityManager : IEntityManager, IDisposable
         if (_freeSlots.TryPop(out int id))
         {
             // Reuse a freed entity slot - version was already incremented on destroy
-            var locations = Volatile.Read(ref _locations);
-            var current = locations[id];
+            var locations = Volatile.Read(ref _packedLocations);
+            var current = EntityLocation.FromPacked(Volatile.Read(ref locations[id]));
             // Reset archetype info (already -1 from destroy, but ensure consistency)
-            locations[id] = new EntityLocation(current.Version, -1, -1);
+            Volatile.Write(ref locations[id], new EntityLocation(current.Version, -1, -1).Packed);
             Interlocked.Increment(ref _aliveCount);
             return new Entity(id, current.Version);
         }
@@ -87,15 +88,15 @@ public sealed class EntityManager : IEntityManager, IDisposable
         EnsureCapacity(id);
 
         // Initialize location with retry in case array grows while we're writing.
-        // If another thread grows the array after we read _locations but before we write,
+        // If another thread grows the array after we read _packedLocations but before we write,
         // our write goes to a stale array. Retry ensures we write to the current array.
         while (true)
         {
-            var locations = Volatile.Read(ref _locations);
-            locations[id] = new EntityLocation(1, -1, -1);
+            var locations = Volatile.Read(ref _packedLocations);
+            Volatile.Write(ref locations[id], new EntityLocation(1, -1, -1).Packed);
 
             // Check if array was replaced while we were writing
-            if (Volatile.Read(ref _locations) == locations)
+            if (Volatile.Read(ref _packedLocations) == locations)
                 break;
 
             // Array was replaced, retry write to new array
@@ -109,6 +110,7 @@ public sealed class EntityManager : IEntityManager, IDisposable
     /// Destroys the entity associated with the handle.
     /// Increments the version to invalidate the handle and returns the ID to the free pool.
     /// Safe to call multiple times or with invalid/stale handles (no-op).
+    /// Uses lock-free CAS for minimal contention.
     /// </summary>
     /// <param name="entity">The entity to destroy.</param>
     public void Destroy(Entity entity)
@@ -122,22 +124,44 @@ public sealed class EntityManager : IEntityManager, IDisposable
         if (entity.Id >= Volatile.Read(ref _nextEntityId))
             return;
 
-        // Use lock for atomic read-modify-write since EntityLocation is immutable
-        lock (_growLock)
+        // Lock-free CAS loop for atomic read-modify-write
+        while (true)
         {
-            var locations = Volatile.Read(ref _locations);
-            var current = locations[entity.Id];
+            var locations = Volatile.Read(ref _packedLocations);
+            ulong currentPacked = Volatile.Read(ref locations[entity.Id]);
+            var current = EntityLocation.FromPacked(currentPacked);
 
             // Check if already destroyed (stale handle)
             if (current.Version != entity.Version)
                 return;
 
-            // Increment version to invalidate all existing handles
-            locations[entity.Id] = new EntityLocation(current.Version + 1, -1, -1);
-        }
+            // Prepare new location with incremented version and invalid archetype
+            var newLocation = new EntityLocation(current.Version + 1, -1, -1);
 
-        _freeSlots.Push(entity.Id);
-        Interlocked.Decrement(ref _aliveCount);
+            // Atomic compare-and-swap
+            ulong original = Interlocked.CompareExchange(
+                ref locations[entity.Id],
+                newLocation.Packed,
+                currentPacked);
+
+            if (original == currentPacked)
+            {
+                // Successfully destroyed
+                _freeSlots.Push(entity.Id);
+                Interlocked.Decrement(ref _aliveCount);
+                return;
+            }
+
+            // CAS failed - check if array was replaced during our operation
+            if (Volatile.Read(ref _packedLocations) != locations)
+            {
+                // Array was replaced, retry with new array
+                continue;
+            }
+
+            // Another thread modified this slot - re-read and check version
+            // (likely already destroyed by another thread)
+        }
     }
 
     /// <summary>
@@ -156,8 +180,9 @@ public sealed class EntityManager : IEntityManager, IDisposable
         if (entity.Id >= Volatile.Read(ref _nextEntityId))
             return false;
 
-        var locations = Volatile.Read(ref _locations);
-        return locations[entity.Id].Version == entity.Version;
+        var locations = Volatile.Read(ref _packedLocations);
+        var packed = EntityLocation.FromPacked(Volatile.Read(ref locations[entity.Id]));
+        return packed.Version == entity.Version;
     }
 
     /// <summary>
@@ -171,8 +196,8 @@ public sealed class EntityManager : IEntityManager, IDisposable
     public EntityLocation GetLocation(Entity entity)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        var locations = Volatile.Read(ref _locations);
-        return locations[entity.Id];
+        var locations = Volatile.Read(ref _packedLocations);
+        return EntityLocation.FromPacked(Volatile.Read(ref locations[entity.Id]));
     }
 
     /// <summary>
@@ -186,8 +211,8 @@ public sealed class EntityManager : IEntityManager, IDisposable
     public void SetLocation(Entity entity, EntityLocation location)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        var locations = Volatile.Read(ref _locations);
-        locations[entity.Id] = location;
+        var locations = Volatile.Read(ref _packedLocations);
+        Volatile.Write(ref locations[entity.Id], location.Packed);
     }
 
     /// <summary>
@@ -213,8 +238,8 @@ public sealed class EntityManager : IEntityManager, IDisposable
             return false;
         }
 
-        var locations = Volatile.Read(ref _locations);
-        location = locations[entity.Id];
+        var locations = Volatile.Read(ref _packedLocations);
+        location = EntityLocation.FromPacked(Volatile.Read(ref locations[entity.Id]));
         if (location.Version != entity.Version)
         {
             location = EntityLocation.Invalid;
@@ -230,21 +255,21 @@ public sealed class EntityManager : IEntityManager, IDisposable
     /// </summary>
     private void EnsureCapacity(int id)
     {
-        if (id < Volatile.Read(ref _locations).Length)
+        if (id < Volatile.Read(ref _packedLocations).Length)
             return;
 
         using var _ = _growLock.EnterScope();
 
         // Double-check after acquiring lock
-        var locations = _locations;
+        var locations = _packedLocations;
         if (id < locations.Length)
             return;
 
         // Grow by doubling, ensuring we have room for the new id
         int newCapacity = Math.Max(locations.Length * 2, id + 1);
-        var newLocations = new EntityLocation[newCapacity];
+        var newLocations = new ulong[newCapacity];
         Array.Copy(locations, newLocations, locations.Length);
-        Volatile.Write(ref _locations, newLocations);
+        Volatile.Write(ref _packedLocations, newLocations);
     }
 
     /// <summary>
@@ -259,7 +284,7 @@ public sealed class EntityManager : IEntityManager, IDisposable
         _operationGuard.WaitForCompletion();
 
         _freeSlots.Clear();
-        _locations = [];
+        _packedLocations = [];
         _nextEntityId = 0;
         _aliveCount = 0;
     }
