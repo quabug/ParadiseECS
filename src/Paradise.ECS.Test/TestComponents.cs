@@ -30,3 +30,30 @@ public partial struct TestDamage
 {
     public int Amount;
 }
+
+/// <summary>
+/// Test queryable with auto-assigned ID (should get ID 0).
+/// Requires Position and Health, excludes Velocity.
+/// </summary>
+[Queryable]
+[With<TestPosition>]
+[With<TestHealth>]
+[Without<TestVelocity>]
+public readonly ref partial struct TestMovableEntity;
+
+/// <summary>
+/// Test queryable with explicit ID.
+/// Requires Position and Velocity, optionally has Damage.
+/// </summary>
+[Queryable(Id = 5)]
+[With<TestPosition>]
+[With<TestVelocity>]
+[Any<TestDamage>]
+public readonly ref partial struct TestProjectile;
+
+/// <summary>
+/// Test queryable with only required components.
+/// </summary>
+[Queryable(Id = 10)]
+[With<TestHealth>]
+public readonly ref partial struct TestHealthEntity;

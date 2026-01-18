@@ -7,6 +7,8 @@
     <PublishAot>true</PublishAot>
     <!-- Suppress CA1515: internal types warning for this demo project -->
     <NoWarn>$(NoWarn);CA1515</NoWarn>
+    <!-- Emit generated source files for inspection -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>
