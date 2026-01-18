@@ -416,7 +416,6 @@ public class ComponentGenerator : IIncrementalGenerator
         if (componentCount > 0)
         {
             var registryType = $"{rootNamespace}.ComponentRegistry";
-            sb.AppendLine($"global using ChunkManager = global::Paradise.ECS.ChunkManager<global::{configType}>;");
             sb.AppendLine($"global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
             sb.AppendLine($"global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
             sb.AppendLine($"global using World = global::Paradise.ECS.World<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");

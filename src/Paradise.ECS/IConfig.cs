@@ -53,7 +53,7 @@ public interface IConfig
     int DefaultEntityCapacity { get; }
 
     /// <summary>
-    /// Memory allocator for chunk memory operations in <see cref="ChunkManager{TConfig}"/>.
+    /// Memory allocator for chunk memory operations in <see cref="ChunkManager"/>.
     /// This is a runtime configuration that can vary per instance.
     /// Default: <see cref="NativeMemoryAllocator.Shared"/>.
     /// </summary>

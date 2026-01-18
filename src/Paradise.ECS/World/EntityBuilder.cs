@@ -27,7 +27,7 @@ public interface IComponentsBuilder
     /// <param name="chunkHandle">The chunk where data should be written.</param>
     /// <param name="indexInChunk">The entity's index within the chunk.</param>
     void WriteComponents<TBits, TRegistry, TConfig>(
-        ChunkManager<TConfig> chunkManager,
+        ChunkManager chunkManager,
         ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
@@ -60,7 +60,7 @@ public readonly struct EntityBuilder : IComponentsBuilder
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteComponents<TBits, TRegistry, TConfig>(
-        ChunkManager<TConfig> chunkManager,
+        ChunkManager chunkManager,
         ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
@@ -116,7 +116,7 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void WriteComponents<TBits, TRegistry, TConfig>(
-        ChunkManager<TConfig> chunkManager,
+        ChunkManager chunkManager,
         ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
@@ -136,7 +136,7 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
         // Write this component
         int offset = layout.GetEntityComponentOffset<TComponent>(indexInChunk);
         using var chunk = chunkManager.Get(chunkHandle);
-        chunk.GetRef<TComponent>(offset) = Value;
+        chunk.GetRawBytes().GetRef<TComponent>(offset) = Value;
     }
 }
 

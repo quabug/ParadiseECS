@@ -15,7 +15,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
-    private readonly ChunkManager<TConfig> _chunkManager;
+    private readonly ChunkManager _chunkManager;
     private readonly ArchetypeRegistry<TBits, TRegistry, TConfig> _archetypeRegistry;
     private readonly EntityManager _entityManager;
     private Archetype<TBits, TRegistry, TConfig> _emptyArchetype;
@@ -38,7 +38,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
     public World(TConfig config,
                  SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
-                 ChunkManager<TConfig> chunkManager)
+                 ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);
@@ -60,7 +60,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
     public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
-                 ChunkManager<TConfig> chunkManager)
+                 ChunkManager chunkManager)
         : this(new TConfig(), sharedMetadata, chunkManager)
     {
     }
@@ -74,7 +74,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     public Entity Spawn()
     {
         // Validate before creating to avoid inconsistent state if limit exceeded
-        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
+        ThrowHelper.ThrowIfEntityIdExceedsLimit(_entityManager.PeekNextId(), Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
         var entity = _entityManager.Create();
         int globalIndex = _emptyArchetype.AllocateEntity(entity);
         _entityManager.SetLocation(entity.Id, new EntityLocation(entity.Version, _emptyArchetype.Id, globalIndex));
@@ -95,7 +95,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         builder.CollectTypes(ref mask);
 
         // Validate before creating to avoid inconsistent state if limit exceeded
-        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
+        ThrowHelper.ThrowIfEntityIdExceedsLimit(_entityManager.PeekNextId(), Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
 
         // Create entity and place in target archetype (returns empty archetype if mask is empty)
         var entity = _entityManager.Create();
@@ -276,7 +276,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     {
         var (handle, offset) = GetComponentLocation<T>(entity);
         using var chunk = _chunkManager.Get(handle);
-        return chunk.GetRef<T>(offset);
+        return chunk.GetRawBytes().GetRef<T>(offset);
     }
 
     /// <summary>
@@ -291,7 +291,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     {
         var (handle, offset) = GetComponentLocation<T>(entity);
         using var chunk = _chunkManager.Get(handle);
-        chunk.GetRef<T>(offset) = value;
+        chunk.GetRawBytes().GetRef<T>(offset) = value;
     }
 
     /// <summary>
@@ -363,7 +363,7 @@ public sealed class World<TBits, TRegistry, TConfig>
         var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
         int newOffset = targetArchetype.Layout.GetEntityComponentOffset<T>(newIndexInChunk);
         using var newChunk = _chunkManager.Get(newChunkHandle);
-        var newSpan = newChunk.GetSpan<T>(newOffset, 1);
+        var newSpan = newChunk.GetRawBytes().GetSpan<T>(newOffset, 1);
         newSpan[0] = value;
     }
 
@@ -461,8 +461,8 @@ public sealed class World<TBits, TRegistry, TConfig>
             int srcOffset = srcLayout.GetEntityComponentOffset(srcIndexInChunk, new ComponentId(componentId));
             int dstOffset = dstLayout.GetEntityComponentOffset(dstIndexInChunk, new ComponentId(componentId));
 
-            var srcData = srcChunk.GetBytesAt(srcOffset, info.Size);
-            var dstData = dstChunk.GetBytesAt(dstOffset, info.Size);
+            var srcData = srcChunk.GetRawBytes().GetBytesAt(srcOffset, info.Size);
+            var dstData = dstChunk.GetRawBytes().GetBytesAt(dstOffset, info.Size);
             srcData.CopyTo(dstData);
         }
     }

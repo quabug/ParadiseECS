@@ -16,7 +16,7 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
     where TConfig : IConfig, new()
 {
     private readonly nint _layoutData;
-    private readonly ChunkManager<TConfig> _chunkManager;
+    private readonly ChunkManager _chunkManager;
     private readonly List<ChunkHandle> _chunks = new();
 
     /// <summary>
@@ -63,7 +63,7 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
     /// <param name="id">The unique archetype ID.</param>
     /// <param name="layoutData">The layout data pointer (as nint) for this archetype.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public Archetype(int id, nint layoutData, ChunkManager<TConfig> chunkManager)
+    public Archetype(int id, nint layoutData, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(chunkManager);
 
@@ -141,8 +141,8 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
         // Copy entity ID
         int srcEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(srcIndexInChunk);
         int dstEntityIdOffset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(dstIndexInChunk);
-        var srcEntityIdData = srcChunk.GetBytesAt(srcEntityIdOffset, TConfig.EntityIdByteSize);
-        var dstEntityIdData = dstChunk.GetBytesAt(dstEntityIdOffset, TConfig.EntityIdByteSize);
+        var srcEntityIdData = srcChunk.GetRawBytes().GetBytesAt(srcEntityIdOffset, TConfig.EntityIdByteSize);
+        var dstEntityIdData = dstChunk.GetRawBytes().GetBytesAt(dstEntityIdOffset, TConfig.EntityIdByteSize);
         srcEntityIdData.CopyTo(dstEntityIdData);
 
         // Iterate from min to max component ID in this archetype's layout
@@ -162,8 +162,8 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
             int srcOffset = baseOffset + srcIndexInChunk * size;
             int dstOffset = baseOffset + dstIndexInChunk * size;
 
-            var srcData = srcChunk.GetBytesAt(srcOffset, size);
-            var dstData = dstChunk.GetBytesAt(dstOffset, size);
+            var srcData = srcChunk.GetRawBytes().GetBytesAt(srcOffset, size);
+            var dstData = dstChunk.GetRawBytes().GetBytesAt(dstOffset, size);
             srcData.CopyTo(dstData);
         }
 
@@ -241,9 +241,9 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
         int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
         return TConfig.EntityIdByteSize switch
         {
-            1 => chunk.GetRef<byte>(offset),
-            2 => chunk.GetRef<ushort>(offset),
-            4 => chunk.GetRef<int>(offset),
+            1 => chunk.GetRawBytes().GetRef<byte>(offset),
+            2 => chunk.GetRawBytes().GetRef<ushort>(offset),
+            4 => chunk.GetRawBytes().GetRef<int>(offset),
             _ => ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize)
         };
     }
@@ -256,13 +256,13 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
         switch (TConfig.EntityIdByteSize)
         {
             case 1:
-                chunk.GetRef<byte>(offset) = (byte)entityId;
+                chunk.GetRawBytes().GetRef<byte>(offset) = (byte)entityId;
                 break;
             case 2:
-                chunk.GetRef<ushort>(offset) = (ushort)entityId;
+                chunk.GetRawBytes().GetRef<ushort>(offset) = (ushort)entityId;
                 break;
             case 4:
-                chunk.GetRef<int>(offset) = entityId;
+                chunk.GetRawBytes().GetRef<int>(offset) = entityId;
                 break;
             default:
                 ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize);

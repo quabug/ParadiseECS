@@ -14,7 +14,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     where TConfig : IConfig, new()
 {
     private readonly SharedArchetypeMetadata<TBits, TRegistry, TConfig> _sharedMetadata;
-    private readonly ChunkManager<TConfig> _chunkManager;
+    private readonly ChunkManager _chunkManager;
 
     private readonly List<Archetype<TBits, TRegistry, TConfig>?> _archetypes = new();
     private readonly List<List<Archetype<TBits, TRegistry, TConfig>>?> _queryCache = new();
@@ -30,7 +30,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     /// </summary>
     /// <param name="sharedMetadata">The shared metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public ArchetypeRegistry(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata, ChunkManager<TConfig> chunkManager)
+    public ArchetypeRegistry(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);

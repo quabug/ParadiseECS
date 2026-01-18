@@ -1,14 +1,14 @@
 namespace Paradise.ECS.Test;
 
 /// <summary>
-/// Tests for <see cref="ChunkManager{TConfig}"/> and <see cref="Chunk{TConfig}"/>.
+/// Tests for <see cref="ChunkManager"/> and <see cref="Chunk"/>.
 /// </summary>
 public sealed class ChunkManagerTests
 {
     [Test]
     public async Task Create_WithDefaultCapacity_DisposeSucceeds()
     {
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var manager = ChunkManager.Create(new DefaultConfig());
         manager.Dispose();
 
         await Assert.That(manager).IsNotNull();
@@ -18,7 +18,7 @@ public sealed class ChunkManagerTests
     public async Task Create_WithDefaultCapacity_DisposeSucceeds2()
     {
         // TConfig.DefaultChunkCapacity is now used automatically
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var manager = ChunkManager.Create(new DefaultConfig());
         manager.Dispose();
 
         await Assert.That(manager).IsNotNull();
@@ -27,7 +27,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Allocate_ReturnsValidHandle()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
 
         var handle = manager.Allocate();
 
@@ -37,7 +37,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Allocate_MultipleHandles_ReturnsDistinctIds()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
 
         var handle1 = manager.Allocate();
         var handle2 = manager.Allocate();
@@ -51,7 +51,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Get_ValidHandle_ReturnsValidChunk()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         bool isValid;
@@ -66,7 +66,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Get_InvalidHandle_ReturnsInvalidChunk()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
 
         bool isValid;
         {
@@ -80,7 +80,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Get_StaleHandle_ReturnsInvalidChunk()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
         manager.Free(handle);
 
@@ -96,7 +96,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_ValidHandle_InvalidatesHandle()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         manager.Free(handle);
@@ -112,7 +112,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_InvalidHandle_DoesNotThrow()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
 
         manager.Free(ChunkHandle.Invalid);
 
@@ -122,7 +122,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_StaleHandle_DoesNotThrow()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
         manager.Free(handle);
 
@@ -134,7 +134,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_WhileBorrowed_ThrowsInvalidOperationException()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         Exception? caught = null;
@@ -156,7 +156,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Free_AfterBorrowReleased_Succeeds()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         {
@@ -177,7 +177,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Allocate_AfterFree_ReusesSlot()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle1 = manager.Allocate();
         var id1 = handle1.Id;
         manager.Free(handle1);
@@ -191,13 +191,13 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetSpan_ReturnsWritableMemory()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         int[] captured;
         {
             using var chunk = manager.Get(handle);
-            var span = chunk.GetSpan<int>(0, 10);
+            var span = chunk.GetRawBytes().GetSpan<int>(0, 10);
             for (int i = 0; i < 10; i++)
             {
                 span[i] = i * 100;
@@ -213,13 +213,13 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetSpan_PersistsAcrossGet()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         // Write data
         {
             using var chunk = manager.Get(handle);
-            var span = chunk.GetSpan<int>(0, 10);
+            var span = chunk.GetRawBytes().GetSpan<int>(0, 10);
             for (int i = 0; i < 10; i++)
             {
                 span[i] = i * 100;
@@ -230,7 +230,7 @@ public sealed class ChunkManagerTests
         int[] captured;
         {
             using var chunk = manager.Get(handle);
-            var span = chunk.GetSpan<int>(0, 10);
+            var span = chunk.GetRawBytes().GetSpan<int>(0, 10);
             captured = span.ToArray();
         }
 
@@ -242,15 +242,15 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetRef_ReturnsWritableReference()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         int value;
         {
             using var chunk = manager.Get(handle);
-            ref int refValue = ref chunk.GetRef<int>(0);
+            ref int refValue = ref chunk.GetRawBytes().GetRef<int>(0);
             refValue = 42;
-            value = chunk.GetRef<int>(0);
+            value = chunk.GetRawBytes().GetRef<int>(0);
         }
 
         await Assert.That(value).IsEqualTo(42);
@@ -259,13 +259,13 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetDataBytes_ReturnsFullChunkSize()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         int length;
         {
             using var chunk = manager.Get(handle);
-            var bytes = chunk.GetDataBytes();
+            var bytes = chunk.GetRawBytes();
             length = bytes.Length;
         }
 
@@ -275,13 +275,13 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetDataBytes_WithSize_ReturnsSpecifiedSize()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         int length;
         {
             using var chunk = manager.Get(handle);
-            var bytes = chunk.GetDataBytes(100);
+            var bytes = chunk.GetRawBytes().Slice(0, 100);
             length = bytes.Length;
         }
 
@@ -291,7 +291,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetRawBytes_ReturnsChunkSize()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         int length;
@@ -307,13 +307,13 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Chunk_GetBytesAt_ReturnsCorrectSlice()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         int length;
         {
             using var chunk = manager.Get(handle);
-            var bytes = chunk.GetBytesAt(100, 50);
+            var bytes = chunk.GetRawBytes().GetBytesAt(100, 50);
             length = bytes.Length;
         }
 
@@ -323,7 +323,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task MultipleBorrows_AllValid()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         bool valid1, valid2, valid3;
@@ -344,7 +344,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task ManyAllocations_AllValid()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handles = new ChunkHandle[100];
 
         for (int i = 0; i < 100; i++)
@@ -368,7 +368,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Dispose_InvalidatesFurtherAllocations()
     {
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var manager = ChunkManager.Create(new DefaultConfig());
         manager.Dispose();
 
         var caught = false;
@@ -387,7 +387,7 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task Dispose_InvalidatesFurtherGet()
     {
-        var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
         manager.Dispose();
 
@@ -410,7 +410,7 @@ public sealed class ChunkManagerTests
         // Note: default Chunk has null ChunkManager, so Dispose() is a safe no-op
         bool isValid;
         {
-            var chunk = default(Chunk<DefaultConfig>);
+            var chunk = default(Chunk);
             isValid = chunk.IsValid;
             chunk.Dispose();
         }
@@ -421,17 +421,17 @@ public sealed class ChunkManagerTests
     [Test]
     public async Task StructTypes_WorkCorrectly()
     {
-        using var manager = new ChunkManager<DefaultConfig>(new DefaultConfig());
+        using var manager = ChunkManager.Create(new DefaultConfig());
         var handle = manager.Allocate();
 
         TestStruct captured;
         {
             using var chunk = manager.Get(handle);
-            ref var data = ref chunk.GetRef<TestStruct>(0);
+            ref var data = ref chunk.GetRawBytes().GetRef<TestStruct>(0);
             data.X = 1.5f;
             data.Y = 2.5f;
             data.Value = 42;
-            captured = chunk.GetRef<TestStruct>(0);
+            captured = chunk.GetRawBytes().GetRef<TestStruct>(0);
         }
 
         await Assert.That(captured.X).IsEqualTo(1.5f);
