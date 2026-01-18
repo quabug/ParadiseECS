@@ -254,10 +254,13 @@ public sealed class Archetype<TBits, TRegistry, TConfig> : IArchetype<TBits, TRe
     }
 
     /// <summary>
-    /// Reads an entity ID from a chunk at the specified index.
+    /// Gets the entity ID stored at a specific position in a chunk.
     /// </summary>
+    /// <param name="chunkHandle">The chunk handle.</param>
+    /// <param name="indexInChunk">The index within the chunk.</param>
+    /// <returns>The entity ID at that position.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int GetEntityId(ChunkHandle chunkHandle, int indexInChunk)
+    public int GetEntityId(ChunkHandle chunkHandle, int indexInChunk)
     {
         var bytes = _chunkManager.GetBytes(chunkHandle);
         int offset = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);

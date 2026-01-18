@@ -193,7 +193,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateQuery_ReturnsQuery()
     {
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -206,7 +206,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateQuery_SameDescription_ReturnsSameQuery()
     {
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -227,7 +227,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
         _registry.GetOrCreate(hashedKey);
 
         // Then create a query that should match
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
@@ -240,7 +240,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
     public async Task GetOrCreateQuery_UpdatesWhenNewArchetypeCreated()
     {
         // First create a query
-        var description = World<Bit64, ComponentRegistry, DefaultConfig>.Query()
+        var description = new QueryBuilder<Bit64>()
             .With<TestPosition>()
             .Description;
         var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;

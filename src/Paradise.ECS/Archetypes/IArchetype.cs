@@ -68,4 +68,12 @@ public interface IArchetype<TBits, TRegistry, TConfig>
     /// <param name="globalIndex">The global entity index.</param>
     /// <returns>A tuple of (ChunkIndex, IndexInChunk).</returns>
     (int ChunkIndex, int IndexInChunk) GetChunkLocation(int globalIndex);
+
+    /// <summary>
+    /// Gets the entity ID stored at a specific position in a chunk.
+    /// </summary>
+    /// <param name="chunkHandle">The chunk handle.</param>
+    /// <param name="indexInChunk">The index within the chunk.</param>
+    /// <returns>The entity ID at that position.</returns>
+    int GetEntityId(ChunkHandle chunkHandle, int indexInChunk);
 }

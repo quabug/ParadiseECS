@@ -265,7 +265,7 @@ public sealed class World<TBits, TRegistry, TConfig>
     }
 
     /// <summary>
-    /// Gets a reference to a component on an entity.
+    /// Gets a component value from an entity.
     /// </summary>
     /// <typeparam name="T">The component type.</typeparam>
     /// <param name="entity">The entity.</param>
@@ -276,6 +276,20 @@ public sealed class World<TBits, TRegistry, TConfig>
     {
         var (handle, offset) = GetComponentLocation<T>(entity);
         return _chunkManager.GetBytes(handle).GetRef<T>(offset);
+    }
+
+    /// <summary>
+    /// Gets a reference to a component on an entity.
+    /// </summary>
+    /// <typeparam name="T">The component type.</typeparam>
+    /// <param name="entity">The entity.</param>
+    /// <returns>A reference to the component.</returns>
+    /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref T GetComponentRef<T>(Entity entity) where T : unmanaged, IComponent
+    {
+        var (handle, offset) = GetComponentLocation<T>(entity);
+        return ref _chunkManager.GetBytes(handle).GetRef<T>(offset);
     }
 
     /// <summary>
@@ -386,13 +400,25 @@ public sealed class World<TBits, TRegistry, TConfig>
     }
 
     /// <summary>
-    /// Creates a query builder for this world.
+    /// Gets the archetype registry for this world.
+    /// Used for building queries via <see cref="QueryBuilder{TBits}"/>.
     /// </summary>
-    /// <returns>A new query builder.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static QueryBuilder<TBits> Query()
+    public ArchetypeRegistry<TBits, TRegistry, TConfig> Registry
     {
-        return new QueryBuilder<TBits>();
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _archetypeRegistry;
+    }
+
+    /// <summary>
+    /// Gets the Entity handle for a given entity ID.
+    /// </summary>
+    /// <param name="entityId">The entity ID.</param>
+    /// <returns>The Entity handle with current version.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal Entity GetEntity(int entityId)
+    {
+        var location = _entityManager.GetLocation(entityId);
+        return new Entity(entityId, location.Version);
     }
 
     private void MoveEntity(

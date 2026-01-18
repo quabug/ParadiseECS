@@ -412,6 +412,9 @@ public class ComponentGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine($"global using ComponentMask = global::Paradise.ECS.ImmutableBitSet<{bitTypeFullyQualified}>;");
 
+        // Generate QueryBuilder alias (only needs TBits)
+        sb.AppendLine($"global using QueryBuilder = global::Paradise.ECS.QueryBuilder<{bitTypeFullyQualified}>;");
+
         // Generate World-related aliases only when components exist (ComponentRegistry is generated)
         if (componentCount > 0)
         {
@@ -419,6 +422,7 @@ public class ComponentGenerator : IIncrementalGenerator
             sb.AppendLine($"global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
             sb.AppendLine($"global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
             sb.AppendLine($"global using World = global::Paradise.ECS.World<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
+            sb.AppendLine($"global using Query = global::Paradise.ECS.Query<{bitTypeFullyQualified}, global::{registryType}, global::{configType}, global::Paradise.ECS.Archetype<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>>;");
         }
 
         context.AddSource("ComponentAliases.g.cs", sb.ToString());

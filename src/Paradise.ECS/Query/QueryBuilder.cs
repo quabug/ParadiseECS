@@ -22,6 +22,13 @@ public readonly ref struct QueryBuilder<TBits> where TBits : unmanaged, IStorage
     }
 
     /// <summary>
+    /// Creates a new empty query builder.
+    /// </summary>
+    /// <returns>A new query builder with no constraints.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static QueryBuilder<TBits> Create() => default;
+
+    /// <summary>
     /// Adds a required component constraint.
     /// </summary>
     /// <typeparam name="T">The component type that must be present.</typeparam>
@@ -111,6 +118,23 @@ public readonly ref struct QueryBuilder<TBits> where TBits : unmanaged, IStorage
         where TConfig : IConfig, new()
         where TArchetype : class, IArchetype<TBits, TRegistry, TConfig>
         => archetypeRegistry.GetOrCreateQuery((HashedKey<ImmutableQueryDescription<TBits>>)_description);
+
+    /// <summary>
+    /// Builds a WorldQuery from this description, enabling Entity enumeration.
+    /// </summary>
+    /// <typeparam name="TRegistry">The component registry type.</typeparam>
+    /// <typeparam name="TConfig">The world configuration type.</typeparam>
+    /// <param name="world">The world to query.</param>
+    /// <returns>A WorldQuery that iterates over Entity handles.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public WorldQuery<TBits, TRegistry, TConfig> Build<TRegistry, TConfig>(
+        World<TBits, TRegistry, TConfig> world)
+        where TRegistry : IComponentRegistry
+        where TConfig : IConfig, new()
+    {
+        var query = world.Registry.GetOrCreateQuery((HashedKey<ImmutableQueryDescription<TBits>>)_description);
+        return new WorldQuery<TBits, TRegistry, TConfig>(world, query);
+    }
 
     /// <summary>
     /// Implicit conversion to immutable query description.
