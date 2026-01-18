@@ -48,11 +48,36 @@ public sealed class QueryableAttribute : Attribute
 /// [With&lt;Position&gt;]
 /// [With&lt;Velocity&gt;]
 /// public readonly ref partial struct MovingEntity;
+///
+/// [Queryable]
+/// [With&lt;Health&gt;(Name = "Hp", IsReadOnly = true)]
+/// public readonly ref partial struct ReadOnlyHealth;
+///
+/// [Queryable]
+/// [With&lt;Dead&gt;(QueryOnly = true)]  // Filter only, no property generated
+/// public readonly ref partial struct DeadEntity;
 /// </code>
 /// </example>
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
 public sealed class WithAttribute<T> : Attribute where T : unmanaged, IComponent
 {
+    /// <summary>
+    /// Gets or sets a custom property name. Defaults to the component type name.
+    /// </summary>
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the generated property returns ref readonly instead of ref.
+    /// Default: false (read-write access).
+    /// </summary>
+    public bool IsReadOnly { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the component is used only for query filtering.
+    /// When true, no property is generated for this component.
+    /// Default: false (property is generated).
+    /// </summary>
+    public bool QueryOnly { get; set; }
 }
 
 /// <summary>
@@ -90,4 +115,44 @@ public sealed class WithoutAttribute<T> : Attribute where T : unmanaged, ICompon
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
 public sealed class AnyAttribute<T> : Attribute where T : unmanaged, IComponent
 {
+}
+
+/// <summary>
+/// Specifies an optional component for property generation without filtering.
+/// The component does NOT filter entities - all entities matching other constraints will be iterated.
+/// Generates HasXxx property and GetXxx() method (ref or ref readonly based on IsReadOnly).
+/// </summary>
+/// <typeparam name="T">The component type that may or may not be present.</typeparam>
+/// <example>
+/// <code>
+/// [Queryable]
+/// [With&lt;Position&gt;]
+/// [Optional&lt;Velocity&gt;]
+/// public readonly ref partial struct MaybeMovingEntity;
+///
+/// // Usage:
+/// foreach (var entity in MaybeMovingEntity.Query.Build(world))
+/// {
+///     entity.Position.X += 1;  // Always available
+///     if (entity.HasVelocity)
+///     {
+///         ref var vel = ref entity.GetVelocity();  // Only if present
+///         vel.X += 1;
+///     }
+/// }
+/// </code>
+/// </example>
+[AttributeUsage(AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
+public sealed class OptionalAttribute<T> : Attribute where T : unmanaged, IComponent
+{
+    /// <summary>
+    /// Gets or sets a custom property name. Defaults to the component type name.
+    /// </summary>
+    public string? Name { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the generated GetXxx() method returns ref readonly instead of ref.
+    /// Default: false (read-write access).
+    /// </summary>
+    public bool IsReadOnly { get; set; }
 }

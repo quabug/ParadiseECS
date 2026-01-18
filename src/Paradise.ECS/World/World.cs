@@ -410,6 +410,16 @@ public sealed class World<TBits, TRegistry, TConfig>
     }
 
     /// <summary>
+    /// Gets the chunk manager for this world.
+    /// Used by generated queryable types for direct component access.
+    /// </summary>
+    public ChunkManager ChunkManager
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunkManager;
+    }
+
+    /// <summary>
     /// Gets the Entity handle for a given entity ID.
     /// </summary>
     /// <param name="entityId">The entity ID.</param>

@@ -162,13 +162,13 @@ public sealed class QueryableRegistryTests
             .Set(TestPosition.TypeId);
 
         // Should match: has Position and Health, no Velocity
-        await Assert.That(description.Matches(positionAndHealthMask)).IsTrue();
+        await Assert.That(description.Value.Matches(positionAndHealthMask)).IsTrue();
 
         // Should NOT match: has Velocity (excluded by Without<TestVelocity>)
-        await Assert.That(description.Matches(positionHealthVelocityMask)).IsFalse();
+        await Assert.That(description.Value.Matches(positionHealthVelocityMask)).IsFalse();
 
         // Should NOT match: missing Health
-        await Assert.That(description.Matches(onlyPositionMask)).IsFalse();
+        await Assert.That(description.Value.Matches(onlyPositionMask)).IsFalse();
     }
 
     [Test]

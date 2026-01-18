@@ -235,7 +235,265 @@ Console.WriteLine($"  Entity count after clear: {world.EntityCount}");
 Console.WriteLine($"  Player is alive after clear: {world.IsAlive(playerEntity)}");
 Console.WriteLine();
 
-Console.WriteLine("9. Verifying Generated Types");
+Console.WriteLine("9. Testing KGP-style Queryable Iteration");
+Console.WriteLine("----------------------------");
+
+// Re-create world and entities for this test
+var world2 = new World(sharedMetadata, chunkManager);
+
+// Create diverse test entities to demonstrate all query patterns
+Console.WriteLine("  Creating test entities...");
+
+// Player with velocity (matches Player, Movable, Positioned, Damageable queries)
+var playerWithVel = EntityBuilder.Create()
+    .Add(new Position(10, 20))
+    .Add(new Velocity(1, 2))
+    .Add(new Health(100))
+    .Add(default(PlayerTag))
+    .Build(world2);
+Console.WriteLine($"    Player with velocity: Entity {playerWithVel.Id}");
+
+// Player without velocity (matches Player, Positioned, Damageable, but NOT Movable)
+var playerNoVel = EntityBuilder.Create()
+    .Add(new Position(30, 40))
+    .Add(new Health(80))
+    .Add(default(PlayerTag))
+    .Build(world2);
+Console.WriteLine($"    Player without velocity: Entity {playerNoVel.Id}");
+
+// Named player (excluded from Player query due to Without<Name>)
+var namedPlayer = EntityBuilder.Create()
+    .Add(new Position(50, 60))
+    .Add(new Health(90))
+    .Add(default(PlayerTag))
+    .Add(new Name("Hero"))
+    .Build(world2);
+Console.WriteLine($"    Named player (excluded from Player query): Entity {namedPlayer.Id}");
+
+// Moving enemy with velocity (matches Enemy due to Any<Velocity>)
+var movingEnemy = EntityBuilder.Create()
+    .Add(new Position(100, 110))
+    .Add(new Velocity(3, 4))
+    .Add(new Health(50))
+    .Add(default(EnemyTag))
+    .Build(world2);
+Console.WriteLine($"    Moving enemy: Entity {movingEnemy.Id}");
+
+// Stationary enemy without velocity (does NOT match Enemy due to Any<Velocity>)
+var stationaryEnemy = EntityBuilder.Create()
+    .Add(new Position(120, 130))
+    .Add(new Health(40))
+    .Add(default(EnemyTag))
+    .Build(world2);
+Console.WriteLine($"    Stationary enemy (no velocity, excluded from Enemy): Entity {stationaryEnemy.Id}");
+
+// Health-only entity (matches Damageable, but not Positioned)
+var healthOnly = EntityBuilder.Create()
+    .Add(new Health(25))
+    .Build(world2);
+Console.WriteLine($"    Health-only entity: Entity {healthOnly.Id}");
+
+Console.WriteLine($"  Total entities: {world2.EntityCount}");
+Console.WriteLine();
+
+// ============================================================================
+// Demo 1: Player.Query - Custom names, IsReadOnly, Optional components
+// ============================================================================
+Console.WriteLine("  [Demo 1] Player.Query - Custom names, IsReadOnly, Optional<Velocity>");
+Console.WriteLine("  Definition: [With<Position>][With<Health>(Name=\"Hp\", IsReadOnly=true)][Without<Name>][Optional<Velocity>]");
+var playerQuery = Player.Query.Build(world2);
+Console.WriteLine($"    EntityCount: {playerQuery.EntityCount} (excludes named player)");
+
+foreach (var p in playerQuery)
+{
+    Console.WriteLine($"    ---");
+    // Direct property access for Position (read-write)
+    Console.WriteLine($"    Position: {p.Position}");
+    p.Position = new Position(p.Position.X + 100, p.Position.Y + 100);
+    Console.WriteLine($"    Position after +100: {p.Position}");
+
+    // Custom property name "Hp" for Health (read-only)
+    Console.WriteLine($"    Hp (read-only): {p.Hp.Current}/{p.Hp.Max}");
+
+    // Optional<Velocity> - HasVelocity property + GetVelocity() method
+    Console.WriteLine($"    HasVelocity: {p.HasVelocity}");
+    if (p.HasVelocity)
+    {
+        ref var vel = ref p.GetVelocity();
+        Console.WriteLine($"    Velocity: ({vel.X}, {vel.Y})");
+        vel.X *= 2;
+        Console.WriteLine($"    Velocity after *2: ({vel.X}, {vel.Y})");
+    }
+}
+Console.WriteLine();
+
+// ============================================================================
+// Demo 2: Enemy.Query - Any<T> constraint
+// ============================================================================
+Console.WriteLine("  [Demo 2] Enemy.Query - Any<Velocity> constraint");
+Console.WriteLine("  Definition: [With<Position>][With<Health>][Without<Name>][Any<Velocity>]");
+var enemyQuery = Enemy.Query.Build(world2);
+Console.WriteLine($"    EntityCount: {enemyQuery.EntityCount} (only enemies WITH velocity)");
+
+foreach (var e in enemyQuery)
+{
+    Console.WriteLine($"    Enemy at {e.Position}, health: {e.Health}");
+}
+Console.WriteLine();
+
+// ============================================================================
+// Demo 3: PlayerPosition.Query - QueryOnly filter
+// ============================================================================
+Console.WriteLine("  [Demo 3] PlayerPosition.Query - QueryOnly filter");
+Console.WriteLine("  Definition: [With<Position>][With<PlayerTag>(QueryOnly=true)]");
+var playerPosQuery = PlayerPosition.Query.Build(world2);
+Console.WriteLine($"    EntityCount: {playerPosQuery.EntityCount} (all entities with PlayerTag)");
+
+foreach (var pp in playerPosQuery)
+{
+    // Only Position property available - PlayerTag is QueryOnly (no property generated)
+    Console.WriteLine($"    Player position: {pp.Position}");
+}
+Console.WriteLine();
+
+// ============================================================================
+// Demo 4: Movable.Query - Simple two-component query
+// ============================================================================
+Console.WriteLine("  [Demo 4] Movable.Query - Simple required components");
+Console.WriteLine("  Definition: [With<Position>][With<Velocity>]");
+var movableQuery = Movable.Query.Build(world2);
+Console.WriteLine($"    EntityCount: {movableQuery.EntityCount} (entities with BOTH Position AND Velocity)");
+
+foreach (var m in movableQuery)
+{
+    Console.WriteLine($"    Movable at {m.Position} with velocity ({m.Velocity.X}, {m.Velocity.Y})");
+}
+Console.WriteLine();
+
+// ============================================================================
+// Demo 5: Damageable.Query - Optional with IsReadOnly
+// ============================================================================
+Console.WriteLine("  [Demo 5] Damageable.Query - Optional<Position>(IsReadOnly=true)");
+Console.WriteLine("  Definition: [With<Health>][Optional<Position>(IsReadOnly=true)]");
+var damageableQuery = Damageable.Query.Build(world2);
+Console.WriteLine($"    EntityCount: {damageableQuery.EntityCount} (all entities with Health)");
+
+foreach (var d in damageableQuery)
+{
+    Console.Write($"    Health: {d.Health}");
+    if (d.HasPosition)
+    {
+        // GetPosition() returns ref readonly due to IsReadOnly=true
+        ref readonly var pos = ref d.GetPosition();
+        Console.WriteLine($" at position {pos}");
+    }
+    else
+    {
+        Console.WriteLine(" (no position)");
+    }
+}
+Console.WriteLine();
+
+// ============================================================================
+// Demo 6: NamedEntity.Query - With<Name> component
+// ============================================================================
+Console.WriteLine("  [Demo 6] NamedEntity.Query - Entities with Name");
+Console.WriteLine("  Definition: [With<Position>][With<Name>]");
+var namedQuery = NamedEntity.Query.Build(world2);
+Console.WriteLine($"    EntityCount: {namedQuery.EntityCount}");
+
+foreach (var n in namedQuery)
+{
+    Console.WriteLine($"    '{n.Name}' at {n.Position}");
+}
+Console.WriteLine();
+
+// ============================================================================
+// Demo 7: Positioned.Query - Minimal broad query
+// ============================================================================
+Console.WriteLine("  [Demo 7] Positioned.Query - All positioned entities");
+Console.WriteLine("  Definition: [With<Position>]");
+var positionedQuery = Positioned.Query.Build(world2);
+Console.WriteLine($"    EntityCount: {positionedQuery.EntityCount}");
+
+foreach (var p in positionedQuery)
+{
+    Console.WriteLine($"    Position: {p.Position}");
+}
+Console.WriteLine();
+
+// ============================================================================
+// Demo 8: Game loop pattern - Movement system using Movable.Query
+// ============================================================================
+Console.WriteLine("  [Demo 8] Game Loop Pattern - Movement system");
+Console.WriteLine("  Simulating 3 frames of movement...");
+
+for (int frame = 0; frame < 3; frame++)
+{
+    Console.WriteLine($"    Frame {frame + 1}:");
+    var moveQuery = Movable.Query.Build(world2);
+
+    // Skip iteration if no entities (efficient pattern)
+    if (moveQuery.IsEmpty)
+    {
+        Console.WriteLine($"      No movable entities");
+        continue;
+    }
+
+    foreach (var entity in moveQuery)
+    {
+        var oldPos = entity.Position;
+        entity.Position = new Position(
+            entity.Position.X + entity.Velocity.X,
+            entity.Position.Y + entity.Velocity.Y);
+        Console.WriteLine($"      Moved from {oldPos} to {entity.Position}");
+    }
+}
+Console.WriteLine();
+
+// ============================================================================
+// Demo 9: Damage system using Damageable.Query
+// ============================================================================
+Console.WriteLine("  [Demo 9] Damage System - Apply damage to all damageable entities");
+{
+    var dmgQuery = Damageable.Query.Build(world2);
+    Console.WriteLine($"    Applying 10 damage to {dmgQuery.EntityCount} entities...");
+
+    foreach (var d in dmgQuery)
+    {
+        // Health property is read-write in Damageable query
+        var oldHealth = d.Health.Current;
+        d.Health = new Health(d.Health.Max) { Current = Math.Max(0, d.Health.Current - 10) };
+        Console.WriteLine($"      Health: {oldHealth} -> {d.Health.Current}");
+    }
+}
+Console.WriteLine();
+
+// ============================================================================
+// Demo 10: Query reuse pattern
+// ============================================================================
+Console.WriteLine("  [Demo 10] Query Reuse - Multiple iterations over same query");
+{
+    var query = Positioned.Query.Build(world2);
+    Console.WriteLine($"    First pass (count positions):");
+    int count = 0;
+    foreach (var _ in query)
+    {
+        count++;
+    }
+    Console.WriteLine($"      Counted {count} positioned entities");
+
+    Console.WriteLine($"    Second pass (sum X coordinates):");
+    float sumX = 0;
+    foreach (var p in query)
+    {
+        sumX += p.Position.X;
+    }
+    Console.WriteLine($"      Sum of X: {sumX}");
+}
+Console.WriteLine();
+
+Console.WriteLine("10. Verifying Generated Types");
 Console.WriteLine("----------------------------");
 
 // Verify the ComponentMask alias works

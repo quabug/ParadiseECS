@@ -1,18 +1,8 @@
 namespace Paradise.ECS.IntegrationTest;
 
-[Queryable]
-[With<Position>]
-[With<Health>]
-[Without<Name>]
-[Any<Velocity>]
-public readonly ref partial struct Player;
-
-[Queryable(Id = 4)]
-[With<Position>]
-[With<Health>]
-[Without<Name>]
-[Any<Velocity>]
-public readonly ref partial struct Enemy;
+// ============================================================================
+// Component Definitions
+// ============================================================================
 
 /// <summary>
 /// Position component for 2D game entities.
