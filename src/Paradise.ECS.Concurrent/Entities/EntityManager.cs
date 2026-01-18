@@ -73,13 +73,11 @@ public sealed class EntityManager : IEntityManager, IDisposable
         {
             // Reuse a freed entity slot - version was already incremented on destroy
             var locations = Volatile.Read(ref _locations);
-            ref var location = ref locations[id];
-            uint version = Volatile.Read(ref location.Version);
+            var current = locations[id];
             // Reset archetype info (already -1 from destroy, but ensure consistency)
-            Volatile.Write(ref location.ArchetypeId, -1);
-            Volatile.Write(ref location.GlobalIndex, -1);
+            locations[id] = new EntityLocation(current.Version, -1, -1);
             Interlocked.Increment(ref _aliveCount);
-            return new Entity(id, version);
+            return new Entity(id, current.Version);
         }
 
         // Allocate a new entity ID
@@ -94,10 +92,7 @@ public sealed class EntityManager : IEntityManager, IDisposable
         while (true)
         {
             var locations = Volatile.Read(ref _locations);
-            ref var location = ref locations[id];
-            Volatile.Write(ref location.Version, 1);
-            Volatile.Write(ref location.ArchetypeId, -1);
-            Volatile.Write(ref location.GlobalIndex, -1);
+            locations[id] = new EntityLocation(1, -1, -1);
 
             // Check if array was replaced while we were writing
             if (Volatile.Read(ref _locations) == locations)
@@ -127,32 +122,22 @@ public sealed class EntityManager : IEntityManager, IDisposable
         if (entity.Id >= Volatile.Read(ref _nextEntityId))
             return;
 
-        var locations = Volatile.Read(ref _locations);
-        ref var location = ref locations[entity.Id];
-
-        // Atomically check version and increment it
-        while (true)
+        // Use lock for atomic read-modify-write since EntityLocation is immutable
+        lock (_growLock)
         {
-            uint currentVersion = Volatile.Read(ref location.Version);
+            var locations = Volatile.Read(ref _locations);
+            var current = locations[entity.Id];
 
             // Check if already destroyed (stale handle)
-            if (currentVersion != entity.Version)
+            if (current.Version != entity.Version)
                 return;
 
             // Increment version to invalidate all existing handles
-            uint nextVersion = currentVersion + 1;
-            if (Interlocked.CompareExchange(ref location.Version, nextVersion, currentVersion) == currentVersion)
-            {
-                // Successfully destroyed - clear archetype info and add to free list
-                Volatile.Write(ref location.ArchetypeId, -1);
-                Volatile.Write(ref location.GlobalIndex, -1);
-                _freeSlots.Push(entity.Id);
-                Interlocked.Decrement(ref _aliveCount);
-                return;
-            }
-
-            // CAS failed - another thread modified it, retry
+            locations[entity.Id] = new EntityLocation(current.Version + 1, -1, -1);
         }
+
+        _freeSlots.Push(entity.Id);
+        Interlocked.Decrement(ref _aliveCount);
     }
 
     /// <summary>
@@ -172,24 +157,37 @@ public sealed class EntityManager : IEntityManager, IDisposable
             return false;
 
         var locations = Volatile.Read(ref _locations);
-        ref var location = ref locations[entity.Id];
-        return Volatile.Read(ref location.Version) == entity.Version;
+        return locations[entity.Id].Version == entity.Version;
     }
 
     /// <summary>
-    /// Gets a reference to the location data for the specified entity.
+    /// Gets the location data for the specified entity.
     /// The caller must validate the entity is alive before calling this method.
-    /// Note: The returned reference may become stale if the array grows.
     /// </summary>
     /// <param name="entity">The entity to get location for.</param>
-    /// <returns>A reference to the entity's location data.</returns>
+    /// <returns>The entity's location data.</returns>
     /// <exception cref="ObjectDisposedException">Thrown if the manager is disposed.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref EntityLocation GetLocationRef(Entity entity)
+    public EntityLocation GetLocation(Entity entity)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         var locations = Volatile.Read(ref _locations);
-        return ref locations[entity.Id];
+        return locations[entity.Id];
+    }
+
+    /// <summary>
+    /// Sets the location data for the specified entity.
+    /// The caller must validate the entity is alive before calling this method.
+    /// </summary>
+    /// <param name="entity">The entity to set location for.</param>
+    /// <param name="location">The new location data.</param>
+    /// <exception cref="ObjectDisposedException">Thrown if the manager is disposed.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void SetLocation(Entity entity, EntityLocation location)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        var locations = Volatile.Read(ref _locations);
+        locations[entity.Id] = location;
     }
 
     /// <summary>
@@ -216,20 +214,13 @@ public sealed class EntityManager : IEntityManager, IDisposable
         }
 
         var locations = Volatile.Read(ref _locations);
-        ref var loc = ref locations[entity.Id];
-        if (Volatile.Read(ref loc.Version) != entity.Version)
+        location = locations[entity.Id];
+        if (location.Version != entity.Version)
         {
             location = EntityLocation.Invalid;
             return false;
         }
 
-        // Read all fields with volatile semantics
-        location = new EntityLocation
-        {
-            Version = Volatile.Read(ref loc.Version),
-            ArchetypeId = Volatile.Read(ref loc.ArchetypeId),
-            GlobalIndex = Volatile.Read(ref loc.GlobalIndex)
-        };
         return true;
     }
 

@@ -285,8 +285,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         // If an entity was moved during swap-remove, update its location
         if (movedEntityId >= 0)
         {
-            ref var movedLocation = ref _entityLocations[movedEntityId];
-            movedLocation.GlobalIndex = location.GlobalIndex;
+            _entityLocations[movedEntityId] = _entityLocations[movedEntityId] with { GlobalIndex = location.GlobalIndex };
         }
     }
 
@@ -440,8 +439,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
 
             int globalIndex = archetype.AllocateEntity(entity);
 
-            location.ArchetypeId = archetype.Id;
-            location.GlobalIndex = globalIndex;
+            location = location with { ArchetypeId = archetype.Id, GlobalIndex = globalIndex };
 
             // Write component value
             var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(globalIndex);
@@ -543,13 +541,11 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         // If an entity was moved during swap-remove, update its location
         if (movedEntityId >= 0)
         {
-            ref var movedLocation = ref _entityLocations[movedEntityId];
-            movedLocation.GlobalIndex = oldGlobalIndex;
+            _entityLocations[movedEntityId] = _entityLocations[movedEntityId] with { GlobalIndex = oldGlobalIndex };
         }
 
         // Update the entity's location to the new archetype
-        location.ArchetypeId = target.Id;
-        location.GlobalIndex = newGlobalIndex;
+        location = location with { ArchetypeId = target.Id, GlobalIndex = newGlobalIndex };
     }
 
     private void CopySharedComponents(
