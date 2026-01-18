@@ -578,3 +578,27 @@ public static class ComponentsBuilderWorldExtensions
         }
     }
 }
+
+public static class QueryBuilderWorldExtensions
+{
+    extension<TBits>(QueryBuilder<TBits> builder) where TBits : unmanaged, IStorage
+    {
+        /// <summary>
+        /// Builds a WorldQuery from this description, enabling WorldEntity enumeration.
+        /// </summary>
+        /// <typeparam name="TRegistry">The component registry type.</typeparam>
+        /// <typeparam name="TConfig">The world configuration type.</typeparam>
+        /// <param name="world">The world to query.</param>
+        /// <returns>A WorldQuery that iterates over WorldEntity handles.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public WorldQuery<TBits, TRegistry, TConfig> Build<TRegistry, TConfig>(
+            World<TBits, TRegistry, TConfig> world)
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+        {
+            var query = world.Registry.GetOrCreateQuery(
+                (HashedKey<ImmutableQueryDescription<TBits>>)builder.Description);
+            return new WorldQuery<TBits, TRegistry, TConfig>(world, query);
+        }
+    }
+}
