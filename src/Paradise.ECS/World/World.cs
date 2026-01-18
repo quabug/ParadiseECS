@@ -390,9 +390,9 @@ public sealed class World<TBits, TRegistry, TConfig>
     /// </summary>
     /// <returns>A new query builder.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static QueryBuilder<TBits, TRegistry, TConfig> Query()
+    public static QueryBuilder<TBits> Query()
     {
-        return new QueryBuilder<TBits, TRegistry, TConfig>();
+        return new QueryBuilder<TBits>();
     }
 
     private void MoveEntity(

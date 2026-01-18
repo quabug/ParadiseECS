@@ -19,7 +19,7 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
     private const int InitialChunkCapacity = 4;
 
     private readonly nint _layoutData;
-    private readonly ChunkManager<TConfig> _chunkManager;
+    private readonly ChunkManager _chunkManager;
     private readonly Lock _lock = new();
     private ChunkHandle[] _chunks = new ChunkHandle[InitialChunkCapacity];
     private int _chunkCount;
@@ -51,7 +51,7 @@ public sealed class Archetype<TBits, TRegistry, TConfig>
     /// <param name="id">The unique archetype ID.</param>
     /// <param name="layoutData">The layout data pointer (as nint) for this archetype.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public Archetype(int id, nint layoutData, ChunkManager<TConfig> chunkManager)
+    public Archetype(int id, nint layoutData, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(chunkManager);
 

@@ -27,7 +27,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig> : IDisposable
     private readonly ConcurrentAppendOnlyList<Archetype<TBits, TRegistry, TConfig>?> _archetypes = new();
     private readonly ConcurrentAppendOnlyList<List<Archetype<TBits, TRegistry, TConfig>>?> _queryCache = new();
     private readonly Lock _lock = new();
-    private readonly ChunkManager<TConfig> _chunkManager;
+    private readonly ChunkManager _chunkManager;
     private readonly OperationGuard _operationGuard = new();
     private int _disposed;
 
@@ -36,7 +36,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig> : IDisposable
     /// </summary>
     /// <param name="sharedMetadata">The shared metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public ArchetypeRegistry(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata, ChunkManager<TConfig> chunkManager)
+    public ArchetypeRegistry(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);

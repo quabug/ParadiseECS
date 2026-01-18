@@ -4,11 +4,11 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public class ChunkTests : IDisposable
 {
-    private readonly ChunkManager<DefaultConfig> _manager;
+    private readonly ChunkManager _manager;
 
     public ChunkTests()
     {
-        _manager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 });
+        _manager = ChunkManager.Create(new DefaultConfig { DefaultChunkCapacity = 16 });
     }
 
     public void Dispose()
@@ -28,10 +28,11 @@ public class ChunkTests : IDisposable
     {
         var handle = _manager.Allocate();
         var bytes = _manager.GetBytes(handle);
+        var isEmpty = bytes.IsEmpty;
 
         await Assert.That(handle.IsValid).IsTrue();
         await Assert.That(handle.Version).IsGreaterThanOrEqualTo(0u);
-        await Assert.That(bytes.IsEmpty).IsFalse();
+        await Assert.That(isEmpty).IsFalse();
     }
 
     [Test]

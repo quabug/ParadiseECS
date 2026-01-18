@@ -6,7 +6,7 @@ namespace Paradise.ECS.Concurrent.Test;
 public sealed class WorldEntityTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
-    private readonly ChunkManager<DefaultConfig> _chunkManager = new(s_config);
+    private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
     private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
     private readonly World<Bit64, ComponentRegistry, DefaultConfig> _world;
 
@@ -129,7 +129,7 @@ public sealed class WorldEntityTests : IDisposable
     {
         // Create world with small capacity
         var config = new DefaultConfig { DefaultEntityCapacity = 4 };
-        using var chunkManager = new ChunkManager<DefaultConfig>(config);
+        using var chunkManager = ChunkManager.Create(config);
         using var sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(config);
         using var world = new World<Bit64, ComponentRegistry, DefaultConfig>(
             config,

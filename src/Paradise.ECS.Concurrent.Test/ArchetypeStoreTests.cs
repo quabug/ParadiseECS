@@ -2,13 +2,13 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public sealed class ArchetypeStoreTests : IDisposable
 {
-    private readonly ChunkManager<DefaultConfig> _chunkManager;
+    private readonly ChunkManager _chunkManager;
     private readonly List<nint> _layoutDataList = [];
     private int _nextEntityId;
 
     public ArchetypeStoreTests()
     {
-        _chunkManager = new ChunkManager<DefaultConfig>(new DefaultConfig { DefaultChunkCapacity = 16 });
+        _chunkManager = ChunkManager.Create(new DefaultConfig { DefaultChunkCapacity = 16 });
     }
 
     public void Dispose()

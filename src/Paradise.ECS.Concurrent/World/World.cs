@@ -13,7 +13,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     where TConfig : IConfig, new()
 {
     private readonly SharedArchetypeMetadata<TBits, TRegistry, TConfig> _sharedMetadata;
-    private readonly ChunkManager<TConfig> _chunkManager;
+    private readonly ChunkManager _chunkManager;
     private readonly ArchetypeRegistry<TBits, TRegistry, TConfig> _archetypeRegistry;
     private readonly EntityManager _entityManager;
     private readonly Lock _structuralChangeLock = new();
@@ -30,7 +30,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// <summary>
     /// Gets the chunk manager for memory allocation.
     /// </summary>
-    public ChunkManager<TConfig> ChunkManager => _chunkManager;
+    public ChunkManager ChunkManager => _chunkManager;
 
     /// <summary>
     /// Gets the archetype registry.
@@ -51,7 +51,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
     public World(TConfig config,
                  SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
-                 ChunkManager<TConfig> chunkManager)
+                 ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);
@@ -71,7 +71,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
     public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
-                 ChunkManager<TConfig> chunkManager)
+                 ChunkManager chunkManager)
         : this(new TConfig(), sharedMetadata, chunkManager)
     {
     }
@@ -87,7 +87,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         // Validate before creating to avoid inconsistent state if limit exceeded
-        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
+        ThrowHelper.ThrowIfEntityIdExceedsLimit(_entityManager.PeekNextId(), Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
         return _entityManager.Create();
     }
 
@@ -108,7 +108,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         builder.CollectTypes(ref mask);
 
         // Validate before creating to avoid inconsistent state if limit exceeded
-        ThrowHelper.ThrowIfEntityIdExceedsLimit<TConfig>(_entityManager.PeekNextId());
+        ThrowHelper.ThrowIfEntityIdExceedsLimit(_entityManager.PeekNextId(), Config<TConfig>.MaxEntityId, TConfig.EntityIdByteSize);
 
         // Create entity
         var entity = _entityManager.Create();
@@ -345,7 +345,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// <param name="entity">The entity.</param>
     /// <returns>A ref struct wrapping the component reference.</returns>
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
-    public ComponentRef<T, TConfig> GetComponent<T>(Entity entity) where T : unmanaged, IComponent
+    public T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         using var _ = _operationGuard.EnterScope();
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
@@ -361,8 +361,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
         int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
-
-        return new ComponentRef<T, TConfig>(_chunkManager, chunkHandle, offset);
+        return _chunkManager.GetBytes(chunkHandle).GetRef<T>(offset);
     }
 
     /// <summary>
@@ -512,9 +511,9 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// Creates a query builder for this world.
     /// </summary>
     /// <returns>A new query builder.</returns>
-    public static QueryBuilder<TBits, TRegistry, TConfig> Query()
+    public static QueryBuilder<TBits> Query()
     {
-        return new QueryBuilder<TBits, TRegistry, TConfig>();
+        return new QueryBuilder<TBits>();
     }
 
     private void MoveEntity(
