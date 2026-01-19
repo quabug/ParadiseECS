@@ -303,6 +303,7 @@ Minor TODOs in codebase:
 
 ### Recent Activity
 
+- **2026-01-19**: Merged [#37](https://github.com/quabug/ParadiseECS/pull/37) - Add [SuppressGlobalUsings] attribute to disable global using alias generation
 - **2026-01-19**: Merged [#35](https://github.com/quabug/ParadiseECS/pull/35) - Add QueryableGenerator for compile-time query type registration
 - **2026-01-18**: Merged [#33](https://github.com/quabug/ParadiseECS/pull/33) - Add WorldQuery and WorldEntity for convenient entity iteration
 - **2026-01-18**: Merged [#32](https://github.com/quabug/ParadiseECS/pull/32) - Static World Configuration
