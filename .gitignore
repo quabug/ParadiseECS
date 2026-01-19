@@ -62,3 +62,6 @@ BenchmarkDotNet.Artifacts/
 
 *.binlog
 tmpclaude-*
+
+# docs haven't ready yet
+docs/

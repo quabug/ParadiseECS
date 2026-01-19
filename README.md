@@ -6,11 +6,11 @@ A high-performance Entity Component System library for .NET 10, designed for Nat
 
 - **Native AOT First** - No reflection, no dynamic code generation. All type information resolved at compile-time via source generators.
 - **Cache-Friendly Design** - 16KB chunks sized for L1 cache with SoA (Struct of Arrays) memory layout for sequential access patterns.
-- **O(1) Structural Changes** - Graph-based archetype transitions enable constant-time add/remove component operations.
+- **Fast Structural Changes** - Graph-based archetype transitions with O(1) lookup; data movement is O(c) where c is component count.
 - **Zero-Allocation Queries** - Query objects are lightweight readonly structs that don't allocate during iteration.
 - **Type-Safe Queryables** - Source-generated strongly-typed query structs with direct component property access.
 - **Fluent Builder API** - Type-safe, zero-allocation entity creation with compile-time validation.
-- **Multi-World Support** - Shared archetype metadata enables multiple worlds to share type information efficiently.
+- **Multi-World Optimization** - Shared archetype metadata enables multiple worlds to share type information efficiently.
 - **Static Configuration** - Compile-time configurable chunk sizes, entity ID sizes, and capacity limits via `IConfig`.
 - **Batch Processing** - Chunk-level iteration with span-based component access for SIMD-friendly operations.
 
@@ -376,10 +376,10 @@ Paradise.ECS uses a Struct of Arrays (SoA) memory layout within 16KB chunks:
 ```
 Chunk (16KB):
 ┌─────────────────────────────────────────────────────┐
+│ [EntityId0][EntityId1][EntityId2]...                │
 │ [Position0][Position1][Position2]...                │
 │ [Velocity0][Velocity1][Velocity2]...                │
 │ [Health0][Health1][Health2]...                      │
-│ [EntityId0][EntityId1][EntityId2]...                │
 └─────────────────────────────────────────────────────┘
 ```
 
