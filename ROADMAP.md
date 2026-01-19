@@ -131,6 +131,13 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
     - Parallel query iteration
     - Safety rails for data races
 
+- [ ] **Query with Structural Change Strategies** ([#18](https://github.com/quabug/ParadiseECS/issues/18))
+    - Investigate safe iteration patterns when entities are added/removed during query
+    - Deferred structural changes (command buffers) vs immediate changes
+    - Archetype stability guarantees during iteration
+    - Chunk invalidation and iterator invalidation detection
+    - Consider: Unity DOTS EntityCommandBuffer, Bevy Commands, Flecs defer patterns
+
 - [ ] **Extensible Metadata Interface**
     - Define interface for world/archetype metadata (e.g., `IWorldMetadata`)
     - Allow custom implementations beyond the default `SharedArchetypeMetadata`
@@ -216,7 +223,7 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
         - World-specific registry instances with local ID mapping
         - Hybrid: shared base components + world-local extensions
         - Runtime component type registration with AOT-compatible patterns
- 
+
 - [ ] **Cross-Assembly ECS Support**
     - Enable components, queryables, and world types to be defined across multiple assemblies
     - Components from library assemblies should be usable in application assemblies

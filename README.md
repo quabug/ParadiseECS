@@ -408,6 +408,89 @@ src/
 └── Paradise.ECS.IntegrationTest/ # Integration tests and examples
 ```
 
+## Source Generators
+
+Paradise.ECS uses Roslyn source generators to provide compile-time type safety and Native AOT compatibility. No reflection is used at runtime.
+
+### ComponentGenerator
+
+Processes structs marked with `[Component]` and generates:
+
+| Generated File | Contents |
+|---------------|----------|
+| `{TypeName}.g.cs` | Partial struct implementing `IComponent` with `TypeId`, `Guid`, `Size`, `Alignment` |
+| `ComponentRegistry.g.cs` | Type-to-ID and GUID-to-ID mappings with module initializer |
+| `ComponentAliases.g.cs` | Global using aliases for `World`, `Query`, `ComponentMask`, etc. |
+| `DefaultChunkManager.g.cs` | Factory class for creating ChunkManager with default config |
+
+**Component ID Assignment:**
+1. Components with manual `Id = N` are assigned first
+2. Remaining components are auto-assigned by alignment (descending), then alphabetically
+3. This ensures larger components are packed first for better memory alignment
+
+**Bit Storage Type Selection:**
+The generator automatically selects the smallest bit storage type based on component count:
+
+| Component Count | Storage Type |
+|----------------|--------------|
+| 1-64 | `Bit64` |
+| 65-128 | `Bit128` |
+| 129-256 | `Bit256` |
+| 257-512 | `Bit512` |
+| 513-1024 | `Bit1024` |
+| >1024 | Custom `BitN` (generated) |
+
+### QueryableGenerator
+
+Processes `ref struct` types marked with `[Queryable]` and generates:
+
+| Generated File | Contents |
+|---------------|----------|
+| `Queryable_{TypeName}.g.cs` | Partial struct with `QueryableId`, `Query`, `ChunkQuery` properties |
+| | Nested `Data<TBits, TRegistry, TConfig>` struct with typed component properties |
+| | Nested `ChunkData<...>` struct with span-based batch access |
+| | `QueryBuilder` and `Query` wrapper structs with enumerators |
+| `QueryableRegistry.g.cs` | Static registry mapping queryable IDs to query descriptions |
+| `QueryableAliases.g.cs` | Global using alias for `QueryableRegistry` |
+| `QueryableRegistryInitializer.g.cs` | Module initializer ensuring registry is loaded |
+
+**Generated Data Struct Members:**
+
+For `[With<T>]` components:
+- `ref T PropertyName` - Direct component access (or `ref readonly` if `IsReadOnly = true`)
+
+For `[Optional<T>]` components:
+- `bool HasPropertyName` - Check if component exists
+- `ref T GetPropertyName()` - Access component (throws if not present)
+
+For chunk iteration (`ChunkData`):
+- `Span<T> PropertyNames` - Batch span access (pluralized name)
+- `bool HasPropertyName` / `GetPropertyNames()` - For optional components
+
+### Suppressing Global Usings
+
+If the generated global using aliases conflict with your codebase, suppress them:
+
+```csharp
+[assembly: SuppressGlobalUsings]
+```
+
+This disables generation of:
+- `ComponentMaskBits`, `ComponentMask`
+- `World`, `Query`, `QueryBuilder`
+- `SharedArchetypeMetadata`, `ArchetypeRegistry`
+- `QueryableRegistry`
+
+You can then define your own local aliases or use fully qualified types.
+
+### Configuration Attributes
+
+| Attribute | Target | Purpose |
+|-----------|--------|---------|
+| `[assembly: ComponentRegistryNamespace("Namespace")]` | Assembly | Override namespace for generated ComponentRegistry |
+| `[DefaultConfig]` | Struct/Class | Mark an `IConfig` implementation as default for World alias |
+| `[assembly: SuppressGlobalUsings]` | Assembly | Disable global using alias generation |
+
 ## Configuration
 
 ### Static World Configuration
@@ -418,19 +501,24 @@ Paradise.ECS uses compile-time configuration via the `IConfig` interface:
 // Use default configuration
 var world = new World(sharedMetadata, chunkManager);
 
-// Or define custom configuration
-public struct SmallConfig : IConfig
+// Or define custom configuration and mark it as default
+[DefaultConfig]  // Marks this as the default config for World alias generation
+public readonly struct SmallConfig : IConfig
 {
+    // Static compile-time constraints
     public static int ChunkSize => 4096;           // 4KB chunks
     public static int MaxMetaBlocks => 64;         // Fewer metadata blocks
     public static int EntityIdByteSize => 2;       // 2-byte entity IDs (max 65,535)
 
+    // Instance runtime hints
     public int DefaultEntityCapacity => 1000;
     public int DefaultChunkCapacity => 16;
-}
 
-// Apply with [DefaultConfig] attribute or use explicit generic parameters
-[assembly: DefaultConfig<SmallConfig>]
+    // Memory allocators (use shared native allocator)
+    public IAllocator ChunkAllocator => NativeMemoryAllocator.Shared;
+    public IAllocator MetadataAllocator => NativeMemoryAllocator.Shared;
+    public IAllocator LayoutAllocator => NativeMemoryAllocator.Shared;
+}
 ```
 
 ### Component Configuration

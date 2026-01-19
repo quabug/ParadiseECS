@@ -6,7 +6,7 @@ namespace Paradise.ECS;
 /// with the same names (e.g., World, Query, ComponentMask).
 /// </summary>
 /// <remarks>
-/// When this attribute is applied at the assembly level, the source generator will NOT emit any global using aliases:
+/// When this attribute is applied at the assembly level, the source generators will NOT emit any global using aliases:
 /// <code>
 /// global using World = ...;
 /// global using Query = ...;
@@ -15,6 +15,7 @@ namespace Paradise.ECS;
 /// global using ComponentMask = ...;
 /// global using ComponentMaskBits = ...;
 /// global using QueryBuilder = ...;
+/// global using QueryableRegistry = ...;
 /// </code>
 /// Instead, you must use the fully qualified types or define your own local using aliases.
 /// </remarks>
