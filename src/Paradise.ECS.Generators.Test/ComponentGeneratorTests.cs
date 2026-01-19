@@ -948,6 +948,130 @@ public class ComponentGeneratorNamespaceTests
 }
 
 /// <summary>
+/// Tests for SuppressGlobalUsingsAttribute functionality.
+/// </summary>
+public class ComponentGeneratorSuppressGlobalUsingsTests
+{
+    [Test]
+    public async Task SuppressGlobalUsings_WhenAttributePresent_DoesNotGenerateGlobalUsings()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: SuppressGlobalUsings]
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+
+        await Assert.That(aliases).IsNotNull();
+        await Assert.That(aliases).DoesNotContain("global using ComponentMask =");
+        await Assert.That(aliases).DoesNotContain("global using ComponentMaskBits =");
+        await Assert.That(aliases).DoesNotContain("global using QueryBuilder =");
+        await Assert.That(aliases).DoesNotContain("global using World =");
+        await Assert.That(aliases).DoesNotContain("global using Query =");
+        await Assert.That(aliases).DoesNotContain("global using SharedArchetypeMetadata =");
+        await Assert.That(aliases).DoesNotContain("global using ArchetypeRegistry =");
+    }
+
+    [Test]
+    public async Task SuppressGlobalUsings_WhenAttributePresent_IncludesSuppressedComment()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: SuppressGlobalUsings]
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+
+        await Assert.That(aliases).IsNotNull();
+        await Assert.That(aliases).Contains("All global usings suppressed by [assembly: SuppressGlobalUsings]");
+    }
+
+    [Test]
+    public async Task SuppressGlobalUsings_WhenAttributePresent_StillShowsComponentCount()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: SuppressGlobalUsings]
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+
+            [Component]
+            public partial struct Velocity { public float X; }
+            """;
+
+        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+
+        await Assert.That(aliases).IsNotNull();
+        await Assert.That(aliases).Contains("Component count: 2");
+    }
+
+    [Test]
+    public async Task SuppressGlobalUsings_WhenAttributeAbsent_GeneratesGlobalUsings()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+
+        await Assert.That(aliases).IsNotNull();
+        await Assert.That(aliases).Contains("global using ComponentMask =");
+        await Assert.That(aliases).Contains("global using ComponentMaskBits =");
+        await Assert.That(aliases).Contains("global using QueryBuilder =");
+        await Assert.That(aliases).Contains("global using World =");
+        await Assert.That(aliases).Contains("global using Query =");
+        await Assert.That(aliases).DoesNotContain("All global usings suppressed");
+    }
+
+    [Test]
+    public async Task SuppressGlobalUsings_ComponentGenerationStillWorks()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: SuppressGlobalUsings]
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var component = GeneratorTestHelper.GetGeneratedSource(source, "TestNamespace_Position.g.cs");
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
+
+        // Component should still be generated
+        await Assert.That(component).IsNotNull();
+        await Assert.That(component).Contains("partial struct Position : global::Paradise.ECS.IComponent");
+
+        // Registry should still be generated
+        await Assert.That(registry).IsNotNull();
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry");
+    }
+}
+
+/// <summary>
 /// Tests for ComponentGenerator duplicate ID detection (PECS015).
 /// </summary>
 public class ComponentGeneratorDuplicateManualIdTests
