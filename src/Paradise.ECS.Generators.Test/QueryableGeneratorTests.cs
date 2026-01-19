@@ -174,3 +174,141 @@ public class QueryableGeneratorDuplicateManualIdTests
         await Assert.That(format).Contains("{1}"); // Type names placeholder
     }
 }
+
+/// <summary>
+/// Tests for SuppressGlobalUsingsAttribute functionality in QueryableGenerator.
+/// </summary>
+public class QueryableGeneratorSuppressGlobalUsingsTests
+{
+    [Test]
+    public async Task SuppressGlobalUsings_WhenAttributePresent_DoesNotGenerateQueryableRegistryAlias()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: SuppressGlobalUsings]
+
+            namespace TestNamespace;
+
+            [Component("44444444-4444-4444-4444-444444444444")]
+            public partial struct SuppressTestComp { public int Value; }
+
+            [Queryable]
+            [With<SuppressTestComp>]
+            public readonly ref partial struct SuppressTestQuery;
+            """;
+
+        var sources = GeneratorTestHelper.GetQueryableGeneratedSources(source);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "QueryableAliases.g.cs").Source;
+
+        await Assert.That(aliases).IsNotNull();
+        await Assert.That(aliases).DoesNotContain("global using QueryableRegistry =");
+    }
+
+    [Test]
+    public async Task SuppressGlobalUsings_WhenAttributePresent_IncludesSuppressedComment()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: SuppressGlobalUsings]
+
+            namespace TestNamespace;
+
+            [Component("55555555-5555-5555-5555-555555555555")]
+            public partial struct SuppressCommentComp { public int Value; }
+
+            [Queryable]
+            [With<SuppressCommentComp>]
+            public readonly ref partial struct SuppressCommentQuery;
+            """;
+
+        var sources = GeneratorTestHelper.GetQueryableGeneratedSources(source);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "QueryableAliases.g.cs").Source;
+
+        await Assert.That(aliases).IsNotNull();
+        await Assert.That(aliases).Contains("All global usings suppressed by [assembly: SuppressGlobalUsings]");
+    }
+
+    [Test]
+    public async Task SuppressGlobalUsings_WhenAttributeAbsent_GeneratesQueryableRegistryAlias()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component("66666666-6666-6666-6666-666666666666")]
+            public partial struct NoSuppressComp { public int Value; }
+
+            [Queryable]
+            [With<NoSuppressComp>]
+            public readonly ref partial struct NoSuppressQuery;
+            """;
+
+        var sources = GeneratorTestHelper.GetQueryableGeneratedSources(source);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "QueryableAliases.g.cs").Source;
+
+        await Assert.That(aliases).IsNotNull();
+        await Assert.That(aliases).Contains("global using QueryableRegistry =");
+        await Assert.That(aliases).DoesNotContain("All global usings suppressed");
+    }
+
+    [Test]
+    public async Task SuppressGlobalUsings_QueryableRegistryGenerationStillWorks()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: SuppressGlobalUsings]
+
+            namespace TestNamespace;
+
+            [Component("77777777-7777-7777-7777-777777777777")]
+            public partial struct SuppressRegistryComp { public int Value; }
+
+            [Queryable]
+            [With<SuppressRegistryComp>]
+            public readonly ref partial struct SuppressRegistryQuery;
+            """;
+
+        var sources = GeneratorTestHelper.GetQueryableGeneratedSources(source);
+        var registry = sources.FirstOrDefault(s => s.HintName == "QueryableRegistry.g.cs").Source;
+        var partialStruct = sources.FirstOrDefault(s =>
+            s.HintName.Contains("SuppressRegistryQuery", StringComparison.Ordinal)).Source;
+
+        // Registry should still be generated
+        await Assert.That(registry).IsNotNull();
+        await Assert.That(registry).Contains("public static class QueryableRegistry<TBits>");
+
+        // Partial struct should still be generated
+        await Assert.That(partialStruct).IsNotNull();
+        await Assert.That(partialStruct).Contains("public static int QueryableId =>");
+    }
+
+    [Test]
+    public async Task SuppressGlobalUsings_ShowsFullyQualifiedTypeReference()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            [assembly: SuppressGlobalUsings]
+
+            namespace TestNamespace;
+
+            [Component("88888888-8888-8888-8888-888888888888")]
+            public partial struct SuppressRefComp { public int Value; }
+
+            [Queryable]
+            [With<SuppressRefComp>]
+            public readonly ref partial struct SuppressRefQuery;
+            """;
+
+        var sources = GeneratorTestHelper.GetQueryableGeneratedSources(source);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "QueryableAliases.g.cs").Source;
+
+        await Assert.That(aliases).IsNotNull();
+        // Should show how to reference QueryableRegistry when suppressed
+        await Assert.That(aliases).Contains("global::Paradise.ECS.QueryableRegistry<");
+    }
+}
