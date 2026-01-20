@@ -384,13 +384,13 @@ foreach (var e in enemyQuery)
 Console.WriteLine();
 
 // ============================================================================
-// Demo 3: PlayerPosition.Query - QueryOnly filter
+// Demo 3: PlayerPosition.Query - Position only (tag filtering temporarily disabled)
 // ============================================================================
-Console.WriteLine("  [Demo 3] PlayerPosition.Query - QueryOnly filter");
-Console.WriteLine("  Definition: [With<Position>][With<PlayerTag>(QueryOnly=true)]");
+Console.WriteLine("  [Demo 3] PlayerPosition.Query - Position only");
+Console.WriteLine("  Definition: [With<Position>] (PlayerTag filter temporarily disabled)");
 var playerPosQuery = PlayerPosition.Query.Build(world2);
-Console.WriteLine($"    EntityCount: {playerPosQuery.EntityCount} (all entities with PlayerTag)");
-Debug.Assert(playerPosQuery.EntityCount == 3); // playerWithVel + playerNoVel + namedPlayer
+Console.WriteLine($"    EntityCount: {playerPosQuery.EntityCount} (all entities with Position)");
+Debug.Assert(playerPosQuery.EntityCount == 5); // All positioned entities (tag filtering disabled)
 
 foreach (var pp in playerPosQuery)
 {

@@ -290,6 +290,15 @@ public class ComponentGenerator : IIncrementalGenerator
                     component.InvalidContainingTypeReason));
             }
 
+            // Warn about empty components - suggest using [Tag] instead
+            if (component.IsEmpty)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.ComponentIsEmpty,
+                    component.Location,
+                    component.FullyQualifiedName));
+            }
+
             // Validate manual ID doesn't exceed limit
             if (component.ManualId.HasValue && component.ManualId.Value > maxComponentTypeId)
             {

@@ -6,14 +6,6 @@
 
 Paradise.ECS is a high-performance Entity Component System library for .NET 10, designed for Native AOT compilation. Part of the Paradise Engine ecosystem targeting game development with Pure C# + WebGPU + Slang.
 
-## Current Status
-
-**Core ECS foundation is complete.** All fundamental systems (Memory Management, Entities, Archetypes, Queries, World API, Source Generator) are implemented, tested, and production-ready. The codebase has comprehensive test coverage (5,870 LOC tests for 4,919 LOC source).
-
-**Current focus**: System Scheduling and Specialized World Types.
-
-**Architecture Score: 8.5/10** - Solid foundation with clean, modular design following SOLID principles.
-
 ---
 
 ## Milestones
@@ -106,12 +98,13 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 ### In Progress
 
-*No items currently in progress*
+- [~] **Zero-Allocation Tag Component System** ([#10](https://github.com/quabug/ParadiseECS/issues/10), feature/entity-tag)
+  - Separate tag storage with per-entity bitmask (not archetype identity)
+  - Chunk-level tag presence masks for efficient query filtering
+  - O(1) tag add/remove without archetype change or data copy
+  - Tag-specific APIs: `AddTag<T>()`, `RemoveTag<T>()`, `HasTag<T>()`
 
 ### Planned
-
-- [ ] **Zero-Allocation Tag Component System** ([#10](https://github.com/quabug/ParadiseECS/issues/10))
-    - Design and implement tag components without storage overhead
 
 - [ ] **World Clone & Snapshots**
   - World cloning for snapshot/rollback scenarios
@@ -295,11 +288,11 @@ Minor TODOs in codebase:
 
 ### Next Priority
 
-1. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
-2. **System Scheduling** - Enables writing actual game logic using the ECS
-3. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
-4. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
-5. Implement **System Scheduling** - this unlocks the ability to write actual game logic using the ECS
+1. **Zero-Allocation Tag Component System** ([#10](https://github.com/quabug/ParadiseECS/issues/10)) - Currently in progress
+2. **Specialized World Types** - SingleThreadWorld, JobsWorld, ReadOnlyWorld for different usage patterns
+3. **System Scheduling** - Enables writing actual game logic using the ECS
+4. Address open performance issues ([#17](https://github.com/quabug/ParadiseECS/issues/17), [#14](https://github.com/quabug/ParadiseECS/issues/14), [#13](https://github.com/quabug/ParadiseECS/issues/13), [#12](https://github.com/quabug/ParadiseECS/issues/12))
+5. Research query iteration strategies ([#18](https://github.com/quabug/ParadiseECS/issues/18))
 
 ### Recent Activity
 

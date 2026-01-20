@@ -6,7 +6,8 @@
     <!-- Native AOT support to verify generated code is AOT-compatible -->
     <PublishAot>true</PublishAot>
     <!-- Suppress CA1515: internal types warning for this demo project -->
-    <NoWarn>$(NoWarn);CA1515</NoWarn>
+    <!-- PECS016: Allow empty components used as temporary tags -->
+    <NoWarn>$(NoWarn);CA1515;PECS016</NoWarn>
     <!-- Emit generated source files for inspection -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>

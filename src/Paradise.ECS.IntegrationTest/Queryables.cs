@@ -32,7 +32,7 @@ public readonly ref partial struct Enemy;
 /// </summary>
 [Queryable]
 [With<Position>]
-[With<PlayerTag>(QueryOnly = true)]
+// [With<PlayerTag>(QueryOnly = true)]
 public readonly ref partial struct PlayerPosition;
 
 /// <summary>

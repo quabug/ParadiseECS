@@ -6,7 +6,8 @@
     <IsTestProject>true</IsTestProject>
     <!-- Allow underscore naming convention in test methods -->
     <!-- CA1515: Test classes need to be public for TUnit discovery -->
-    <NoWarn>$(NoWarn);CA1707;CA1515</NoWarn>
+    <!-- PECS016: Allow testing empty components (zero-size marker types) -->
+    <NoWarn>$(NoWarn);CA1707;CA1515;PECS016</NoWarn>
     <!-- Native AOT support -->
     <PublishAot>true</PublishAot>
     <!-- Emit generated source files for inspection -->
