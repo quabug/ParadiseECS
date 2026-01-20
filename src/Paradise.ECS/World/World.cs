@@ -512,6 +512,15 @@ public sealed class World<TBits, TRegistry, TConfig>
     }
 
     /// <summary>
+    /// Gets the storage location of an entity.
+    /// </summary>
+    /// <param name="entity">The entity to get the location of.</param>
+    /// <returns>The entity's location containing archetype ID and global index.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the entity is invalid or not alive.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityLocation GetLocation(Entity entity) => GetValidatedLocation(entity);
+
+    /// <summary>
     /// Removes all entities from this world.
     /// After calling this method, all previously created entities are invalid.
     /// </summary>
