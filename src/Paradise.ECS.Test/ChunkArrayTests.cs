@@ -1,9 +1,9 @@
 namespace Paradise.ECS.Test;
 
 /// <summary>
-/// Tests for <see cref="ChunkList{T}"/>.
+/// Tests for <see cref="ChunkArray{T}"/>.
 /// </summary>
-public sealed class ChunkListTests
+public sealed class ChunkArrayTests
 {
     private const int BlockByteSize = 16384; // 16KB blocks
     private const int MaxBlocks = 16;
@@ -11,7 +11,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task Constructor_CreatesWithCorrectProperties()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
 
         await Assert.That(list.MaxBlocks).IsEqualTo(MaxBlocks);
         await Assert.That(list.EntriesPerBlock).IsEqualTo(BlockByteSize / sizeof(int));
@@ -21,7 +21,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task Constructor_WithInitialBlocks_PreAllocatesBlocks()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 2);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 2);
 
         await Assert.That(list.IsBlockAllocated(0)).IsTrue();
         await Assert.That(list.IsBlockAllocated(1)).IsTrue();
@@ -31,7 +31,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task Constructor_ZeroInitialBlocks_NoBlocksAllocated()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
 
         await Assert.That(list.IsBlockAllocated(0)).IsFalse();
     }
@@ -39,7 +39,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task GetOrCreateRef_AllocatesBlockLazily()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
 
         await Assert.That(list.IsBlockAllocated(0)).IsFalse();
 
@@ -52,7 +52,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task GetRef_ReturnsCorrectReference()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
 
         list.GetOrCreateRef(5) = 123;
         ref var value = ref list.GetRef(5);
@@ -63,7 +63,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task GetRef_ModificationPersists()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
 
         ref var value1 = ref list.GetRef(10);
         value1 = 999;
@@ -76,7 +76,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task GetValueOrDefault_AllocatedBlock_ReturnsValue()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
 
         list.SetValue(7, 777);
         var value = list.GetValueOrDefault(7);
@@ -87,7 +87,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task GetValueOrDefault_UnallocatedBlock_ReturnsDefault()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
 
         var value = list.GetValueOrDefault(0);
 
@@ -97,7 +97,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task SetValue_AllocatesBlockIfNeeded()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
 
         await Assert.That(list.IsBlockAllocated(0)).IsFalse();
 
@@ -110,7 +110,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task EnsureCapacity_AllocatesBlockForIndex()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
         int entriesPerBlock = BlockByteSize / sizeof(int);
 
         // Index in second block
@@ -126,7 +126,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task EnsureBlockAllocated_AllocatesSpecificBlock()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
 
         await Assert.That(list.IsBlockAllocated(5)).IsFalse();
 
@@ -138,7 +138,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task MultipleBlocks_IndependentStorage()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
         int entriesPerBlock = BlockByteSize / sizeof(int);
 
         // Write to different blocks
@@ -158,7 +158,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task IndexCalculation_CorrectForBlockBoundaries()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
         int entriesPerBlock = BlockByteSize / sizeof(int);
 
         // Write to last entry of first block and first entry of second block
@@ -178,7 +178,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task Clear_ZeroesAllAllocatedBlocks()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 2);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 2);
 
         list.SetValue(0, 100);
         list.SetValue(list.EntriesPerBlock, 200);
@@ -195,7 +195,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task Clear_DoesNotDeallocateBlocks()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 2);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 2);
 
         list.Clear();
 
@@ -206,7 +206,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task Dispose_MultipleCallsSafe()
     {
-        var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
+        var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
 
         list.Dispose();
         list.Dispose(); // Should not throw
@@ -217,7 +217,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task StructType_WorksCorrectly()
     {
-        using var list = new ChunkList<TestStruct>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
+        using var list = new ChunkArray<TestStruct>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
 
         ref var data = ref list.GetOrCreateRef(0);
         data.X = 1.5f;
@@ -234,7 +234,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task LargeIndex_WorksWithMultipleBlocks()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
         int entriesPerBlock = BlockByteSize / sizeof(int);
 
         // Access an index in the last possible block
@@ -250,9 +250,9 @@ public sealed class ChunkListTests
     [Test]
     public async Task EntriesPerBlock_CalculatedCorrectlyForDifferentTypes()
     {
-        using var intList = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
-        using var longList = new ChunkList<long>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
-        using var structList = new ChunkList<TestStruct>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
+        using var intList = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
+        using var longList = new ChunkArray<long>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
+        using var structList = new ChunkArray<TestStruct>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
 
         await Assert.That(intList.EntriesPerBlock).IsEqualTo(BlockByteSize / sizeof(int));
         await Assert.That(longList.EntriesPerBlock).IsEqualTo(BlockByteSize / sizeof(long));
@@ -262,7 +262,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task SequentialWrites_AllPersist()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
         const int count = 1000;
 
         for (int i = 0; i < count; i++)
@@ -285,7 +285,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task RandomAccessPattern_WorksCorrectly()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 0);
 
         int[] indices = [0, 1000, 500, 2000, 100, 1500];
         int[] values = [10, 20, 30, 40, 50, 60];
@@ -305,7 +305,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task GetOrCreateRef_SameIndex_ReturnsSameLocation()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks, initialBlocks: 1);
 
         ref var ref1 = ref list.GetOrCreateRef(42);
         ref1 = 100;
@@ -324,7 +324,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task MaxCapacity_CalculatedCorrectly()
     {
-        using var list = new ChunkList<long>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
+        using var list = new ChunkArray<long>(NativeMemoryAllocator.Shared, BlockByteSize, MaxBlocks);
 
         int expectedEntriesPerBlock = BlockByteSize / sizeof(long);
         int expectedMaxCapacity = MaxBlocks * expectedEntriesPerBlock;
@@ -335,7 +335,7 @@ public sealed class ChunkListTests
     [Test]
     public async Task ZeroSizedInitialBlocks_LimitedToMaxBlocks()
     {
-        using var list = new ChunkList<int>(NativeMemoryAllocator.Shared, BlockByteSize, maxBlocks: 3, initialBlocks: 10);
+        using var list = new ChunkArray<int>(NativeMemoryAllocator.Shared, BlockByteSize, maxBlocks: 3, initialBlocks: 10);
 
         // Should only allocate up to MaxBlocks
         await Assert.That(list.IsBlockAllocated(0)).IsTrue();

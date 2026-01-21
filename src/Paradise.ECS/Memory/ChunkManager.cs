@@ -10,7 +10,7 @@ namespace Paradise.ECS;
 /// Single-threaded version without concurrent access support.
 ///
 /// Memory layout:
-/// - Uses ChunkList to store ChunkMeta entries in fixed-size blocks
+/// - Uses ChunkArray to store ChunkMeta entries in fixed-size blocks
 /// - Each block can hold multiple entries (ChunkSize / sizeof(ChunkMeta))
 /// - Blocks are lazily allocated on-demand
 /// - Maximum capacity: MaxBlocks * EntriesPerBlock
@@ -30,7 +30,7 @@ public sealed unsafe class ChunkManager : IChunkManager
 
     private readonly int _chunkSize;
     private readonly IAllocator _allocator;
-    private readonly ChunkList<ChunkMeta> _metaList;
+    private readonly ChunkArray<ChunkMeta> _metaList;
     private readonly Stack<int> _freeSlots = new();
     private int _nextSlotId; // Next fresh slot ID to allocate
     private bool _disposed;
@@ -55,7 +55,7 @@ public sealed unsafe class ChunkManager : IChunkManager
         if (initialBlocks < 1) initialBlocks = 1;
         else if (initialBlocks > maxMetaBlocks) initialBlocks = maxMetaBlocks;
 
-        _metaList = new ChunkList<ChunkMeta>(allocator, chunkSize, maxMetaBlocks, initialBlocks);
+        _metaList = new ChunkArray<ChunkMeta>(allocator, chunkSize, maxMetaBlocks, initialBlocks);
     }
 
     public static ChunkManager Create<TConfig>() where TConfig : IConfig, new() => Create(new TConfig());

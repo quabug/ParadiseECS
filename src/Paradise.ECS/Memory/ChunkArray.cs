@@ -18,7 +18,7 @@ namespace Paradise.ECS;
 /// Used internally by ChunkManager and ChunkTagRegistry for consistent memory management.
 /// </para>
 /// </remarks>
-public sealed unsafe class ChunkList<T> : IDisposable where T : unmanaged
+public sealed unsafe class ChunkArray<T> : IDisposable where T : unmanaged
 {
     private readonly IAllocator _allocator;
     private readonly nint[] _blocks;
@@ -44,13 +44,13 @@ public sealed unsafe class ChunkList<T> : IDisposable where T : unmanaged
     public int MaxCapacity => _blocks.Length * _entriesPerBlock;
 
     /// <summary>
-    /// Creates a new ChunkList with the specified configuration.
+    /// Creates a new ChunkArray with the specified configuration.
     /// </summary>
     /// <param name="allocator">The memory allocator to use.</param>
     /// <param name="blockByteSize">The size of each block in bytes (should be power of 2).</param>
     /// <param name="maxBlocks">The maximum number of blocks.</param>
     /// <param name="initialBlocks">The number of blocks to pre-allocate (0 for lazy allocation).</param>
-    public ChunkList(IAllocator allocator, int blockByteSize, int maxBlocks, int initialBlocks = 0)
+    public ChunkArray(IAllocator allocator, int blockByteSize, int maxBlocks, int initialBlocks = 0)
     {
         _allocator = allocator ?? throw new ArgumentNullException(nameof(allocator));
         _blocks = new nint[maxBlocks];

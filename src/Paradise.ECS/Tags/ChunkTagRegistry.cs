@@ -13,13 +13,13 @@ namespace Paradise.ECS;
 /// between multiple TaggedWorld instances that use the same ChunkManager.
 /// </para>
 /// <para>
-/// Uses <see cref="ChunkList{T}"/> for consistent block-based memory management.
+/// Uses <see cref="ChunkArray{T}"/> for consistent block-based memory management.
 /// </para>
 /// </remarks>
 public sealed class ChunkTagRegistry<TTagMask> : IDisposable
     where TTagMask : unmanaged, IBitSet<TTagMask>
 {
-    private readonly ChunkList<TTagMask> _maskList;
+    private readonly ChunkArray<TTagMask> _maskList;
 
     /// <summary>
     /// Creates a new ChunkTagRegistry with the specified allocator and capacity.
@@ -29,7 +29,7 @@ public sealed class ChunkTagRegistry<TTagMask> : IDisposable
     /// <param name="blockByteSize">The size of each block in bytes (e.g., 16384 for 16KB blocks).</param>
     public ChunkTagRegistry(IAllocator allocator, int maxMetaBlocks, int blockByteSize)
     {
-        _maskList = new ChunkList<TTagMask>(allocator, blockByteSize, maxMetaBlocks);
+        _maskList = new ChunkArray<TTagMask>(allocator, blockByteSize, maxMetaBlocks);
     }
 
     /// <summary>
