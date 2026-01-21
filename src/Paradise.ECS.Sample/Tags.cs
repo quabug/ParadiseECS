@@ -1,6 +1,6 @@
 [assembly: Paradise.ECS.EnableTags]
 
-namespace Paradise.ECS.IntegrationTest;
+namespace Paradise.ECS.Sample;
 
 // ============================================================================
 // Tag Definitions - Zero-size markers using the Tag system

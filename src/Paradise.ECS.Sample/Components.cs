@@ -1,4 +1,4 @@
-namespace Paradise.ECS.IntegrationTest;
+namespace Paradise.ECS.Sample;
 
 // ============================================================================
 // Component Definitions

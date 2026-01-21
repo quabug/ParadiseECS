@@ -612,4 +612,158 @@ public sealed class TaggedWorldTests : IDisposable
 
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsFalse();
     }
+
+    [Test]
+    public async Task TaggedQueryBuilder_WithTag_FiltersEntities()
+    {
+        var e1 = _world.Spawn();
+        var e2 = _world.Spawn();
+        var e3 = _world.Spawn();
+
+        _world.AddTag<TestIsActive>(e1);
+        _world.AddTag<TestIsActive>(e2);
+        _world.AddTag<TestIsEnemy>(e2);
+        // e3 has no tags
+
+        var query = QueryBuilder<Bit64>.Create()
+            .WithTag<Bit64, TestIsActive, TagMask>()
+            .Build(_world);
+
+        var matchedEntities = new List<Entity>();
+        foreach (var entity in query)
+        {
+            matchedEntities.Add(entity);
+        }
+
+        await Assert.That(matchedEntities).Contains(e1);
+        await Assert.That(matchedEntities).Contains(e2);
+        await Assert.That(matchedEntities).DoesNotContain(e3);
+        await Assert.That(matchedEntities.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task TaggedQueryBuilder_MultipleTags_FiltersCorrectly()
+    {
+        var e1 = _world.Spawn();
+        var e2 = _world.Spawn();
+        var e3 = _world.Spawn();
+
+        _world.AddTag<TestIsActive>(e1);
+        _world.AddTag<TestIsActive>(e2);
+        _world.AddTag<TestIsEnemy>(e2);
+        _world.AddTag<TestIsEnemy>(e3);
+
+        // Query for entities with BOTH TestIsActive AND TestIsEnemy
+        var query = QueryBuilder<Bit64>.Create()
+            .WithTag<Bit64, TestIsActive, TagMask>()
+            .WithTag<TestIsEnemy>()
+            .Build(_world);
+
+        var matchedEntities = new List<Entity>();
+        foreach (var entity in query)
+        {
+            matchedEntities.Add(entity);
+        }
+
+        await Assert.That(matchedEntities).DoesNotContain(e1); // Only has TestIsActive
+        await Assert.That(matchedEntities).Contains(e2);       // Has both
+        await Assert.That(matchedEntities).DoesNotContain(e3); // Only has TestIsEnemy
+        await Assert.That(matchedEntities.Count).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task TaggedQueryBuilder_WithComponentConstraint_FiltersCorrectly()
+    {
+        var e1 = _world.Spawn();
+        var e2 = _world.Spawn();
+        var e3 = _world.Spawn();
+
+        _world.AddComponent(e1, new TestPosition { X = 1 });
+        _world.AddComponent(e2, new TestPosition { X = 2 });
+        // e3 has no Position component
+
+        _world.AddTag<TestIsActive>(e1);
+        _world.AddTag<TestIsActive>(e2);
+        _world.AddTag<TestIsActive>(e3);
+
+        // Query for entities with TestIsActive tag AND Position component
+        var query = QueryBuilder<Bit64>.Create()
+            .With<TestPosition>()
+            .WithTag<Bit64, TestIsActive, TagMask>()
+            .Build(_world);
+
+        var matchedEntities = new List<Entity>();
+        foreach (var entity in query)
+        {
+            matchedEntities.Add(entity);
+        }
+
+        await Assert.That(matchedEntities).Contains(e1);
+        await Assert.That(matchedEntities).Contains(e2);
+        await Assert.That(matchedEntities).DoesNotContain(e3); // No Position component
+        await Assert.That(matchedEntities.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task TaggedWorldQueryBuilder_CleanApi_FiltersCorrectly()
+    {
+        var e1 = _world.Spawn();
+        var e2 = _world.Spawn();
+        var e3 = _world.Spawn();
+
+        _world.AddComponent(e1, new TestPosition { X = 1 });
+        _world.AddComponent(e2, new TestPosition { X = 2 });
+
+        _world.AddTag<TestIsActive>(e1);
+        _world.AddTag<TestIsActive>(e2);
+        _world.AddTag<TestIsEnemy>(e2);
+        _world.AddTag<TestIsEnemy>(e3);
+
+        // Clean API: world.Query().WithTag<T>().With<C>().Build()
+        var query = _world.Query()
+            .WithTag<TestIsActive>()
+            .With<TestPosition>()
+            .Build();
+
+        var matchedEntities = new List<Entity>();
+        foreach (var entity in query)
+        {
+            matchedEntities.Add(entity);
+        }
+
+        await Assert.That(matchedEntities).Contains(e1);
+        await Assert.That(matchedEntities).Contains(e2);
+        await Assert.That(matchedEntities).DoesNotContain(e3);
+        await Assert.That(matchedEntities.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task TaggedWorldQueryBuilder_MultipleTagsCleanApi_FiltersCorrectly()
+    {
+        var e1 = _world.Spawn();
+        var e2 = _world.Spawn();
+        var e3 = _world.Spawn();
+
+        _world.AddTag<TestIsActive>(e1);
+        _world.AddTag<TestIsActive>(e2);
+        _world.AddTag<TestIsEnemy>(e2);
+        _world.AddTag<TestIsEnemy>(e3);
+
+        // Clean API with multiple tags
+        var query = _world.Query()
+            .WithTag<TestIsActive>()
+            .WithTag<TestIsEnemy>()
+            .Build();
+
+        var matchedEntities = new List<Entity>();
+        foreach (var entity in query)
+        {
+            matchedEntities.Add(entity);
+        }
+
+        await Assert.That(matchedEntities).DoesNotContain(e1); // Only TestIsActive
+        await Assert.That(matchedEntities).Contains(e2);       // Has both
+        await Assert.That(matchedEntities).DoesNotContain(e3); // Only TestIsEnemy
+        await Assert.That(matchedEntities.Count).IsEqualTo(1);
+    }
 }
