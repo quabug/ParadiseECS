@@ -16,20 +16,39 @@ namespace Paradise.ECS;
 /// Tags are stored in a per-entity bitmask component, enabling O(1) tag operations
 /// without archetype changes.
 /// </remarks>
-public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask>
+public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask> : IDisposable
     where TBits : unmanaged, IStorage
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
     where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
     where TTagMask : unmanaged, IBitSet<TTagMask>
 {
+    private readonly ChunkManager _chunkManager;
+    private readonly SharedArchetypeMetadata<TBits, TRegistry, TConfig> _sharedMetadata;
     private readonly World<TBits, TRegistry, TConfig> _world;
     private readonly ChunkTagRegistry<TTagMask> _chunkTagRegistry;
+    private bool _disposed;
 
-    public TaggedWorld(World<TBits, TRegistry, TConfig> world, ChunkTagRegistry<TTagMask> chunkTagRegistry)
+    /// <summary>
+    /// Creates a new TaggedWorld with all subsystems using default configuration.
+    /// </summary>
+    public TaggedWorld() : this(new TConfig())
     {
-        _world = world;
-        _chunkTagRegistry = chunkTagRegistry;
+    }
+
+    /// <summary>
+    /// Creates a new TaggedWorld with all subsystems using the specified configuration.
+    /// </summary>
+    /// <param name="config">The configuration instance.</param>
+    public TaggedWorld(TConfig config)
+    {
+        _chunkManager = ChunkManager.Create(config);
+        _sharedMetadata = new SharedArchetypeMetadata<TBits, TRegistry, TConfig>(config);
+        _world = new World<TBits, TRegistry, TConfig>(config, _sharedMetadata, _chunkManager);
+        _chunkTagRegistry = new ChunkTagRegistry<TTagMask>(
+            config.ChunkAllocator,
+            TConfig.MaxMetaBlocks,
+            TConfig.ChunkSize);
     }
 
     /// <summary>
@@ -67,19 +86,54 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     /// Despawns an entity, removing it from the world.
     /// </summary>
     /// <param name="entity">The entity to despawn.</param>
-    public void Despawn(Entity entity)
+    /// <returns>True if the entity was despawned; false if it was already dead.</returns>
+    public bool Despawn(Entity entity)
     {
+        if (!_world.IsAlive(entity))
+            return false;
+
         // Capture location before despawn for chunk tag registry update
         var location = _world.GetLocation(entity);
         var archetype = _world.Registry.GetById(location.ArchetypeId)!;
         var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
 
+        // Check if entity has EntityTags component (entities created via EntityBuilder may not have it)
+        var hasEntityTags = archetype.Layout.HasComponent<TEntityTags>();
+
         // Despawn the entity
         _world.Despawn(entity);
 
-        // Recompute chunk tag mask (entity was removed, chunk mask may need updating)
-        RecomputeChunkMask(chunkHandle, archetype, chunkIndex);
+        // Recompute chunk tag mask only if the archetype had EntityTags
+        if (hasEntityTags)
+        {
+            RecomputeChunkMask(chunkHandle, archetype, chunkIndex);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Clears all entities from the world.
+    /// Also clears all chunk tag masks.
+    /// </summary>
+    public void Clear()
+    {
+        _world.Clear();
+        _chunkTagRegistry.Clear();
+    }
+
+    /// <summary>
+    /// Disposes of all owned resources (ChunkManager, SharedArchetypeMetadata, ChunkTagRegistry).
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        _chunkTagRegistry.Dispose();
+        _sharedMetadata.Dispose();
+        _chunkManager.Dispose();
     }
 
     /// <summary>
@@ -135,7 +189,7 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasTag<TTag>(Entity entity) where TTag : ITag
     {
-        var tags = _world.GetComponent<TEntityTags>(entity);
+        ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
         return tags.Mask.Get(TTag.TagId);
     }
 
@@ -296,3 +350,43 @@ public interface IEntityTags<TTagMask>
     /// </summary>
     TTagMask Mask { get; set; }
 }
+
+/// <summary>
+/// Extension methods for building queries in a TaggedWorld.
+/// </summary>
+public static class QueryBuilderTaggedWorldExtensions
+{
+    extension<TBits>(QueryBuilder<TBits> builder) where TBits : unmanaged, IStorage
+    {
+        /// <summary>
+        /// Builds a WorldQuery from this description for a TaggedWorld.
+        /// Delegates to the underlying World.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public WorldQuery<TBits, TRegistry, TConfig> Build<TRegistry, TConfig, TEntityTags, TTagMask>(
+            TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask> taggedWorld)
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+            where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
+            where TTagMask : unmanaged, IBitSet<TTagMask>
+        {
+            return builder.Build(taggedWorld.World);
+        }
+
+        /// <summary>
+        /// Builds a WorldChunkQuery from this description for a TaggedWorld.
+        /// Delegates to the underlying World.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public WorldChunkQuery<TBits, TRegistry, TConfig> BuildChunk<TRegistry, TConfig, TEntityTags, TTagMask>(
+            TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask> taggedWorld)
+            where TRegistry : IComponentRegistry
+            where TConfig : IConfig, new()
+            where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
+            where TTagMask : unmanaged, IBitSet<TTagMask>
+        {
+            return builder.BuildChunk(taggedWorld.World);
+        }
+    }
+}
+

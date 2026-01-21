@@ -134,7 +134,7 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
         // Skip writes for zero-size tag components to avoid corrupting memory at offset 0.
         // Empty structs have sizeof=1 in C#, so writing default(TagComponent) would write
         // 1 byte at offset 0 (since GetEntityComponentOffset returns 0 for size-0 components).
-        if (TRegistry.TypeInfos[TComponent.TypeId].Size == 0)
+        if (TComponent.Size == 0)
             return;
 
         // Write this component

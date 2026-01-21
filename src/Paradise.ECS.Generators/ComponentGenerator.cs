@@ -18,6 +18,7 @@ public class ComponentGenerator : IIncrementalGenerator
     private const string RegistryNamespaceAttributeFullName = "Paradise.ECS.ComponentRegistryNamespaceAttribute";
     private const string DefaultConfigAttributeFullName = "Paradise.ECS.DefaultConfigAttribute";
     private const string SuppressGlobalUsingsAttributeFullName = "Paradise.ECS.SuppressGlobalUsingsAttribute";
+    private const string EnableTagsAttributeFullName = "Paradise.ECS.EnableTagsAttribute";
     private const string EdgeKeyFullName = "Paradise.ECS.EdgeKey";
     private const string IConfigFullName = "Paradise.ECS.IConfig";
 
@@ -102,6 +103,14 @@ public class ComponentGenerator : IIncrementalGenerator
                     .Any(a => a.AttributeClass?.ToDisplayString() == SuppressGlobalUsingsAttributeFullName);
             });
 
+        // Check for [assembly: EnableTags] attribute
+        var enableTags = context.CompilationProvider
+            .Select(static (compilation, _) =>
+            {
+                return compilation.Assembly.GetAttributes()
+                    .Any(a => a.AttributeClass?.ToDisplayString() == EnableTagsAttributeFullName);
+            });
+
         // Collect all components and tags
         var collectedComponents = componentTypes.Collect();
         var collectedTags = tagTypes.Collect();
@@ -112,16 +121,18 @@ public class ComponentGenerator : IIncrementalGenerator
             .Combine(rootNamespace)
             .Combine(maxComponentTypeId)
             .Combine(defaultConfigTypes)
-            .Combine(suppressGlobalUsings);
+            .Combine(suppressGlobalUsings)
+            .Combine(enableTags);
 
         context.RegisterSourceOutput(combined, static (ctx, data) =>
             GenerateCode(ctx,
-                data.Left.Left.Left.Left.Left,  // components
-                data.Left.Left.Left.Left.Right, // tags
-                data.Left.Left.Left.Right,      // rootNamespace
-                data.Left.Left.Right,           // maxComponentTypeId
-                data.Left.Right,                // defaultConfigs
-                data.Right));                   // suppressGlobalUsings
+                data.Left.Left.Left.Left.Left.Left,  // components
+                data.Left.Left.Left.Left.Left.Right, // tags
+                data.Left.Left.Left.Left.Right,      // rootNamespace
+                data.Left.Left.Left.Right,           // maxComponentTypeId
+                data.Left.Left.Right,                // defaultConfigs
+                data.Left.Right,                     // suppressGlobalUsings
+                data.Right));                        // enableTags
     }
 
     private static ComponentInfo? GetComponentInfo(GeneratorAttributeSyntaxContext context)
@@ -384,7 +395,8 @@ public class ComponentGenerator : IIncrementalGenerator
         string rootNamespace,
         int maxComponentTypeId,
         ImmutableArray<DefaultConfigInfo> defaultConfigs,
-        bool suppressGlobalUsings)
+        bool suppressGlobalUsings,
+        bool enableTags)
     {
         // Validate DefaultConfig types (diagnostics only - fallback applied later if needed)
         var configType = ValidateDefaultConfig(context, defaultConfigs);
@@ -395,6 +407,9 @@ public class ComponentGenerator : IIncrementalGenerator
         // Check if EntityTags component exists (user-defined with [Component])
         var entityTagsComponent = components.FirstOrDefault(c => c.IsEntityTags);
         var hasEntityTags = entityTagsComponent.FullyQualifiedName != null;
+
+        // Determine if tag feature is effectively enabled (attribute present AND tags/EntityTags exist)
+        var tagsEffectivelyEnabled = enableTags && validTags.Count > 0 && hasEntityTags;
 
         // Process components
         var validComponents = ProcessComponents(context, components, maxComponentTypeId, hasEntityTags, tagMaskType, rootNamespace);
@@ -443,7 +458,7 @@ public class ComponentGenerator : IIncrementalGenerator
             }
 
             // Generate global using aliases
-            GenerateGlobalUsings(context, validComponents.Count, rootNamespace, configType, suppressGlobalUsings);
+            GenerateGlobalUsings(context, validComponents.Count, rootNamespace, configType, suppressGlobalUsings, tagsEffectivelyEnabled, tagMaskType);
 
             // Generate component registry
             GenerateComponentRegistry(context, validComponents, rootNamespace, tagMaskType);
@@ -960,7 +975,9 @@ public class ComponentGenerator : IIncrementalGenerator
         int componentCount,
         string rootNamespace,
         string configType,
-        bool suppressGlobalUsings)
+        bool suppressGlobalUsings,
+        bool enableTags,
+        string tagMaskType)
     {
         var bitType = GetOptimalBitStorageType(componentCount);
         var bitTypeFullyQualified = $"global::Paradise.ECS.{bitType}";
@@ -968,6 +985,10 @@ public class ComponentGenerator : IIncrementalGenerator
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
         sb.AppendLine($"// Component count: {componentCount} → using {bitType}");
+        if (enableTags)
+        {
+            sb.AppendLine("// Tags enabled by [assembly: EnableTags] → World alias points to TaggedWorld");
+        }
         if (suppressGlobalUsings)
         {
             sb.AppendLine("// Global usings suppressed by [assembly: SuppressGlobalUsings]");
@@ -985,7 +1006,18 @@ public class ComponentGenerator : IIncrementalGenerator
                 var registryType = $"{rootNamespace}.ComponentRegistry";
                 sb.AppendLine($"global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
                 sb.AppendLine($"global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
-                sb.AppendLine($"global using World = global::Paradise.ECS.World<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
+
+                if (enableTags)
+                {
+                    // When tags are enabled, World alias points to TaggedWorld
+                    var entityTagsType = $"{rootNamespace}.EntityTags";
+                    sb.AppendLine($"global using World = global::Paradise.ECS.TaggedWorld<{bitTypeFullyQualified}, global::{registryType}, global::{configType}, global::{entityTagsType}, {tagMaskType}>;");
+                }
+                else
+                {
+                    sb.AppendLine($"global using World = global::Paradise.ECS.World<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>;");
+                }
+
                 sb.AppendLine($"global using Query = global::Paradise.ECS.Query<{bitTypeFullyQualified}, global::{registryType}, global::{configType}, global::Paradise.ECS.Archetype<{bitTypeFullyQualified}, global::{registryType}, global::{configType}>>;");
             }
         }
