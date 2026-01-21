@@ -13,6 +13,7 @@ A high-performance Entity Component System library for .NET 10, designed for Nat
 - **Multi-World Optimization** - Shared archetype metadata enables multiple worlds to share type information efficiently.
 - **Static Configuration** - Compile-time configurable chunk sizes, entity ID sizes, and capacity limits via `IConfig`.
 - **Batch Processing** - Chunk-level iteration with span-based component access for SIMD-friendly operations.
+- **Entity Tags** - Lightweight boolean flags with source-generated IDs for efficient entity classification and filtering.
 
 ## Requirements
 
@@ -74,6 +75,32 @@ public partial struct NetworkId
 
 The source generator automatically implements `IComponent` and assigns type IDs.
 
+### Define Tags
+
+Tags are lightweight boolean flags for entity classification, more efficient than zero-size components:
+
+```csharp
+using Paradise.ECS;
+
+[Tag]
+public partial struct IsActive;
+
+[Tag]
+public partial struct IsVisible;
+
+[Tag]
+public partial struct PlayerTag;
+
+[Tag]
+public partial struct EnemyTag;
+
+// Tag with stable GUID for serialization
+[Tag("87654321-4321-4321-4321-210987654321")]
+public partial struct NetworkSyncedTag;
+```
+
+The source generator implements `ITag` and assigns tag IDs. Tags are stored as bit flags per entity, separate from the component archetype.
+
 ### Create a World
 
 ```csharp
@@ -89,6 +116,21 @@ var world = new World(sharedMetadata, chunkManager);
 
 > **Note**: The source generator creates type aliases (`World`, `ComponentMask`, etc.) based on your component count. For manual configuration, use the full generic types like `World<Bit256, ComponentRegistry, DefaultConfig>`.
 
+#### Using Tags with TaggedWorld
+
+To use the tag system, add `[EnableTags]` to your assembly. This generates a `World` alias that wraps `TaggedWorld`:
+
+```csharp
+[assembly: EnableTags]
+```
+
+The `TaggedWorld` is created with internal dependencies, simplifying usage:
+
+```csharp
+// With [EnableTags], World is an alias for TaggedWorld
+using var world = new World();
+```
+
 ### Spawn Entities
 
 Using the fluent builder API (recommended for multiple components):
@@ -101,10 +143,11 @@ var entity = EntityBuilder.Create()
     .Add(new Health { Current = 100, Max = 100 })
     .Build(world);
 
-// Create entity with tag component
+// Create entity with tags (requires TaggedWorld via [EnableTags])
 var player = EntityBuilder.Create()
     .Add(new Position { X = 0, Y = 0, Z = 0 })
-    .Add(default(PlayerTag))  // Tag components use default value
+    .AddTag(default(PlayerTag), world)
+    .AddTag(default(IsActive), world)
     .Build(world);
 ```
 
@@ -170,6 +213,28 @@ if (world.IsAlive(entity))
 world.Clear();
 ```
 
+### Tag Operations
+
+Tags provide lightweight boolean flags for entity classification (requires `[EnableTags]`):
+
+```csharp
+// Check if entity has tag
+if (world.HasTag<PlayerTag>(entity))
+{
+    Console.WriteLine("This is a player");
+}
+
+// Add tag to entity
+world.AddTag<IsVisible>(entity);
+
+// Remove tag from entity
+world.RemoveTag<IsVisible>(entity);
+
+// Get all tags as a bitmask
+var tags = world.GetTags(entity);
+bool isActive = tags.Get(IsActive.TagId);
+```
+
 ## Query System
 
 Paradise.ECS provides multiple ways to query and iterate over entities, from low-level to high-level APIs.
@@ -206,6 +271,43 @@ var combatantQuery = QueryBuilder.Create()
     .WithAny<PlayerTag>()
     .WithAny<EnemyTag>()
     .Build(world);
+```
+
+### Tag-Based Queries
+
+With `[EnableTags]`, use `world.Query()` for tag-filtered queries:
+
+```csharp
+// Query entities with specific tag
+var activeQuery = world.Query()
+    .WithTag<IsActive>()
+    .Build();
+
+foreach (var entity in activeQuery)
+{
+    // entity is WorldEntity with Get<T>() for component access
+    Console.WriteLine($"Active entity: {entity.Entity.Id}");
+}
+
+// Query with multiple tags
+var activeVisibleQuery = world.Query()
+    .WithTag<IsActive>()
+    .WithTag<IsVisible>()
+    .Build();
+
+// Combine tags with component filters
+var activeMovableQuery = world.Query()
+    .WithTag<IsActive>()
+    .With<Position>()
+    .With<Velocity>()
+    .Build();
+
+foreach (var entity in activeMovableQuery)
+{
+    var pos = entity.Get<Position>();
+    var vel = entity.Get<Velocity>();
+    Console.WriteLine($"Entity {entity.Entity.Id}: pos={pos}, vel={vel}");
+}
 ```
 
 ### Queryable Structs (Type-Safe Generated Queries)
@@ -363,9 +465,11 @@ foreach (var chunkInfo in query.Chunks)
 |---------|-------------|
 | **Entity** | A unique identifier (ID + Version) representing a game object |
 | **Component** | Plain data attached to entities (unmanaged structs) |
+| **Tag** | Lightweight boolean flag for entity classification (stored as bits, not in archetype) |
 | **Archetype** | A unique combination of component types; entities with the same components share an archetype |
 | **Chunk** | A 16KB memory block storing entity data in SoA layout |
 | **World** | The container that manages entities, components, and archetypes |
+| **TaggedWorld** | World wrapper that adds tag operations (enabled via `[EnableTags]`) |
 | **Query** | A filter for finding entities with specific component combinations |
 | **Queryable** | A source-generated type-safe query struct with direct component access |
 
@@ -395,17 +499,18 @@ src/
 │   ├── Entities/              # Entity, EntityManager, EntityLocation
 │   ├── Memory/                # Chunk-based memory management
 │   ├── Query/                 # Query builder, attributes, and execution
+│   ├── Tags/                  # Tag system (TaggedWorld, ChunkTagRegistry)
 │   ├── Types/                 # BitSet, HashedKey, and utilities
 │   └── World/                 # World API, EntityBuilder, WorldQuery
 ├── Paradise.ECS.Concurrent/   # Thread-safe ECS variant (lock-free operations)
 ├── Paradise.ECS.Generators/   # Source generators
-│   ├── ComponentGenerator     # Generates IComponent implementations
+│   ├── ComponentGenerator     # Generates IComponent, ITag implementations
 │   └── QueryableGenerator     # Generates type-safe query structs
 ├── Paradise.ECS.Test/         # Unit tests (TUnit framework)
 ├── Paradise.ECS.Concurrent.Test/ # Concurrent implementation tests
 ├── Paradise.ECS.Benchmarks/   # Performance benchmarks
 ├── Paradise.ECS.CoyoteTest/   # Formal concurrency verification
-└── Paradise.ECS.IntegrationTest/ # Integration tests and examples
+└── Paradise.ECS.Sample/       # Sample application demonstrating ECS usage
 ```
 
 ## Source Generators
@@ -414,14 +519,21 @@ Paradise.ECS uses Roslyn source generators to provide compile-time type safety a
 
 ### ComponentGenerator
 
-Processes structs marked with `[Component]` and generates:
+Processes structs marked with `[Component]` and `[Tag]`, and generates:
 
 | Generated File | Contents |
 |---------------|----------|
 | `{TypeName}.g.cs` | Partial struct implementing `IComponent` with `TypeId`, `Guid`, `Size`, `Alignment` |
+| `{TagName}.g.cs` | Partial struct implementing `ITag` with `TagId`, `Guid` |
 | `ComponentRegistry.g.cs` | Type-to-ID and GUID-to-ID mappings with module initializer |
+| `TagRegistry.g.cs` | Tag-to-ID mappings, `EntityTags` component, `TagMask` type |
 | `ComponentAliases.g.cs` | Global using aliases for `World`, `Query`, `ComponentMask`, etc. |
 | `DefaultChunkManager.g.cs` | Factory class for creating ChunkManager with default config |
+
+When `[EnableTags]` is present, the generator also creates:
+- `EntityTags` component storing per-entity tag bits
+- `TagMask` type alias for the tag bitmask
+- `World` alias pointing to `TaggedWorld` instead of plain `World`
 
 **Component ID Assignment:**
 1. Components with manual `Id = N` are assigned first
@@ -490,6 +602,9 @@ You can then define your own local aliases or use fully qualified types.
 | `[assembly: ComponentRegistryNamespace("Namespace")]` | Assembly | Override namespace for generated ComponentRegistry |
 | `[DefaultConfig]` | Struct/Class | Mark an `IConfig` implementation as default for World alias |
 | `[assembly: SuppressGlobalUsings]` | Assembly | Disable global using alias generation |
+| `[assembly: EnableTags]` | Assembly | Enable tag system and generate `TaggedWorld` as `World` alias |
+| `[Tag]` | Struct | Define a tag type with auto-assigned ID |
+| `[Tag("guid")]` | Struct | Define a tag with stable GUID for serialization |
 
 ## Configuration
 
@@ -564,8 +679,8 @@ dotnet test
 dotnet test --project src/Paradise.ECS.Test/Paradise.ECS.Test.csproj \
   -- --treenode-filter "/Paradise.ECS.Test/Paradise.ECS.Test/WorldTests/*"
 
-# Run integration test
-dotnet run --project src/Paradise.ECS.IntegrationTest/Paradise.ECS.IntegrationTest.csproj
+# Run sample application
+dotnet run --project src/Paradise.ECS.Sample/Paradise.ECS.Sample.csproj
 
 # AOT publish (verify AOT compatibility)
 dotnet publish src/Paradise.ECS.Test/Paradise.ECS.Test.csproj -c Release
