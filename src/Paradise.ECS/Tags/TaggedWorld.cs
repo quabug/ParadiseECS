@@ -87,29 +87,17 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     /// </summary>
     /// <param name="entity">The entity to despawn.</param>
     /// <returns>True if the entity was despawned; false if it was already dead.</returns>
+    /// <remarks>
+    /// The chunk tag mask is not recomputed immediately (sticky mask optimization).
+    /// Call <see cref="RebuildChunkMasks"/> to clean up stale bits if needed.
+    /// </remarks>
     public bool Despawn(Entity entity)
     {
         if (!_world.IsAlive(entity))
             return false;
 
-        // Capture location before despawn for chunk tag registry update
-        var location = _world.GetLocation(entity);
-        var archetype = _world.Registry.GetById(location.ArchetypeId)!;
-        var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
-        var chunkHandle = archetype.GetChunk(chunkIndex);
-
-        // Check if entity has EntityTags component (entities created via EntityBuilder may not have it)
-        var hasEntityTags = archetype.Layout.HasComponent<TEntityTags>();
-
-        // Despawn the entity
+        // Despawn the entity - chunk mask not recomputed (sticky mask optimization)
         _world.Despawn(entity);
-
-        // Recompute chunk tag mask only if the archetype had EntityTags
-        if (hasEntityTags)
-        {
-            RecomputeChunkMask(chunkHandle, archetype, chunkIndex);
-        }
-
         return true;
     }
 
@@ -121,6 +109,33 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     {
         _world.Clear();
         _chunkTagRegistry.Clear();
+    }
+
+    /// <summary>
+    /// Rebuilds all chunk tag masks by scanning all entities.
+    /// Call this to clean up stale bits after tag removals or despawns.
+    /// </summary>
+    /// <remarks>
+    /// This operation is O(n) where n is the total number of entities.
+    /// Best called at natural breakpoints (level transitions, loading screens).
+    /// </remarks>
+    public void RebuildChunkMasks()
+    {
+        // Clear all existing masks
+        _chunkTagRegistry.Clear();
+
+        // Iterate all archetypes and rebuild masks
+        // Use a query that matches all archetypes with EntityTags component
+        var query = QueryBuilder<TBits>.Create().With<TEntityTags>().Build(_world);
+        foreach (var archetype in query.Query.Archetypes)
+        {
+            int chunkCount = archetype.ChunkCount;
+            for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+            {
+                var chunkHandle = archetype.GetChunk(chunkIndex);
+                RecomputeChunkMask(chunkHandle, archetype, chunkIndex);
+            }
+        }
     }
 
     /// <summary>
@@ -166,18 +181,18 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     /// </summary>
     /// <typeparam name="TTag">The tag type to remove.</typeparam>
     /// <param name="entity">The entity to remove the tag from.</param>
+    /// <remarks>
+    /// The chunk tag mask is not recomputed immediately (sticky mask optimization).
+    /// This may result in false positives during tag queries, which is safe but may
+    /// cause queries to check a few extra entities. Call <see cref="RebuildChunkMasks"/>
+    /// to clean up stale bits if needed.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RemoveTag<TTag>(Entity entity) where TTag : ITag
     {
         ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
         tags.Mask = tags.Mask.Clear(TTag.TagId);
-
-        // Recompute chunk tag mask (since we removed a tag, the chunk mask may need updating)
-        var location = _world.GetLocation(entity);
-        var archetype = _world.Registry.GetById(location.ArchetypeId)!;
-        var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
-        var chunkHandle = archetype.GetChunk(chunkIndex);
-        RecomputeChunkMask(chunkHandle, archetype, chunkIndex);
+        // Chunk mask not recomputed (sticky mask) - may have stale bits
     }
 
     /// <summary>
@@ -209,32 +224,25 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     /// </summary>
     /// <param name="entity">The entity to set tags on.</param>
     /// <param name="tags">The tag mask to set.</param>
+    /// <remarks>
+    /// When tags are removed, the chunk tag mask is not recomputed (sticky mask optimization).
+    /// Call <see cref="RebuildChunkMasks"/> to clean up stale bits if needed.
+    /// </remarks>
     public void SetTags(Entity entity, TTagMask tags)
     {
         ref var entityTags = ref _world.GetComponentRef<TEntityTags>(entity);
         var oldMask = entityTags.Mask;
         entityTags.Mask = tags;
 
-        // If tags changed, we need to update the chunk mask
-        var addedTags = tags.AndNot(oldMask);   // tags in new but not in old
-        var removedTags = oldMask.AndNot(tags); // tags in old but not in new
-
-        var location = _world.GetLocation(entity);
-        var archetype = _world.Registry.GetById(location.ArchetypeId)!;
-        var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
-        var chunkHandle = archetype.GetChunk(chunkIndex);
+        // Only update chunk mask for added tags (sticky mask optimization)
+        var addedTags = tags.AndNot(oldMask); // tags in new but not in old
 
         if (!addedTags.Equals(default(TTagMask)))
         {
-            // OR the new tags into the chunk mask
+            var chunkHandle = GetEntityChunkHandle(entity);
             _chunkTagRegistry.OrChunkMask(chunkHandle, addedTags);
         }
-
-        if (!removedTags.Equals(default(TTagMask)))
-        {
-            // Recompute chunk mask since tags were removed
-            RecomputeChunkMask(chunkHandle, archetype, chunkIndex);
-        }
+        // Removed tags: chunk mask not recomputed (sticky) - may have stale bits
     }
 
     /// <summary>

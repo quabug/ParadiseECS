@@ -509,7 +509,7 @@ public sealed class TaggedWorldTests : IDisposable
     }
 
     [Test]
-    public async Task ChunkTagRegistry_RemoveLastTagOfType_ClearsFromChunkMask()
+    public async Task ChunkTagRegistry_RemoveLastTagOfType_StickyMaskRetainsBit()
     {
         var e1 = _world.Spawn();
         var e2 = _world.Spawn();
@@ -525,9 +525,16 @@ public sealed class TaggedWorldTests : IDisposable
         var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
 
+        // Sticky mask: bit remains set even after removing last entity with that tag
         var chunkMask = _world.ChunkTagRegistry.GetChunkMask(chunkHandle);
-        await Assert.That(chunkMask.Get(TestIsActive.TagId.Value)).IsFalse(); // No longer set
+        await Assert.That(chunkMask.Get(TestIsActive.TagId.Value)).IsTrue(); // Sticky - still set
         await Assert.That(chunkMask.Get(TestIsEnemy.TagId.Value)).IsTrue();
+
+        // After RebuildChunkMasks, the stale bit is cleared
+        _world.RebuildChunkMasks();
+        var rebuiltMask = _world.ChunkTagRegistry.GetChunkMask(chunkHandle);
+        await Assert.That(rebuiltMask.Get(TestIsActive.TagId.Value)).IsFalse(); // Now cleared
+        await Assert.That(rebuiltMask.Get(TestIsEnemy.TagId.Value)).IsTrue();
     }
 
     [Test]
