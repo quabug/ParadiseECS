@@ -995,7 +995,7 @@ public class ComponentGeneratorSuppressGlobalUsingsTests
         var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
 
         await Assert.That(aliases).IsNotNull();
-        await Assert.That(aliases).Contains("All global usings suppressed by [assembly: SuppressGlobalUsings]");
+        await Assert.That(aliases).Contains("Global usings suppressed by [assembly: SuppressGlobalUsings]");
     }
 
     [Test]
