@@ -30,7 +30,7 @@ public sealed unsafe class ChunkManager : IChunkManager
 
     private readonly int _chunkSize;
     private readonly IAllocator _allocator;
-    private readonly ChunkArray<ChunkMeta> _metaList;
+    private readonly ChunkArray<ChunkMeta> _metas;
     private readonly Stack<int> _freeSlots = new();
     private int _nextSlotId; // Next fresh slot ID to allocate
     private bool _disposed;
@@ -55,7 +55,7 @@ public sealed unsafe class ChunkManager : IChunkManager
         if (initialBlocks < 1) initialBlocks = 1;
         else if (initialBlocks > maxMetaBlocks) initialBlocks = maxMetaBlocks;
 
-        _metaList = new ChunkArray<ChunkMeta>(allocator, chunkSize, maxMetaBlocks, initialBlocks);
+        _metas = new ChunkArray<ChunkMeta>(allocator, chunkSize, maxMetaBlocks, initialBlocks);
     }
 
     public static ChunkManager Create<TConfig>() where TConfig : IConfig, new() => Create(new TConfig());
@@ -68,7 +68,7 @@ public sealed unsafe class ChunkManager : IChunkManager
     /// Gets a reference to the metadata for a given slot id.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ref ChunkMeta GetMeta(int id) => ref _metaList.GetRef(id);
+    private ref ChunkMeta GetMeta(int id) => ref _metas.GetRef(id);
 
     /// <summary>
     /// Allocates a new Chunk and returns a handle to it.
@@ -83,11 +83,11 @@ public sealed unsafe class ChunkManager : IChunkManager
             id = _nextSlotId;
             _nextSlotId++;
 
-            if (id >= _metaList.MaxCapacity)
-                ThrowHelper.ThrowChunkManagerCapacityExceeded(_metaList.MaxBlocks, _metaList.EntriesPerBlock);
+            if (id >= _metas.MaxCapacity)
+                ThrowHelper.ThrowChunkManagerCapacityExceeded(_metas.MaxBlocks, _metas.EntriesPerBlock);
 
             // Ensure the block is allocated
-            _metaList.EnsureCapacity(id);
+            _metas.EnsureCapacity(id);
         }
 
         ref var meta = ref GetMeta(id);
@@ -224,7 +224,7 @@ public sealed unsafe class ChunkManager : IChunkManager
         // Free all data chunk memory first
         for (int id = 0; id < _nextSlotId; id++)
         {
-            ref var meta = ref _metaList.GetRef(id);
+            ref var meta = ref _metas.GetRef(id);
             if (meta.Pointer != 0)
             {
                 _allocator.Free((void*)meta.Pointer);
@@ -233,7 +233,7 @@ public sealed unsafe class ChunkManager : IChunkManager
         }
 
         // Then dispose the meta list (frees meta blocks)
-        _metaList.Dispose();
+        _metas.Dispose();
 
         _freeSlots.Clear();
         _nextSlotId = 0;

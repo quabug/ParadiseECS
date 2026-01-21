@@ -19,7 +19,7 @@ namespace Paradise.ECS;
 public sealed class ChunkTagRegistry<TTagMask> : IDisposable
     where TTagMask : unmanaged, IBitSet<TTagMask>
 {
-    private readonly ChunkArray<TTagMask> _maskList;
+    private readonly ChunkArray<TTagMask> _masks;
 
     /// <summary>
     /// Creates a new ChunkTagRegistry with the specified allocator and capacity.
@@ -29,7 +29,7 @@ public sealed class ChunkTagRegistry<TTagMask> : IDisposable
     /// <param name="blockByteSize">The size of each block in bytes (e.g., 16384 for 16KB blocks).</param>
     public ChunkTagRegistry(IAllocator allocator, int maxMetaBlocks, int blockByteSize)
     {
-        _maskList = new ChunkArray<TTagMask>(allocator, blockByteSize, maxMetaBlocks);
+        _masks = new ChunkArray<TTagMask>(allocator, blockByteSize, maxMetaBlocks);
     }
 
     /// <summary>
@@ -40,7 +40,7 @@ public sealed class ChunkTagRegistry<TTagMask> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public TTagMask GetChunkMask(ChunkHandle chunkHandle)
     {
-        return _maskList.GetValueOrDefault(chunkHandle.Id);
+        return _masks.GetValueOrDefault(chunkHandle.Id);
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public sealed class ChunkTagRegistry<TTagMask> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void SetChunkMask(ChunkHandle chunkHandle, TTagMask mask)
     {
-        _maskList.SetValue(chunkHandle.Id, mask);
+        _masks.SetValue(chunkHandle.Id, mask);
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ public sealed class ChunkTagRegistry<TTagMask> : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void OrChunkMask(ChunkHandle chunkHandle, TTagMask tagBit)
     {
-        ref var chunkMask = ref _maskList.GetOrCreateRef(chunkHandle.Id);
+        ref var chunkMask = ref _masks.GetOrCreateRef(chunkHandle.Id);
         chunkMask = chunkMask.Or(tagBit);
     }
 
@@ -84,7 +84,7 @@ public sealed class ChunkTagRegistry<TTagMask> : IDisposable
     /// </summary>
     public void Clear()
     {
-        _maskList.Clear();
+        _masks.Clear();
     }
 
     /// <summary>
@@ -92,6 +92,6 @@ public sealed class ChunkTagRegistry<TTagMask> : IDisposable
     /// </summary>
     public void Dispose()
     {
-        _maskList.Dispose();
+        _masks.Dispose();
     }
 }
