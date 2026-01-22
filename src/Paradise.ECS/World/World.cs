@@ -30,6 +30,11 @@ public sealed class World<TBits, TRegistry, TConfig>
     }
 
     /// <summary>
+    /// Gets all archetypes in this world.
+    /// </summary>
+    internal IReadOnlyList<Archetype<TBits, TRegistry, TConfig>?> Archetypes => _archetypeRegistry.Archetypes;
+
+    /// <summary>
     /// Creates a new ECS world using the specified configuration and shared archetype metadata.
     /// The caller is responsible for disposing the shared metadata and chunk manager.
     /// </summary>
@@ -50,19 +55,6 @@ public sealed class World<TBits, TRegistry, TConfig>
         // Create the empty archetype for componentless entities
         _emptyArchetype = _archetypeRegistry.GetOrCreate(
             (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
-    }
-
-    /// <summary>
-    /// Creates a new ECS world using default configuration and shared archetype metadata.
-    /// Uses <c>new TConfig()</c> for configuration with default property values.
-    /// The caller is responsible for disposing the shared metadata and chunk manager.
-    /// </summary>
-    /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
-    /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
-                 ChunkManager chunkManager)
-        : this(new TConfig(), sharedMetadata, chunkManager)
-    {
     }
 
     /// <summary>

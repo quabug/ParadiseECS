@@ -301,11 +301,23 @@ public class TagMaskTests
 /// </summary>
 public sealed class TaggedWorldTests : IDisposable
 {
-    private readonly World _world = new();
+    private static readonly DefaultConfig s_config = new();
+    private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
+    private readonly SharedArchetypeMetadata _sharedMetadata = new(s_config);
+    private readonly ChunkTagRegistry<TagMask> _chunkTagRegistry = new(s_config.ChunkAllocator, DefaultConfig.MaxMetaBlocks, DefaultConfig.ChunkSize);
+    private readonly World _world;
+
+    public TaggedWorldTests()
+    {
+        _world = new World(_chunkManager, _sharedMetadata, _chunkTagRegistry);
+    }
 
     public void Dispose()
     {
         _world.Dispose();
+        _sharedMetadata.Dispose();
+        _chunkManager.Dispose();
+        _chunkTagRegistry.Dispose();
     }
 
     [Test]
@@ -770,5 +782,115 @@ public sealed class TaggedWorldTests : IDisposable
         await Assert.That(matchedEntities).Contains(e2);       // Has both
         await Assert.That(matchedEntities).DoesNotContain(e3); // Only TestIsEnemy
         await Assert.That(matchedEntities.Count).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ComputeStaleBitStatistics_NoTags_ReturnsZeroStats()
+    {
+        // Spawn some entities without any tags
+        _ = _world.Spawn();
+        _ = _world.Spawn();
+
+        var stats = _world.ComputeStaleBitStatistics();
+
+        await Assert.That(stats.TotalStaleBits).IsEqualTo(0);
+        await Assert.That(stats.TotalActualBits).IsEqualTo(0);
+        await Assert.That(stats.ChunksWithStaleBits).IsEqualTo(0);
+        await Assert.That(stats.StaleBitRatio).IsEqualTo(0.0);
+        await Assert.That(stats.SuggestsRebuild).IsFalse();
+    }
+
+    [Test]
+    public async Task ComputeStaleBitStatistics_NoStaleBits_ReturnsZeroStaleBits()
+    {
+        var e1 = _world.Spawn();
+        var e2 = _world.Spawn();
+
+        _world.AddTag<TestIsActive>(e1);
+        _world.AddTag<TestIsEnemy>(e2);
+
+        var stats = _world.ComputeStaleBitStatistics();
+
+        await Assert.That(stats.TotalStaleBits).IsEqualTo(0);
+        await Assert.That(stats.TotalActualBits).IsEqualTo(2); // Two actual tag bits
+        await Assert.That(stats.ChunksWithStaleBits).IsEqualTo(0);
+        await Assert.That(stats.StaleBitRatio).IsEqualTo(0.0);
+        await Assert.That(stats.SuggestsRebuild).IsFalse();
+    }
+
+    [Test]
+    public async Task ComputeStaleBitStatistics_WithStaleBits_ReportsCorrectly()
+    {
+        var e1 = _world.Spawn();
+        var e2 = _world.Spawn();
+
+        _world.AddTag<TestIsActive>(e1);
+        _world.AddTag<TestIsEnemy>(e1);
+        _world.AddTag<TestIsActive>(e2);
+
+        // Remove TestIsEnemy from e1 - creates a stale bit
+        _world.RemoveTag<TestIsEnemy>(e1);
+
+        var stats = _world.ComputeStaleBitStatistics();
+
+        // Total actual bits: TestIsActive on e1, TestIsActive on e2 = 2 (counted per chunk, OR'd together = 1)
+        // Wait, this is per-chunk counting. Both entities are in same chunk.
+        // Chunk mask has TestIsActive and TestIsEnemy (sticky).
+        // Actual mask: TestIsActive only (since TestIsEnemy was removed).
+        // Current mask bits: 2 (TestIsActive + TestIsEnemy)
+        // Actual mask bits: 1 (TestIsActive only)
+        // Stale bits: 2 - 1 = 1
+        await Assert.That(stats.TotalStaleBits).IsEqualTo(1);
+        await Assert.That(stats.TotalActualBits).IsEqualTo(1);
+        await Assert.That(stats.ChunksWithStaleBits).IsEqualTo(1);
+        await Assert.That(stats.StaleBitRatio).IsEqualTo(0.5); // 1/(1+1) = 0.5
+    }
+
+    [Test]
+    public async Task ComputeStaleBitStatistics_AfterRebuild_ReturnsZeroStaleBits()
+    {
+        var e1 = _world.Spawn();
+
+        _world.AddTag<TestIsActive>(e1);
+        _world.AddTag<TestIsEnemy>(e1);
+
+        // Remove tag to create stale bit
+        _world.RemoveTag<TestIsEnemy>(e1);
+
+        // Verify stale bits exist before rebuild
+        var statsBefore = _world.ComputeStaleBitStatistics();
+        await Assert.That(statsBefore.TotalStaleBits).IsGreaterThan(0);
+
+        // Rebuild clears stale bits
+        _world.RebuildChunkMasks();
+
+        var statsAfter = _world.ComputeStaleBitStatistics();
+        await Assert.That(statsAfter.TotalStaleBits).IsEqualTo(0);
+        await Assert.That(statsAfter.ChunksWithStaleBits).IsEqualTo(0);
+        await Assert.That(statsAfter.SuggestsRebuild).IsFalse();
+    }
+
+    [Test]
+    public async Task StaleBitStatistics_SuggestsRebuild_HighStaleBitRatio()
+    {
+        var e1 = _world.Spawn();
+
+        // Add multiple tags then remove most of them
+        _world.AddTag<TestIsActive>(e1);
+        _world.AddTag<TestIsEnemy>(e1);
+        _world.AddTag<TestIsPlayer>(e1);
+
+        _world.RemoveTag<TestIsEnemy>(e1);
+        _world.RemoveTag<TestIsPlayer>(e1);
+
+        var stats = _world.ComputeStaleBitStatistics();
+
+        // Current mask: 3 bits (TestIsActive, TestIsEnemy, TestIsPlayer - sticky)
+        // Actual mask: 1 bit (TestIsActive only)
+        // Stale bits: 2, Actual bits: 1
+        // Ratio: 2/3 ≈ 0.67 > 0.5
+        await Assert.That(stats.TotalStaleBits).IsEqualTo(2);
+        await Assert.That(stats.TotalActualBits).IsEqualTo(1);
+        await Assert.That(stats.SuggestsRebuild).IsTrue();
     }
 }

@@ -1,6 +1,70 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Paradise.ECS;
+
+/// <summary>
+/// Diagnostic information about stale bits in chunk tag masks.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Stale bits occur when tags are removed from entities but the chunk mask retains the bit
+/// (sticky mask optimization). This optimization avoids expensive O(n) scans on every tag
+/// removal, but can accumulate false-positive bits over time.
+/// </para>
+/// <para>
+/// <b>Query Performance Impact:</b> Each stale bit causes tag queries to potentially check
+/// chunks that no longer contain matching entities. For example, if a chunk mask has 3 stale
+/// bits for tag A, B, C but no entities actually have those tags, queries for A, B, or C will
+/// still examine this chunk before filtering at the entity level.
+/// </para>
+/// </remarks>
+/// <param name="TotalChunks">Total number of chunks analyzed.</param>
+/// <param name="ChunksWithStaleBits">Number of chunks that have at least one stale bit.</param>
+/// <param name="TotalStaleBits">Total count of stale bits across all chunks.</param>
+/// <param name="TotalActualBits">Total count of actual (non-stale) tag bits across all chunks.</param>
+public readonly record struct StaleBitStatistics(
+    int TotalChunks,
+    int ChunksWithStaleBits,
+    int TotalStaleBits,
+    int TotalActualBits)
+{
+    /// <summary>
+    /// Gets the ratio of stale bits to total bits (stale + actual).
+    /// Returns 0 if there are no bits at all.
+    /// </summary>
+    /// <remarks>
+    /// A ratio above 0.5 indicates that more than half the chunk mask bits are stale,
+    /// which may warrant calling <c>RebuildChunkMasks()</c>.
+    /// </remarks>
+    public double StaleBitRatio => TotalStaleBits + TotalActualBits == 0
+        ? 0
+        : (double)TotalStaleBits / (TotalStaleBits + TotalActualBits);
+
+    /// <summary>
+    /// Gets the ratio of chunks with stale bits to total chunks.
+    /// Returns 0 if there are no chunks.
+    /// </summary>
+    public double ChunksWithStaleBitsRatio => TotalChunks == 0
+        ? 0
+        : (double)ChunksWithStaleBits / TotalChunks;
+
+    /// <summary>
+    /// Gets whether the stale bit accumulation suggests rebuilding chunk masks.
+    /// Returns true when <see cref="StaleBitRatio"/> exceeds 0.5 or more than 25% of chunks have stale bits.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>When to Rebuild:</b> Consider calling <c>RebuildChunkMasks()</c> when:
+    /// <list type="bullet">
+    /// <item><description><see cref="StaleBitRatio"/> exceeds 0.5 (50% of bits are stale)</description></item>
+    /// <item><description><see cref="ChunksWithStaleBits"/> is significant relative to total chunks</description></item>
+    /// <item><description>Tag query performance degrades noticeably</description></item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    public bool SuggestsRebuild => StaleBitRatio > 0.5 || ChunksWithStaleBitsRatio > 0.25;
+}
 
 /// <summary>
 /// A world wrapper that provides tag support for entities.
@@ -23,32 +87,23 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
     where TTagMask : unmanaged, IBitSet<TTagMask>
 {
-    private readonly ChunkManager _chunkManager;
-    private readonly SharedArchetypeMetadata<TBits, TRegistry, TConfig> _sharedMetadata;
     private readonly World<TBits, TRegistry, TConfig> _world;
     private readonly ChunkTagRegistry<TTagMask> _chunkTagRegistry;
-    private bool _disposed;
 
     /// <summary>
-    /// Creates a new TaggedWorld with all subsystems using default configuration.
+    /// Creates a new TaggedWorld with externally provided subsystems.
+    /// The caller is responsible for disposing the provided resources.
     /// </summary>
-    public TaggedWorld() : this(new TConfig())
+    /// <param name="chunkManager">The chunk manager for memory allocation.</param>
+    /// <param name="sharedMetadata">The shared archetype metadata.</param>
+    /// <param name="chunkTagRegistry">The chunk tag registry for per-chunk tag filtering.</param>
+    public TaggedWorld(
+        ChunkManager chunkManager,
+        SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+        ChunkTagRegistry<TTagMask> chunkTagRegistry)
     {
-    }
-
-    /// <summary>
-    /// Creates a new TaggedWorld with all subsystems using the specified configuration.
-    /// </summary>
-    /// <param name="config">The configuration instance.</param>
-    public TaggedWorld(TConfig config)
-    {
-        _chunkManager = ChunkManager.Create(config);
-        _sharedMetadata = new SharedArchetypeMetadata<TBits, TRegistry, TConfig>(config);
-        _world = new World<TBits, TRegistry, TConfig>(config, _sharedMetadata, _chunkManager);
-        _chunkTagRegistry = new ChunkTagRegistry<TTagMask>(
-            config.ChunkAllocator,
-            TConfig.MaxMetaBlocks,
-            TConfig.ChunkSize);
+        _chunkTagRegistry = chunkTagRegistry;
+        _world = new World<TBits, TRegistry, TConfig>(new TConfig(), sharedMetadata, chunkManager);
     }
 
     /// <summary>
@@ -70,6 +125,20 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     /// Gets the current number of live entities.
     /// </summary>
     public int EntityCount => _world.EntityCount;
+
+    /// <summary>
+    /// Gets the archetypes from the underlying world.
+    /// </summary>
+    internal IReadOnlyList<Archetype<TBits, TRegistry, TConfig>?> Archetypes => _world.Archetypes;
+
+    /// <summary>
+    /// Disposes this TaggedWorld.
+    /// The caller is responsible for disposing the ChunkManager, SharedArchetypeMetadata, and ChunkTagRegistry.
+    /// </summary>
+    public void Dispose()
+    {
+        // No-op: caller owns ChunkManager, SharedArchetypeMetadata, and ChunkTagRegistry
+    }
 
     /// <summary>
     /// Spawns a new entity with the EntityTags component automatically added.
@@ -112,23 +181,81 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     }
 
     /// <summary>
+    /// Computes statistics about stale bits in chunk tag masks.
+    /// Use this to monitor whether <see cref="RebuildChunkMasks"/> should be called.
+    /// </summary>
+    /// <returns>A <see cref="StaleBitStatistics"/> containing diagnostic information.</returns>
+    /// <remarks>
+    /// <para>
+    /// Stale bits occur when tags are removed from entities but the chunk mask retains the bit
+    /// (sticky mask optimization). While this doesn't affect correctness, it can degrade query
+    /// performance by causing false-positive chunk matches.
+    /// </para>
+    /// <para>
+    /// This operation is O(n) where n is the total number of entities. Use sparingly in
+    /// performance-critical code paths.
+    /// </para>
+    /// </remarks>
+    public StaleBitStatistics ComputeStaleBitStatistics()
+    {
+        int totalChunks = 0;
+        int totalStaleBits = 0;
+        int totalActualBits = 0;
+        int chunksWithStaleBits = 0;
+
+        foreach (var archetype in _world.Archetypes)
+        {
+            if (archetype is null) continue;
+            Debug.Assert(archetype.Layout.ComponentMask.Get(TEntityTags.TypeId.Value));
+            int chunkCount = archetype.ChunkCount;
+            for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+            {
+                var chunkHandle = archetype.GetChunk(chunkIndex);
+                var currentMask = _chunkTagRegistry.GetChunkMask(chunkHandle);
+                var actualMask = ComputeActualChunkMask(archetype, chunkIndex);
+
+                int currentBits = currentMask.PopCount();
+                int actualBits = actualMask.PopCount();
+                int staleBits = currentBits - actualBits;
+
+                totalChunks++;
+                totalStaleBits += staleBits;
+                totalActualBits += actualBits;
+                if (staleBits > 0)
+                    chunksWithStaleBits++;
+            }
+        }
+
+        return new StaleBitStatistics(totalChunks, chunksWithStaleBits, totalStaleBits, totalActualBits);
+    }
+
+    /// <summary>
     /// Rebuilds all chunk tag masks by scanning all entities.
     /// Call this to clean up stale bits after tag removals or despawns.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// This operation is O(n) where n is the total number of entities.
     /// Best called at natural breakpoints (level transitions, loading screens).
+    /// </para>
+    /// <para>
+    /// <b>Performance Impact of Stale Bits:</b> Stale bits cause tag queries to check chunks
+    /// that no longer contain matching entities. For workloads with frequent tag removals,
+    /// consider calling this method periodically or when <see cref="ComputeStaleBitStatistics"/>
+    /// shows high stale bit counts.
+    /// </para>
     /// </remarks>
     public void RebuildChunkMasks()
     {
         // Clear all existing masks
         _chunkTagRegistry.Clear();
 
-        // Iterate all archetypes and rebuild masks
-        // Use a query that matches all archetypes with EntityTags component
-        var query = QueryBuilder<TBits>.Create().With<TEntityTags>().Build(_world);
-        foreach (var archetype in query.Query.Archetypes)
+        // Iterate all archetypes that have EntityTags component
+        foreach (var archetype in _world.Archetypes)
         {
+            if (archetype is null) continue;
+            Debug.Assert(archetype.Layout.ComponentMask.Get(TEntityTags.TypeId.Value));
+
             int chunkCount = archetype.ChunkCount;
             for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
             {
@@ -136,19 +263,6 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
                 RecomputeChunkMask(chunkHandle, archetype, chunkIndex);
             }
         }
-    }
-
-    /// <summary>
-    /// Disposes of all owned resources (ChunkManager, SharedArchetypeMetadata, ChunkTagRegistry).
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
-
-        _chunkTagRegistry.Dispose();
-        _sharedMetadata.Dispose();
-        _chunkManager.Dispose();
     }
 
     /// <summary>
@@ -323,7 +437,19 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     /// <param name="chunkIndex">The chunk index within the archetype.</param>
     private void RecomputeChunkMask(ChunkHandle chunkHandle, Archetype<TBits, TRegistry, TConfig> archetype, int chunkIndex)
     {
-        var newMask = default(TTagMask);
+        var newMask = ComputeActualChunkMask(archetype, chunkIndex);
+        _chunkTagRegistry.SetChunkMask(chunkHandle, newMask);
+    }
+
+    /// <summary>
+    /// Computes the actual tag mask for a chunk by OR-ing all entity tag masks.
+    /// </summary>
+    /// <param name="archetype">The archetype containing the chunk.</param>
+    /// <param name="chunkIndex">The chunk index within the archetype.</param>
+    /// <returns>The computed tag mask representing the union of all entity tags in the chunk.</returns>
+    private TTagMask ComputeActualChunkMask(Archetype<TBits, TRegistry, TConfig> archetype, int chunkIndex)
+    {
+        var mask = default(TTagMask);
 
         // Calculate how many entities are in this specific chunk
         int entitiesPerChunk = archetype.Layout.EntitiesPerChunk;
@@ -342,12 +468,10 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
         }
 
         if (entityCountInChunk <= 0)
-        {
-            _chunkTagRegistry.SetChunkMask(chunkHandle, default);
-            return;
-        }
+            return mask;
 
         // Get chunk data and compute union of all entity tag masks
+        var chunkHandle = archetype.GetChunk(chunkIndex);
         var bytes = _world.ChunkManager.GetBytes(chunkHandle);
         int baseOffset = archetype.Layout.GetBaseOffset<TEntityTags>();
         int entityTagsSize = TRegistry.TypeInfos[TEntityTags.TypeId.Value].Size;
@@ -355,10 +479,10 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
         for (int i = 0; i < entityCountInChunk; i++)
         {
             ref var entityTags = ref bytes.GetRef<TEntityTags>(baseOffset + i * entityTagsSize);
-            newMask = newMask.Or(entityTags.Mask);
+            mask = mask.Or(entityTags.Mask);
         }
 
-        _chunkTagRegistry.SetChunkMask(chunkHandle, newMask);
+        return mask;
     }
 }
 
