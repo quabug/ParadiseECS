@@ -29,7 +29,9 @@ public class DefaultConfigAttributeTests
             }
             """;
 
-        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+        // Use includeTagReference: false to test non-tagged World alias
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
         await Assert.That(aliases).Contains("global using World = global::Paradise.ECS.World<");
@@ -61,7 +63,9 @@ public class DefaultConfigAttributeTests
             }
             """;
 
-        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+        // Use includeTagReference: false to test non-tagged World alias
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
         await Assert.That(aliases).Contains("global using ComponentMask = global::Paradise.ECS.ImmutableBitSet<");

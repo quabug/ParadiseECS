@@ -767,7 +767,9 @@ public class ComponentGeneratorBitStorageTests
             public partial struct Component1 { public int X; }
             """;
 
-        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+        // Use includeTagReference: false to test non-tagged World alias
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
         await Assert.That(aliases).Contains("using Bit64");
@@ -807,7 +809,8 @@ public class ComponentGeneratorNoComponentsTests
             }
             """;
 
-        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+        // Use includeTagReference: false to ensure no auto-generated EntityTags
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
 
         await Assert.That(sources.Length).IsEqualTo(0);
     }
@@ -817,7 +820,8 @@ public class ComponentGeneratorNoComponentsTests
     {
         const string source = "";
 
-        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+        // Use includeTagReference: false to ensure no auto-generated EntityTags
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
 
         await Assert.That(sources.Length).IsEqualTo(0);
     }
@@ -1015,7 +1019,9 @@ public class ComponentGeneratorSuppressGlobalUsingsTests
             public partial struct Velocity { public float X; }
             """;
 
-        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+        // Use includeTagReference: false to test exact component count without auto-generated EntityTags
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
         await Assert.That(aliases).Contains("Component count: 2");
