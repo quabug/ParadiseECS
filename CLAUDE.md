@@ -97,6 +97,19 @@ The ECS uses a custom memory management system optimized for cache-friendly iter
 - **QueryBuilder**: Immutable ref struct builder for creating queries with fluent API (With, Without, WithAny).
 - **ImmutableQueryDescription**: Record struct defining query constraints (All, None, Any masks). Cached in registry with HashedKey for fast lookup.
 
+### Tag System (src/Paradise.ECS.Tag/)
+
+- **TaggedWorld**: World wrapper that adds tag support. Tags stored as bitmask in auto-generated `EntityTags` component.
+- **ChunkTagRegistry**: Tracks per-chunk tag masks for chunk-level query filtering.
+- **TaggedWorldQueryBuilder**: Fluent API for building tag-filtered queries.
+- **StaleBitStatistics**: Diagnostic record for monitoring sticky mask accumulation.
+
+**Sticky Mask Trade-off:**
+- Tag removal doesn't recompute chunk masks (O(1) removal vs O(n) per-chunk scan)
+- Stale bits may cause false-positive chunk matches during tag queries
+- `ComputeStaleBitStatistics()` diagnoses stale bit accumulation
+- `RebuildChunkMasks()` clears stale bits (O(n) full scan, call at natural breakpoints)
+
 ### Global Limits & Validation
 
 - **IConfig**: Static configuration interface with system-wide limits and configurable parameters.

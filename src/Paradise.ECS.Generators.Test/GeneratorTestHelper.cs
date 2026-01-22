@@ -15,23 +15,23 @@ public static class GeneratorTestHelper
     /// <summary>
     /// Creates a compilation with the given source code and runs the ComponentGenerator.
     /// </summary>
-    public static GeneratorDriverRunResult RunGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null)
+    public static GeneratorDriverRunResult RunGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null, bool includeTagReference = true)
     {
-        return RunGenerators(source, [new ComponentGenerator()], includeEcsReferences, rootNamespace);
+        return RunGenerators(source, [new ComponentGenerator()], includeEcsReferences, rootNamespace, includeTagReference);
     }
 
     /// <summary>
     /// Creates a compilation with the given source code and runs the QueryableGenerator.
     /// </summary>
-    public static GeneratorDriverRunResult RunQueryableGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null)
+    public static GeneratorDriverRunResult RunQueryableGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null, bool includeTagReference = true)
     {
-        return RunGenerators(source, [new ComponentGenerator(), new QueryableGenerator()], includeEcsReferences, rootNamespace);
+        return RunGenerators(source, [new ComponentGenerator(), new QueryableGenerator()], includeEcsReferences, rootNamespace, includeTagReference);
     }
 
     /// <summary>
     /// Creates a compilation with the given source code and runs specified generators.
     /// </summary>
-    private static GeneratorDriverRunResult RunGenerators(string source, IIncrementalGenerator[] generators, bool includeEcsReferences = true, string? rootNamespace = null)
+    private static GeneratorDriverRunResult RunGenerators(string source, IIncrementalGenerator[] generators, bool includeEcsReferences = true, string? rootNamespace = null, bool includeTagReference = true)
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source);
 
@@ -58,6 +58,11 @@ public static class GeneratorTestHelper
         if (includeEcsReferences)
         {
             references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.ComponentAttribute).Assembly.Location));
+            // Add Paradise.ECS.Tag reference if requested (enables tag generation)
+            if (includeTagReference)
+            {
+                references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.TagAttribute).Assembly.Location));
+            }
         }
 
         var compilation = CSharpCompilation.Create(
@@ -130,9 +135,9 @@ public static class GeneratorTestHelper
     /// <summary>
     /// Runs the generator and returns the generated source texts.
     /// </summary>
-    public static ImmutableArray<(string HintName, string Source)> GetGeneratedSources(string source)
+    public static ImmutableArray<(string HintName, string Source)> GetGeneratedSources(string source, bool includeTagReference = true)
     {
-        var result = RunGenerator(source);
+        var result = RunGenerator(source, includeTagReference: includeTagReference);
         return [.. result.GeneratedTrees.Select(t => (
             Path.GetFileName(t.FilePath),
             t.GetText().ToString()
@@ -222,6 +227,7 @@ public static class GeneratorTestHelper
         if (includeEcsReferences)
         {
             references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.ComponentAttribute).Assembly.Location));
+            references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.TagAttribute).Assembly.Location));
         }
 
         var compilation = CSharpCompilation.Create(

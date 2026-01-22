@@ -767,7 +767,9 @@ public class ComponentGeneratorBitStorageTests
             public partial struct Component1 { public int X; }
             """;
 
-        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+        // Use includeTagReference: false to test non-tagged World alias
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
         await Assert.That(aliases).Contains("using Bit64");
@@ -807,7 +809,8 @@ public class ComponentGeneratorNoComponentsTests
             }
             """;
 
-        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+        // Use includeTagReference: false to ensure no auto-generated EntityTags
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
 
         await Assert.That(sources.Length).IsEqualTo(0);
     }
@@ -817,7 +820,8 @@ public class ComponentGeneratorNoComponentsTests
     {
         const string source = "";
 
-        var sources = GeneratorTestHelper.GetGeneratedSources(source);
+        // Use includeTagReference: false to ensure no auto-generated EntityTags
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
 
         await Assert.That(sources.Length).IsEqualTo(0);
     }
@@ -995,7 +999,7 @@ public class ComponentGeneratorSuppressGlobalUsingsTests
         var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
 
         await Assert.That(aliases).IsNotNull();
-        await Assert.That(aliases).Contains("All global usings suppressed by [assembly: SuppressGlobalUsings]");
+        await Assert.That(aliases).Contains("Global usings suppressed by [assembly: SuppressGlobalUsings]");
     }
 
     [Test]
@@ -1015,7 +1019,9 @@ public class ComponentGeneratorSuppressGlobalUsingsTests
             public partial struct Velocity { public float X; }
             """;
 
-        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+        // Use includeTagReference: false to test exact component count without auto-generated EntityTags
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
         await Assert.That(aliases).Contains("Component count: 2");
@@ -1068,6 +1074,155 @@ public class ComponentGeneratorSuppressGlobalUsingsTests
         // Registry should still be generated
         await Assert.That(registry).IsNotNull();
         await Assert.That(registry).Contains("public sealed class ComponentRegistry");
+    }
+}
+
+/// <summary>
+/// Tests for EntityTags auto-generation when Paradise.ECS.Tag is referenced.
+/// </summary>
+public class ComponentGeneratorEntityTagsAutoGenerationTests
+{
+    /// <summary>
+    /// Verifies that EntityTags is auto-generated when Paradise.ECS.Tag is referenced.
+    /// </summary>
+    [Test]
+    public async Task WithTagReference_AutoGeneratesEntityTags()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: true);
+        var entityTags = sources.FirstOrDefault(s => s.HintName == "Paradise_ECS_EntityTags.g.cs").Source;
+
+        await Assert.That(entityTags).IsNotNull();
+        await Assert.That(entityTags).Contains("struct EntityTags : global::Paradise.ECS.IComponent");
+        await Assert.That(entityTags).Contains("global::Paradise.ECS.IEntityTags");
+    }
+
+    /// <summary>
+    /// Verifies that user-defined EntityTags in the correct namespace prevents auto-generation.
+    /// </summary>
+    [Test]
+    public async Task UserDefinedEntityTags_InRootNamespace_PreventsAutoGeneration()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace Paradise.ECS;
+
+            [Component]
+            public partial struct EntityTags
+            {
+                public int CustomField;
+            }
+            """;
+
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: true);
+        var entityTags = sources.FirstOrDefault(s => s.HintName == "Paradise_ECS_EntityTags.g.cs").Source;
+
+        await Assert.That(entityTags).IsNotNull();
+        // Should be partial struct (user-defined), not auto-generated struct
+        await Assert.That(entityTags).Contains("partial struct EntityTags");
+        // Should NOT be a complete struct (auto-generated would not have partial)
+        await Assert.That(entityTags).DoesNotContain("private TagMask _mask"); // auto-generated EntityTags has _mask field
+    }
+
+    /// <summary>
+    /// Regression test: User-defined EntityTags in a DIFFERENT namespace should NOT prevent
+    /// auto-generation of {RootNamespace}.EntityTags.
+    ///
+    /// Bug: The generator was checking only TypeName == "EntityTags" without considering namespace,
+    /// so MyGame.EntityTags would incorrectly prevent Paradise.ECS.EntityTags from being generated.
+    /// </summary>
+    [Test]
+    public async Task UserDefinedEntityTags_InDifferentNamespace_StillAutoGeneratesRootNamespaceEntityTags()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace MyGame;
+
+            [Component]
+            public partial struct EntityTags
+            {
+                public int CustomField;
+            }
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: true);
+
+        // MyGame.EntityTags should be generated (user-defined, partial)
+        var myGameEntityTags = sources.FirstOrDefault(s => s.HintName == "MyGame_EntityTags.g.cs").Source;
+        await Assert.That(myGameEntityTags).IsNotNull();
+        await Assert.That(myGameEntityTags).Contains("partial struct EntityTags");
+
+        // Paradise.ECS.EntityTags should ALSO be auto-generated (different namespace)
+        var autoGeneratedEntityTags = sources.FirstOrDefault(s => s.HintName == "Paradise_ECS_EntityTags.g.cs").Source;
+        await Assert.That(autoGeneratedEntityTags).IsNotNull();
+        // Auto-generated EntityTags has IEntityTags interface and _mask field
+        await Assert.That(autoGeneratedEntityTags).Contains("struct EntityTags : global::Paradise.ECS.IComponent, global::Paradise.ECS.IEntityTags");
+    }
+
+    /// <summary>
+    /// Verifies the World alias points to TaggedWorld with the correct EntityTags type.
+    /// </summary>
+    [Test]
+    public async Task WithTagReference_WorldAliasUsesTaggedWorld()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: true);
+        var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
+
+        await Assert.That(aliases).IsNotNull();
+        await Assert.That(aliases).Contains("global using World = global::Paradise.ECS.TaggedWorld");
+        await Assert.That(aliases).Contains("global::Paradise.ECS.EntityTags");
+        await Assert.That(aliases).Contains("Tags enabled (Paradise.ECS.Tag referenced)");
+    }
+
+    /// <summary>
+    /// Verifies that without tag reference, EntityTags is not auto-generated and World alias
+    /// points to regular World (not TaggedWorld).
+    /// </summary>
+    [Test]
+    public async Task WithoutTagReference_NoEntityTagsGenerated()
+    {
+        const string source = """
+            using Paradise.ECS;
+
+            namespace TestNamespace;
+
+            [Component]
+            public partial struct Position { public float X; }
+            """;
+
+        var sources = GeneratorTestHelper.GetGeneratedSources(source, includeTagReference: false);
+        var entityTags = sources.FirstOrDefault(s => s.HintName == "Paradise_ECS_EntityTags.g.cs").Source;
+        var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
+
+        // No auto-generated EntityTags
+        await Assert.That(entityTags).IsNull();
+
+        // World alias points to regular World, not TaggedWorld
+        await Assert.That(aliases).IsNotNull();
+        await Assert.That(aliases).Contains("global using World = global::Paradise.ECS.World<");
+        await Assert.That(aliases).DoesNotContain("TaggedWorld");
     }
 }
 

@@ -65,3 +65,6 @@ tmpclaude-*
 
 # docs haven't ready yet
 docs/
+
+# Source generator output
+**/Generated/

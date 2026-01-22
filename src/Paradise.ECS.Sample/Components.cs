@@ -1,4 +1,4 @@
-namespace Paradise.ECS.IntegrationTest;
+namespace Paradise.ECS.Sample;
 
 // ============================================================================
 // Component Definitions
@@ -58,16 +58,11 @@ public partial struct Health
     public override readonly string ToString() => $"{Current}/{Max}";
 }
 
-/// <summary>
-/// Tag component for player entities (zero-size marker).
-/// </summary>
-[Component("D4E5F678-90AB-CDEF-1234-567890123456")]
+// Tags used as entity markers
+[Tag("D4E5F678-90AB-CDEF-1234-567890123456")]
 public partial struct PlayerTag;
 
-/// <summary>
-/// Tag component for enemy entities (zero-size marker).
-/// </summary>
-[Component("E5F67890-ABCD-EF12-3456-789012345678")]
+[Tag("E5F67890-ABCD-EF12-3456-789012345678")]
 public partial struct EnemyTag;
 
 /// <summary>

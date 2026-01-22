@@ -5,14 +5,16 @@
     <IsPackable>false</IsPackable>
     <!-- Native AOT support to verify generated code is AOT-compatible -->
     <PublishAot>true</PublishAot>
-    <!-- Suppress CA1515: internal types warning for this demo project -->
-    <NoWarn>$(NoWarn);CA1515</NoWarn>
+    <!-- Suppress CA1515: internal types warning for this sample project -->
+    <!-- PECS016: Allow empty components used as tags -->
+    <NoWarn>$(NoWarn);CA1515;PECS016</NoWarn>
     <!-- Emit generated source files for inspection -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Paradise.ECS\Paradise.ECS.csproj" />
+    <ProjectReference Include="..\Paradise.ECS.Tag\Paradise.ECS.Tag.csproj" />
     <ProjectReference Include="..\Paradise.ECS.Generators\Paradise.ECS.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 

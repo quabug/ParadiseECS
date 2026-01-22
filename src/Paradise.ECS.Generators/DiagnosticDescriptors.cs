@@ -186,4 +186,102 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Each manual Component ID must be unique. Multiple components with the same ID will cause data corruption.");
+
+    /// <summary>
+    /// PECS016: Component is empty (zero size).
+    /// </summary>
+    public static readonly DiagnosticDescriptor ComponentIsEmpty = new(
+        id: "PECS016",
+        title: "Component is empty",
+        messageFormat: "Component '{0}' has no instance fields (zero size). Consider using [Tag] instead for marker types.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Empty components (zero size) should typically be tags. Use [Tag] for marker types that don't store data.");
+
+    // ===== Tag-related diagnostics =====
+
+    /// <summary>
+    /// PECS020: Tag must be an unmanaged struct.
+    /// </summary>
+    public static readonly DiagnosticDescriptor TagNotUnmanaged = new(
+        id: "PECS020",
+        title: "Tag must be unmanaged",
+        messageFormat: "Type '{0}' marked with [Tag] must be an unmanaged struct",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Tag types must be unmanaged structs.");
+
+    /// <summary>
+    /// PECS021: Tag must be empty (no instance fields).
+    /// </summary>
+    public static readonly DiagnosticDescriptor TagHasFields = new(
+        id: "PECS021",
+        title: "Tag must be empty",
+        messageFormat: "Type '{0}' marked with [Tag] must not have instance fields. Tags are marker types only.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Tag types must be empty marker structs with no instance fields. Use [Component] for data-carrying types.");
+
+    /// <summary>
+    /// PECS022: Invalid tag GUID format.
+    /// </summary>
+    public static readonly DiagnosticDescriptor InvalidTagGuidFormat = new(
+        id: "PECS022",
+        title: "Invalid tag GUID format",
+        messageFormat: "Tag '{0}' has invalid GUID format '{1}'",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The GUID provided to [Tag] attribute must be a valid GUID format (e.g., '12345678-1234-1234-1234-123456789012').");
+
+    /// <summary>
+    /// PECS023: Tag nested in generic type.
+    /// </summary>
+    public static readonly DiagnosticDescriptor UnsupportedTagContainingType = new(
+        id: "PECS023",
+        title: "Tag nested in generic type",
+        messageFormat: "Tag '{0}' is nested inside '{1}' which is {2}. Tags cannot be nested inside generic types.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Tag types cannot be nested inside generic types because the source generator cannot infer type parameters.");
+
+    /// <summary>
+    /// PECS024: Tag ID exceeds maximum limit.
+    /// </summary>
+    public static readonly DiagnosticDescriptor TagIdExceedsLimit = new(
+        id: "PECS024",
+        title: "Tag ID exceeds maximum",
+        messageFormat: "Tag '{0}' has ID {1} which exceeds the maximum allowed tag ID of {2}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Tag IDs must not exceed the maximum limit.");
+
+    /// <summary>
+    /// PECS025: Too many tags.
+    /// </summary>
+    public static readonly DiagnosticDescriptor TooManyTags = new(
+        id: "PECS025",
+        title: "Too many tags",
+        messageFormat: "Project has {0} tags which would result in IDs exceeding the maximum allowed tag ID of {1}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The total number of tags must not exceed the maximum tag ID limit.");
+
+    /// <summary>
+    /// PECS026: Duplicate manual Tag ID.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateTagId = new(
+        id: "PECS026",
+        title: "Duplicate tag ID",
+        messageFormat: "Tag ID {0} is used by multiple types: {1}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Each manual Tag ID must be unique. Multiple tags with the same ID will cause incorrect behavior.");
 }

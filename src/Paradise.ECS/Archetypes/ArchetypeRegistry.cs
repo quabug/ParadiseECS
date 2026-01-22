@@ -40,6 +40,11 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     }
 
     /// <summary>
+    /// Gets all archetypes in this registry.
+    /// </summary>
+    internal IReadOnlyList<Archetype<TBits, TRegistry, TConfig>?> Archetypes => _archetypes;
+
+    /// <summary>
     /// Gets or creates an archetype for the given component mask.
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>

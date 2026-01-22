@@ -30,6 +30,11 @@ public sealed class World<TBits, TRegistry, TConfig>
     }
 
     /// <summary>
+    /// Gets all archetypes in this world.
+    /// </summary>
+    internal IReadOnlyList<Archetype<TBits, TRegistry, TConfig>?> Archetypes => _archetypeRegistry.Archetypes;
+
+    /// <summary>
     /// Creates a new ECS world using the specified configuration and shared archetype metadata.
     /// The caller is responsible for disposing the shared metadata and chunk manager.
     /// </summary>
@@ -50,19 +55,6 @@ public sealed class World<TBits, TRegistry, TConfig>
         // Create the empty archetype for componentless entities
         _emptyArchetype = _archetypeRegistry.GetOrCreate(
             (HashedKey<ImmutableBitSet<TBits>>)ImmutableBitSet<TBits>.Empty);
-    }
-
-    /// <summary>
-    /// Creates a new ECS world using default configuration and shared archetype metadata.
-    /// Uses <c>new TConfig()</c> for configuration with default property values.
-    /// The caller is responsible for disposing the shared metadata and chunk manager.
-    /// </summary>
-    /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
-    /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
-                 ChunkManager chunkManager)
-        : this(new TConfig(), sharedMetadata, chunkManager)
-    {
     }
 
     /// <summary>
@@ -510,6 +502,15 @@ public sealed class World<TBits, TRegistry, TConfig>
 
         return _entityManager.GetLocation(entity.Id);
     }
+
+    /// <summary>
+    /// Gets the storage location of an entity.
+    /// </summary>
+    /// <param name="entity">The entity to get the location of.</param>
+    /// <returns>The entity's location containing archetype ID and global index.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the entity is invalid or not alive.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityLocation GetLocation(Entity entity) => GetValidatedLocation(entity);
 
     /// <summary>
     /// Removes all entities from this world.

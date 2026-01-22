@@ -1,0 +1,130 @@
+using System.Runtime.CompilerServices;
+
+namespace Paradise.ECS;
+
+/// <summary>
+/// A fluent, immutable builder for creating tag-filtered queries.
+/// Wraps a <see cref="QueryBuilder{TBits}"/> with an additional tag mask for entity-level filtering.
+/// </summary>
+/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TTagMask">The tag mask type.</typeparam>
+public readonly ref struct TaggedQueryBuilder<TBits, TTagMask>
+    where TBits : unmanaged, IStorage
+    where TTagMask : unmanaged, IBitSet<TTagMask>
+{
+    private readonly QueryBuilder<TBits> _queryBuilder;
+    private readonly TTagMask _requiredTags;
+
+    /// <summary>
+    /// Creates a new tagged query builder wrapping the specified query builder.
+    /// </summary>
+    /// <param name="queryBuilder">The underlying query builder.</param>
+    /// <param name="requiredTags">The required tag mask.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal TaggedQueryBuilder(QueryBuilder<TBits> queryBuilder, TTagMask requiredTags)
+    {
+        _queryBuilder = queryBuilder;
+        _requiredTags = requiredTags;
+    }
+
+    /// <summary>
+    /// Gets the underlying query builder.
+    /// </summary>
+    public QueryBuilder<TBits> QueryBuilder
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _queryBuilder;
+    }
+
+    /// <summary>
+    /// Gets the required tag mask.
+    /// </summary>
+    public TTagMask RequiredTags
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _requiredTags;
+    }
+
+    /// <summary>
+    /// Adds a required component constraint.
+    /// </summary>
+    /// <typeparam name="T">The component type that must be present.</typeparam>
+    /// <returns>A new builder with the added constraint.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public TaggedQueryBuilder<TBits, TTagMask> With<T>() where T : unmanaged, IComponent
+        => new(_queryBuilder.With<T>(), _requiredTags);
+
+    /// <summary>
+    /// Adds an excluded component constraint.
+    /// </summary>
+    /// <typeparam name="T">The component type that must not be present.</typeparam>
+    /// <returns>A new builder with the added constraint.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public TaggedQueryBuilder<TBits, TTagMask> Without<T>() where T : unmanaged, IComponent
+        => new(_queryBuilder.Without<T>(), _requiredTags);
+
+    /// <summary>
+    /// Adds an "any of" component constraint.
+    /// </summary>
+    /// <typeparam name="T">The component type to add to the any-of set.</typeparam>
+    /// <returns>A new builder with the added constraint.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public TaggedQueryBuilder<TBits, TTagMask> WithAny<T>() where T : unmanaged, IComponent
+        => new(_queryBuilder.WithAny<T>(), _requiredTags);
+
+    /// <summary>
+    /// Adds an additional required tag constraint.
+    /// </summary>
+    /// <typeparam name="TTag">The tag type that must be present.</typeparam>
+    /// <returns>A new builder with the added tag constraint.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public TaggedQueryBuilder<TBits, TTagMask> WithTag<TTag>() where TTag : ITag
+        => new(_queryBuilder, _requiredTags.Set(TTag.TagId));
+
+    /// <summary>
+    /// Builds a TaggedWorldQuery from this builder for a TaggedWorld.
+    /// The resulting query filters entities by both component constraints and tag constraints.
+    /// </summary>
+    /// <typeparam name="TRegistry">The component registry type.</typeparam>
+    /// <typeparam name="TConfig">The world configuration type.</typeparam>
+    /// <typeparam name="TEntityTags">The EntityTags component type.</typeparam>
+    /// <param name="taggedWorld">The tagged world to query.</param>
+    /// <returns>A query that iterates entities matching both component and tag constraints.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public TaggedWorldQuery<TBits, TRegistry, TConfig, TEntityTags, TTagMask> Build<TRegistry, TConfig, TEntityTags>(
+        TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask> taggedWorld)
+        where TRegistry : IComponentRegistry
+        where TConfig : IConfig, new()
+        where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
+    {
+        var query = _queryBuilder.Build(taggedWorld.World);
+        return new TaggedWorldQuery<TBits, TRegistry, TConfig, TEntityTags, TTagMask>(
+            taggedWorld,
+            query.Query,
+            _requiredTags);
+    }
+}
+
+/// <summary>
+/// Extension methods for creating TaggedQueryBuilder from QueryBuilder.
+/// </summary>
+public static class TaggedQueryBuilderExtensions
+{
+    /// <summary>
+    /// Creates a TaggedQueryBuilder with the specified required tag.
+    /// Requires explicit type parameters for TBits, TTag, and TTagMask.
+    /// </summary>
+    /// <param name="builder">The query builder to extend.</param>
+    /// <typeparam name="TTag">The tag type that must be present.</typeparam>
+    /// <typeparam name="TTagMask">The tag mask type.</typeparam>
+    /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+    /// <returns>A new TaggedQueryBuilder with the tag constraint.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static TaggedQueryBuilder<TBits, TTagMask> WithTag<TBits, TTag, TTagMask>(this QueryBuilder<TBits> builder) where TBits : unmanaged, IStorage
+        where TTag : ITag
+        where TTagMask : unmanaged, IBitSet<TTagMask>
+    {
+        var mask = default(TTagMask).Set(TTag.TagId);
+        return new TaggedQueryBuilder<TBits, TTagMask>(builder, mask);
+    }
+}

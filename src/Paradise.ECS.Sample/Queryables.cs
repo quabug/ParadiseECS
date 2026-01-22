@@ -1,4 +1,4 @@
-namespace Paradise.ECS.IntegrationTest;
+namespace Paradise.ECS.Sample;
 
 // ============================================================================
 // Queryable Definitions - Demonstrating various query patterns
@@ -32,7 +32,7 @@ public readonly ref partial struct Enemy;
 /// </summary>
 [Queryable]
 [With<Position>]
-[With<PlayerTag>(QueryOnly = true)]
+// [With<PlayerTag>(QueryOnly = true)]
 public readonly ref partial struct PlayerPosition;
 
 /// <summary>
