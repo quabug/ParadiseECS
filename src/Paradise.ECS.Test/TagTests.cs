@@ -642,8 +642,8 @@ public sealed class TaggedWorldTests : IDisposable
         _world.AddTag<TestIsEnemy>(e2);
         // e3 has no tags
 
-        var query = QueryBuilder<Bit64>.Create()
-            .WithTag<Bit64, TestIsActive, TagMask>()
+        var query = QueryBuilder<ImmutableBitSet<Bit64>>.Create()
+            .WithTag<ImmutableBitSet<Bit64>, TestIsActive, TagMask>()
             .Build(_world);
 
         var matchedEntities = new List<Entity>();
@@ -671,8 +671,8 @@ public sealed class TaggedWorldTests : IDisposable
         _world.AddTag<TestIsEnemy>(e3);
 
         // Query for entities with BOTH TestIsActive AND TestIsEnemy
-        var query = QueryBuilder<Bit64>.Create()
-            .WithTag<Bit64, TestIsActive, TagMask>()
+        var query = QueryBuilder<ImmutableBitSet<Bit64>>.Create()
+            .WithTag<ImmutableBitSet<Bit64>, TestIsActive, TagMask>()
             .WithTag<TestIsEnemy>()
             .Build(_world);
 
@@ -704,9 +704,9 @@ public sealed class TaggedWorldTests : IDisposable
         _world.AddTag<TestIsActive>(e3);
 
         // Query for entities with TestIsActive tag AND Position component
-        var query = QueryBuilder<Bit64>.Create()
+        var query = QueryBuilder<ImmutableBitSet<Bit64>>.Create()
             .With<TestPosition>()
-            .WithTag<Bit64, TestIsActive, TagMask>()
+            .WithTag<ImmutableBitSet<Bit64>, TestIsActive, TagMask>()
             .Build(_world);
 
         var matchedEntities = new List<Entity>();

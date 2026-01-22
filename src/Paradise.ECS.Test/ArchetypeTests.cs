@@ -7,12 +7,12 @@ public sealed class ArchetypeTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
+    private readonly ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _registry;
 
     public ArchetypeTests()
     {
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
+        _registry = new ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
     }
 
     public void Dispose()

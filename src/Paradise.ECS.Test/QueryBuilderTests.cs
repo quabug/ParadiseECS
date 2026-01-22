@@ -8,7 +8,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task Create_ReturnsEmptyBuilder()
     {
-        var builder = QueryBuilder<Bit64>.Create();
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create();
         var description = builder.Description;
 
         await Assert.That(description.All.IsEmpty).IsTrue();
@@ -19,7 +19,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task With_ByTypeId_AddsToAllMask()
     {
-        var builder = QueryBuilder<Bit64>.Create().With(5);
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create().With(5);
         var description = builder.Description;
 
         await Assert.That(description.All.Get(5)).IsTrue();
@@ -29,7 +29,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task With_ByComponent_AddsToAllMask()
     {
-        var builder = QueryBuilder<Bit64>.Create().With<TestHealth>();
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create().With<TestHealth>();
         var description = builder.Description;
 
         await Assert.That(description.All.Get(TestHealth.TypeId)).IsTrue();
@@ -38,7 +38,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task With_Multiple_AddsAllToAllMask()
     {
-        var builder = QueryBuilder<Bit64>.Create()
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create()
             .With<TestHealth>()
             .With<TestPosition>();
         var description = builder.Description;
@@ -51,7 +51,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task Without_ByTypeId_AddsToNoneMask()
     {
-        var builder = QueryBuilder<Bit64>.Create().Without(5);
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create().Without(5);
         var description = builder.Description;
 
         await Assert.That(description.None.Get(5)).IsTrue();
@@ -61,7 +61,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task Without_ByComponent_AddsToNoneMask()
     {
-        var builder = QueryBuilder<Bit64>.Create().Without<TestVelocity>();
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create().Without<TestVelocity>();
         var description = builder.Description;
 
         await Assert.That(description.None.Get(TestVelocity.TypeId)).IsTrue();
@@ -70,7 +70,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task Without_Multiple_AddsAllToNoneMask()
     {
-        var builder = QueryBuilder<Bit64>.Create()
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create()
             .Without<TestVelocity>()
             .Without<TestDamage>();
         var description = builder.Description;
@@ -83,7 +83,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task WithAny_ByTypeId_AddsToAnyMask()
     {
-        var builder = QueryBuilder<Bit64>.Create().WithAny(5);
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create().WithAny(5);
         var description = builder.Description;
 
         await Assert.That(description.Any.Get(5)).IsTrue();
@@ -93,7 +93,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task WithAny_ByComponent_AddsToAnyMask()
     {
-        var builder = QueryBuilder<Bit64>.Create().WithAny<TestDamage>();
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create().WithAny<TestDamage>();
         var description = builder.Description;
 
         await Assert.That(description.Any.Get(TestDamage.TypeId)).IsTrue();
@@ -102,7 +102,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task WithAny_Multiple_AddsAllToAnyMask()
     {
-        var builder = QueryBuilder<Bit64>.Create()
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create()
             .WithAny<TestDamage>()
             .WithAny<TestTag>();
         var description = builder.Description;
@@ -115,7 +115,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task CombinedQuery_HasCorrectMasks()
     {
-        var builder = QueryBuilder<Bit64>.Create()
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create()
             .With<TestPosition>()
             .With<TestHealth>()
             .Without<TestVelocity>()
@@ -135,7 +135,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task Builder_IsImmutable()
     {
-        var original = QueryBuilder<Bit64>.Create();
+        var original = QueryBuilder<ImmutableBitSet<Bit64>>.Create();
         var withHealth = original.With<TestHealth>();
         var withPosition = original.With<TestPosition>();
 
@@ -156,8 +156,8 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task ImplicitConversion_ToDescription()
     {
-        var builder = QueryBuilder<Bit64>.Create().With<TestHealth>();
-        ImmutableQueryDescription<Bit64> description = builder;
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create().With<TestHealth>();
+        ImmutableQueryDescription<ImmutableBitSet<Bit64>> description = builder;
 
         await Assert.That(description.All.Get(TestHealth.TypeId)).IsTrue();
     }
@@ -165,7 +165,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task Description_Property_ReturnsCorrectValue()
     {
-        var builder = QueryBuilder<Bit64>.Create()
+        var builder = QueryBuilder<ImmutableBitSet<Bit64>>.Create()
             .With(10)
             .Without(20)
             .WithAny(30);
@@ -180,7 +180,7 @@ public sealed class QueryBuilderTests
     [Test]
     public async Task Chaining_ReturnsNewBuilder()
     {
-        var b1 = QueryBuilder<Bit64>.Create();
+        var b1 = QueryBuilder<ImmutableBitSet<Bit64>>.Create();
         var b2 = b1.With(0);
         var b3 = b2.Without(1);
         var b4 = b3.WithAny(2);

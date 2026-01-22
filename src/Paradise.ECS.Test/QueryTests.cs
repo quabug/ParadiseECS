@@ -7,12 +7,12 @@ public sealed class QueryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
+    private readonly ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _registry;
 
     public QueryTests()
     {
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
+        _registry = new ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
     }
 
     public void Dispose()
@@ -26,7 +26,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_Default_IsEmpty()
     {
-        var builder = new QueryBuilder<Bit64>();
+        var builder = new QueryBuilder<ImmutableBitSet<Bit64>>();
         var description = builder.Description;
 
         await Assert.That(description.All.IsEmpty).IsTrue();
@@ -37,7 +37,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_With_SetsAllMask()
     {
-        var builder = new QueryBuilder<Bit64>()
+        var builder = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>();
 
         var description = builder.Description;
@@ -48,7 +48,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithMultiple_SetsAllMask()
     {
-        var builder = new QueryBuilder<Bit64>()
+        var builder = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .With<TestVelocity>();
 
@@ -61,7 +61,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_Without_SetsNoneMask()
     {
-        var builder = new QueryBuilder<Bit64>()
+        var builder = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .Without<TestPosition>();
 
         var description = builder.Description;
@@ -72,7 +72,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithAny_SetsAnyMask()
     {
-        var builder = new QueryBuilder<Bit64>()
+        var builder = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .WithAny<TestPosition>();
 
         var description = builder.Description;
@@ -83,7 +83,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_Combined_SetsAllMasks()
     {
-        var builder = new QueryBuilder<Bit64>()
+        var builder = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .WithAny<TestHealth>();
@@ -98,7 +98,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithComponentId_SetsAllMask()
     {
-        var builder = new QueryBuilder<Bit64>()
+        var builder = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With(TestPosition.TypeId.Value);
 
         var description = builder.Description;
@@ -109,7 +109,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithoutComponentId_SetsNoneMask()
     {
-        var builder = new QueryBuilder<Bit64>()
+        var builder = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .Without(TestPosition.TypeId.Value);
 
         var description = builder.Description;
@@ -120,7 +120,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task QueryBuilder_WithAnyComponentId_SetsAnyMask()
     {
-        var builder = new QueryBuilder<Bit64>()
+        var builder = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .WithAny(TestPosition.TypeId.Value);
 
         var description = builder.Description;
@@ -145,7 +145,7 @@ public sealed class QueryTests : IDisposable
         var velocityArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
         velocityArchetype.AllocateEntity(new Entity(2, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -166,7 +166,7 @@ public sealed class QueryTests : IDisposable
         var velocityArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
         velocityArchetype.AllocateEntity(new Entity(1, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -192,7 +192,7 @@ public sealed class QueryTests : IDisposable
         var bothArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         bothArchetype.AllocateEntity(new Entity(2, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .Build(_registry);
@@ -219,7 +219,7 @@ public sealed class QueryTests : IDisposable
         var bothArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         bothArchetype.AllocateEntity(new Entity(2, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .With<TestVelocity>()
             .Build(_registry);
@@ -236,7 +236,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task Query_EmptyRegistry_ReturnsZero()
     {
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -262,7 +262,7 @@ public sealed class QueryTests : IDisposable
         var bothArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         bothArchetype.AllocateEntity(new Entity(2, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -283,7 +283,7 @@ public sealed class QueryTests : IDisposable
         var velocityArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)velocityMask);
         velocityArchetype.AllocateEntity(new Entity(3, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -293,7 +293,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task Query_IsEmpty_ReturnsCorrectValue()
     {
-        var emptyQuery = new QueryBuilder<Bit64>()
+        var emptyQuery = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -304,7 +304,7 @@ public sealed class QueryTests : IDisposable
         var positionArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -323,11 +323,11 @@ public sealed class QueryTests : IDisposable
         var positionArchetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         positionArchetype.AllocateEntity(new Entity(1, 1));
 
-        var query1 = new QueryBuilder<Bit64>()
+        var query1 = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
-        var query2 = new QueryBuilder<Bit64>()
+        var query2 = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -342,11 +342,11 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task ImmutableQueryDescription_Equality_SameDescriptions()
     {
-        var desc1 = new QueryBuilder<Bit64>()
+        var desc1 = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
 
-        var desc2 = new QueryBuilder<Bit64>()
+        var desc2 = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
 
@@ -357,11 +357,11 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task ImmutableQueryDescription_Inequality_DifferentDescriptions()
     {
-        var desc1 = new QueryBuilder<Bit64>()
+        var desc1 = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
 
-        var desc2 = new QueryBuilder<Bit64>()
+        var desc2 = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestVelocity>()
             .Description;
 
@@ -371,7 +371,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task ImmutableQueryDescription_Matches_CorrectMasks()
     {
-        var desc = new QueryBuilder<Bit64>()
+        var desc = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .Description;
@@ -393,7 +393,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task Chunks_EmptyQuery_ReturnsNoChunks()
     {
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -414,7 +414,7 @@ public sealed class QueryTests : IDisposable
         archetype.AllocateEntity(new Entity(1, 1));
         archetype.AllocateEntity(new Entity(2, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -443,7 +443,7 @@ public sealed class QueryTests : IDisposable
         archetype2.AllocateEntity(new Entity(2, 1));
         archetype2.AllocateEntity(new Entity(3, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -466,7 +466,7 @@ public sealed class QueryTests : IDisposable
         var archetype = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)positionMask);
         archetype.AllocateEntity(new Entity(1, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -495,7 +495,7 @@ public sealed class QueryTests : IDisposable
         var archetype2 = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         archetype2.AllocateEntity(new Entity(1, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -519,7 +519,7 @@ public sealed class QueryTests : IDisposable
     [Test]
     public async Task EntityIds_EmptyQuery_ReturnsNoEntities()
     {
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -541,7 +541,7 @@ public sealed class QueryTests : IDisposable
         archetype.AllocateEntity(new Entity(20, 1));
         archetype.AllocateEntity(new Entity(30, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -569,7 +569,7 @@ public sealed class QueryTests : IDisposable
         var archetype2 = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         archetype2.AllocateEntity(new Entity(3, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -597,7 +597,7 @@ public sealed class QueryTests : IDisposable
         var archetype2 = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)bothMask);
         archetype2.AllocateEntity(new Entity(100, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -626,7 +626,7 @@ public sealed class QueryTests : IDisposable
         var archetype3 = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)mask3);
         archetype3.AllocateEntity(new Entity(42, 1));
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 
@@ -650,7 +650,7 @@ public sealed class QueryTests : IDisposable
         var mask2 = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
         _ = _registry.GetOrCreate((HashedKey<ImmutableBitSet<Bit64>>)mask2);
 
-        var query = new QueryBuilder<Bit64>()
+        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Build(_registry);
 

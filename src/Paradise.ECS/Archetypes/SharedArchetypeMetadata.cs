@@ -7,27 +7,27 @@ namespace Paradise.ECS;
 /// Contains archetype masks, layouts, graph edges, and query descriptions.
 /// Single-threaded version without concurrent access support.
 /// </summary>
-/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDisposable
-    where TBits : unmanaged, IStorage
+public sealed class SharedArchetypeMetadata<TMask, TRegistry, TConfig> : IDisposable
+    where TMask : unmanaged, IBitSet<TMask>
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
     private readonly IAllocator _layoutAllocator;
-    private readonly Dictionary<HashedKey<ImmutableBitSet<TBits>>, int> _maskToArchetypeId = new();
+    private readonly Dictionary<HashedKey<TMask>, int> _maskToArchetypeId = new();
     private readonly List<nint/* ArchetypeLayout* */> _layouts = new();
     private readonly Dictionary<EdgeKey, int> _edges = new();
-    private readonly Dictionary<HashedKey<ImmutableQueryDescription<TBits>>, int> _queryDescriptionToId = new();
+    private readonly Dictionary<HashedKey<ImmutableQueryDescription<TMask>>, int> _queryDescriptionToId = new();
     private readonly List<QueryData> _queries = new();
 
     /// <summary>
     /// Holds query description and its matched archetype IDs together for cache locality.
     /// </summary>
-    private readonly struct QueryData(ImmutableQueryDescription<TBits> description)
+    private readonly struct QueryData(ImmutableQueryDescription<TMask> description)
     {
-        public readonly ImmutableQueryDescription<TBits> Description = description;
+        public readonly ImmutableQueryDescription<TMask> Description = description;
         public readonly List<int> MatchedArchetypeIds = new();
     }
 
@@ -69,7 +69,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// <param name="mask">The component mask defining the archetype.</param>
     /// <param name="matchedQueries">The list to add matching query IDs to.</param>
     /// <returns>The archetype ID for this mask.</returns>
-    public int GetOrCreateArchetypeId<T>(HashedKey<ImmutableBitSet<TBits>> mask, T matchedQueries) where T : IList<int>
+    public int GetOrCreateArchetypeId<T>(HashedKey<TMask> mask, T matchedQueries) where T : IList<int>
     {
         ThrowHelper.ThrowIfDisposed(_disposed, this);
 
@@ -80,7 +80,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
             return existingId;
         }
 
-        var layoutData = ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Create(_layoutAllocator, mask);
+        var layoutData = ImmutableArchetypeLayout<TMask, TRegistry, TConfig>.Create(_layoutAllocator, mask);
         int newId = _layouts.Count;
         _layouts.Add(layoutData);
         ThrowHelper.ThrowIfArchetypeIdExceedsLimit(newId);
@@ -117,7 +117,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
 
         // Slow path: compute mask and get/create archetype
         var sourceLayout = GetLayout(sourceArchetypeId);
-        var newMask = (HashedKey<ImmutableBitSet<TBits>>)sourceLayout.ComponentMask.Set(componentId);
+        var newMask = (HashedKey<TMask>)sourceLayout.ComponentMask.Set(componentId);
         targetId = GetOrCreateArchetypeId(newMask, matchedQueries);
 
         // Cache bidirectional edges
@@ -153,7 +153,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
 
         // Slow path: compute mask and get/create archetype
         var sourceLayout = GetLayout(sourceArchetypeId);
-        var newMask = (HashedKey<ImmutableBitSet<TBits>>)sourceLayout.ComponentMask.Clear(componentId);
+        var newMask = (HashedKey<TMask>)sourceLayout.ComponentMask.Clear(componentId);
         targetId = GetOrCreateArchetypeId(newMask, matchedQueries);
 
         // Cache bidirectional edges
@@ -169,7 +169,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// </summary>
     /// <param name="description">The query description.</param>
     /// <returns>The query ID for this description.</returns>
-    public int GetOrCreateQueryId(HashedKey<ImmutableQueryDescription<TBits>> description)
+    public int GetOrCreateQueryId(HashedKey<ImmutableQueryDescription<TMask>> description)
     {
         ThrowHelper.ThrowIfDisposed(_disposed, this);
 
@@ -184,7 +184,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
         int archetypeCount = _layouts.Count;
         for (int i = 0; i < archetypeCount; i++)
         {
-            var layout = new ImmutableArchetypeLayout<TBits, TRegistry, TConfig>(_layouts[i]);
+            var layout = new ImmutableArchetypeLayout<TMask, TRegistry, TConfig>(_layouts[i]);
             if (description.Value.Matches(layout.ComponentMask))
             {
                 queryData.MatchedArchetypeIds.Add(i);
@@ -205,7 +205,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// <param name="archetypeId">The archetype ID if found.</param>
     /// <returns>True if the archetype exists.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetArchetypeId(HashedKey<ImmutableBitSet<TBits>> mask, out int archetypeId)
+    public bool TryGetArchetypeId(HashedKey<TMask> mask, out int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed, this);
         return _maskToArchetypeId.TryGetValue(mask, out archetypeId);
@@ -231,10 +231,10 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// <returns>The layout for this archetype.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the archetype ID is invalid.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableArchetypeLayout<TBits, TRegistry, TConfig> GetLayout(int archetypeId)
+    public ImmutableArchetypeLayout<TMask, TRegistry, TConfig> GetLayout(int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed, this);
-        return new ImmutableArchetypeLayout<TBits, TRegistry, TConfig>(_layouts[archetypeId]);
+        return new ImmutableArchetypeLayout<TMask, TRegistry, TConfig>(_layouts[archetypeId]);
     }
 
     /// <summary>
@@ -257,7 +257,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// <returns>The query description.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the query ID is invalid.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableQueryDescription<TBits> GetQueryDescription(int queryId)
+    public ImmutableQueryDescription<TMask> GetQueryDescription(int queryId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed, this);
         return _queries[queryId].Description;
@@ -271,7 +271,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// <param name="archetypeId">The new archetype ID.</param>
     /// <param name="mask">The component mask of the new archetype.</param>
     /// <param name="matchedQueries">The list to add matching query IDs to.</param>
-    private void NotifyQueriesOfNewArchetype<T>(int archetypeId, ImmutableBitSet<TBits> mask, T matchedQueries) where T : IList<int>
+    private void NotifyQueriesOfNewArchetype<T>(int archetypeId, TMask mask, T matchedQueries) where T : IList<int>
     {
         int queryCount = _queries.Count;
         for (int i = 0; i < queryCount; i++)
@@ -291,7 +291,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
     /// <typeparam name="T">A list type to collect the matching query IDs.</typeparam>
     /// <param name="mask">The component mask to match against.</param>
     /// <param name="result">The list to add matching query IDs to.</param>
-    private void GetMatchedQueryIds<T>(ImmutableBitSet<TBits> mask, T result) where T : IList<int>
+    private void GetMatchedQueryIds<T>(TMask mask, T result) where T : IList<int>
     {
         ThrowHelper.ThrowIfDisposed(_disposed, this);
 
@@ -319,7 +319,7 @@ public sealed class SharedArchetypeMetadata<TBits, TRegistry, TConfig> : IDispos
         // Free all layouts
         for (int i = 0; i < _layouts.Count; i++)
         {
-            ImmutableArchetypeLayout<TBits, TRegistry, TConfig>.Free(_layoutAllocator, _layouts[i]);
+            ImmutableArchetypeLayout<TMask, TRegistry, TConfig>.Free(_layoutAllocator, _layouts[i]);
         }
 
         _layouts.Clear();

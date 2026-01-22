@@ -465,6 +465,33 @@ public readonly struct ImmutableBitVector<TStorage> : IEquatable<ImmutableBitVec
         return -1;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int NextSetBit(int afterIndex)
+    {
+        int startIndex = afterIndex + 1;
+        if (startIndex >= Capacity)
+            return -1;
+
+        ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
+        int bucketIndex = startIndex >> 6;
+        int bitInBucket = startIndex & 63;
+
+        // Check current bucket (mask off bits before startIndex)
+        ulong currentBucket = Unsafe.Add(ref ulongs, bucketIndex);
+        currentBucket &= ~((1UL << bitInBucket) - 1);
+        if (currentBucket != 0)
+            return (bucketIndex << 6) + BitOperations.TrailingZeroCount(currentBucket);
+
+        // Check remaining buckets
+        for (int i = bucketIndex + 1; i < ULongCount; i++)
+        {
+            ulong value = Unsafe.Add(ref ulongs, i);
+            if (value != 0)
+                return (i << 6) + BitOperations.TrailingZeroCount(value);
+        }
+        return -1;
+    }
+
     public bool IsEmpty
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -91,6 +91,17 @@ public readonly record struct ImmutableBitSet32 : IBitSet<ImmutableBitSet32>
     public int LastSetBit() => _bits == 0 ? -1 : 31 - BitOperations.LeadingZeroCount(_bits);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int NextSetBit(int afterIndex)
+    {
+        int startIndex = afterIndex + 1;
+        if (startIndex >= 32)
+            return -1;
+        // Mask off bits at or before startIndex
+        uint masked = _bits & (~0u << startIndex);
+        return masked == 0 ? -1 : BitOperations.TrailingZeroCount(masked);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ImmutableBitSet32 operator &(in ImmutableBitSet32 left, in ImmutableBitSet32 right)
         => left.And(right);
 

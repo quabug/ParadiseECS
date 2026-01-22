@@ -15,21 +15,21 @@ public sealed class ArchetypeStoreTests : IDisposable
     {
         foreach (var layoutData in _layoutDataList)
         {
-            ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
+            ImmutableArchetypeLayout<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
         }
         _chunkManager?.Dispose();
     }
 
-    private Archetype<Bit64, ComponentRegistry, DefaultConfig> CreateStore(params ComponentTypeInfo[] components)
+    private Archetype<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> CreateStore(params ComponentTypeInfo[] components)
     {
         var mask = ImmutableBitSet<Bit64>.Empty;
         foreach (var comp in components)
         {
             mask = mask.Set(comp.Id.Value);
         }
-        var layoutData = ImmutableArchetypeLayout<Bit64, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var layoutData = ImmutableArchetypeLayout<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
         _layoutDataList.Add(layoutData);
-        return new Archetype<Bit64, ComponentRegistry, DefaultConfig>(_layoutDataList.Count - 1, layoutData, _chunkManager);
+        return new Archetype<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(_layoutDataList.Count - 1, layoutData, _chunkManager);
     }
 
     private Entity CreateTestEntity()

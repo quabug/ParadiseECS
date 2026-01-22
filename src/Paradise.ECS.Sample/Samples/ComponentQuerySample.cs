@@ -7,7 +7,7 @@ namespace Paradise.ECS.Sample.Samples;
 /// </summary>
 public static class ComponentQuerySample
 {
-    public static WorldQuery<Bit64, ComponentRegistry, GameConfig> Run(World world)
+    public static WorldQuery<ImmutableBitSet<Bit64>, ComponentRegistry, GameConfig> Run(World world)
     {
         Console.WriteLine("6. Component-based Query");
         Console.WriteLine("----------------------------");

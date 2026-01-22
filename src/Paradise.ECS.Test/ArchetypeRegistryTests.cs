@@ -7,12 +7,12 @@ public sealed class ArchetypeRegistryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
+    private readonly ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _registry;
 
     public ArchetypeRegistryTests()
     {
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
+        _registry = new ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
     }
 
     public void Dispose()
@@ -193,10 +193,10 @@ public sealed class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateQuery_ReturnsQuery()
     {
-        var description = new QueryBuilder<Bit64>()
+        var description = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
-        var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
+        var hashedDesc = (HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)description;
 
         var query = _registry.GetOrCreateQuery(hashedDesc);
 
@@ -206,10 +206,10 @@ public sealed class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateQuery_SameDescription_ReturnsSameQuery()
     {
-        var description = new QueryBuilder<Bit64>()
+        var description = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
-        var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
+        var hashedDesc = (HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)description;
 
         var query1 = _registry.GetOrCreateQuery(hashedDesc);
         var query2 = _registry.GetOrCreateQuery(hashedDesc);
@@ -227,10 +227,10 @@ public sealed class ArchetypeRegistryTests : IDisposable
         _registry.GetOrCreate(hashedKey);
 
         // Then create a query that should match
-        var description = new QueryBuilder<Bit64>()
+        var description = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
-        var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
+        var hashedDesc = (HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)description;
         var query = _registry.GetOrCreateQuery(hashedDesc);
 
         await Assert.That(query.ArchetypeCount).IsEqualTo(1);
@@ -240,10 +240,10 @@ public sealed class ArchetypeRegistryTests : IDisposable
     public async Task GetOrCreateQuery_UpdatesWhenNewArchetypeCreated()
     {
         // First create a query
-        var description = new QueryBuilder<Bit64>()
+        var description = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
-        var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
+        var hashedDesc = (HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)description;
         var query = _registry.GetOrCreateQuery(hashedDesc);
         var initialCount = query.ArchetypeCount;
 

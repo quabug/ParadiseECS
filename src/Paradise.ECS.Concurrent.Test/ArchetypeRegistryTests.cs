@@ -2,19 +2,19 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public static class ArchetypeRegistryExtension
 {
-    extension<TBits, TRegistry, TConfig>(ArchetypeRegistry<TBits, TRegistry, TConfig> registry)
-        where TBits : unmanaged, IStorage
+    extension<TMask, TRegistry, TConfig>(ArchetypeRegistry<TMask, TRegistry, TConfig> registry)
+        where TMask : unmanaged, IBitSet<TMask>
         where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
     {
-        public Archetype<TBits, TRegistry, TConfig> GetOrCreate(ImmutableBitSet<TBits> mask)
+        public Archetype<TMask, TRegistry, TConfig> GetOrCreate(TMask mask)
         {
-            return registry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
+            return registry.GetOrCreate((HashedKey<TMask>)mask);
         }
 
-        public bool TryGet(ImmutableBitSet<TBits> mask, out Archetype<TBits, TRegistry, TConfig>? store)
+        public bool TryGet(TMask mask, out Archetype<TMask, TRegistry, TConfig>? store)
         {
-            return registry.TryGet((HashedKey<ImmutableBitSet<TBits>>)mask, out store);
+            return registry.TryGet((HashedKey<TMask>)mask, out store);
         }
     }
 }
@@ -23,14 +23,14 @@ public class ArchetypeRegistryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new() { DefaultChunkCapacity = 16 };
     private readonly ChunkManager _chunkManager;
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata;
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _sharedMetadata;
+    private readonly ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _registry;
 
     public ArchetypeRegistryTests()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
+        _sharedMetadata = new SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(s_config);
+        _registry = new ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(
             _sharedMetadata, _chunkManager);
     }
 
@@ -272,8 +272,8 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new() { DefaultChunkCapacity = 64 };
     private readonly ChunkManager _chunkManager;
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata;
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _sharedMetadata;
+    private readonly ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _registry;
 
     // Number of test components available in ComponentRegistry (0-4)
     private const int TestComponentCount = 5;
@@ -281,8 +281,8 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     public ArchetypeRegistryConcurrencyTests()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
+        _sharedMetadata = new SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(s_config);
+        _registry = new ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(
             _sharedMetadata, _chunkManager);
     }
 
@@ -298,7 +298,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     {
         var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
 
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[10];
+        var tasks = new Task<Archetype<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreate(mask));
@@ -318,7 +318,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreate_DifferentMasks_CreatesMultipleArchetypes()
     {
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[TestComponentCount];
+        var tasks = new Task<Archetype<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int bitIndex = i;
@@ -342,7 +342,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[10];
+        var tasks = new Task<Archetype<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId));
@@ -365,7 +365,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var empty = ImmutableBitSet<Bit64>.Empty;
         var source = _registry.GetOrCreate(empty);
 
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[TestComponentCount];
+        var tasks = new Task<Archetype<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int componentId = i;

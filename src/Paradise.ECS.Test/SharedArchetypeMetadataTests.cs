@@ -5,11 +5,11 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class SharedArchetypeMetadataTests : IDisposable
 {
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _metadata;
+    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _metadata;
 
     public SharedArchetypeMetadataTests()
     {
-        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(new DefaultConfig());
+        _metadata = new SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(new DefaultConfig());
     }
 
     public void Dispose()
@@ -168,10 +168,10 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_ReturnsValidId()
     {
-        var description = new QueryBuilder<Bit64>()
+        var description = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
-        var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
+        var hashedDesc = (HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)description;
 
         var queryId = _metadata.GetOrCreateQueryId(hashedDesc);
 
@@ -181,10 +181,10 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_SameDescription_ReturnsSameId()
     {
-        var description = new QueryBuilder<Bit64>()
+        var description = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
-        var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
+        var hashedDesc = (HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)description;
 
         var id1 = _metadata.GetOrCreateQueryId(hashedDesc);
         var id2 = _metadata.GetOrCreateQueryId(hashedDesc);
@@ -196,10 +196,10 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
     public async Task GetMatchedArchetypeIds_ReturnsMatchingArchetypes()
     {
         // Create a query first
-        var description = new QueryBuilder<Bit64>()
+        var description = new QueryBuilder<ImmutableBitSet<Bit64>>()
             .With<TestPosition>()
             .Description;
-        var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)description;
+        var hashedDesc = (HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)description;
         var queryId = _metadata.GetOrCreateQueryId(hashedDesc);
 
         // Create an archetype that matches

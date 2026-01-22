@@ -328,6 +328,44 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     }
 
     /// <summary>
+    /// Returns the index of the next set bit after the specified index.
+    /// </summary>
+    /// <param name="afterIndex">The index to start searching after.</param>
+    /// <returns>The zero-based index of the next set bit, or -1 if no more bits are set.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int NextSetBit(int afterIndex)
+    {
+        int startIndex = afterIndex + 1;
+        if (startIndex >= Capacity)
+            return -1;
+
+        var span = GetReadOnlySpan();
+        int bucketIndex = startIndex / 64;
+        int bitInBucket = startIndex % 64;
+
+        // Check remaining bits in current bucket
+        ulong currentBucket = span[bucketIndex];
+        // Mask off bits at or before startIndex in this bucket
+        currentBucket &= ~((1UL << bitInBucket) - 1);
+        if (currentBucket != 0)
+        {
+            return bucketIndex * 64 + BitOperations.TrailingZeroCount(currentBucket);
+        }
+
+        // Check subsequent buckets
+        for (int i = bucketIndex + 1; i < ULongCount; i++)
+        {
+            ulong value = span[i];
+            if (value != 0)
+            {
+                return i * 64 + BitOperations.TrailingZeroCount(value);
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
     /// Performs a bitwise AND operation between two bitsets.
     /// </summary>
     /// <param name="left">The first bitset.</param>

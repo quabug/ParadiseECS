@@ -4,22 +4,22 @@ namespace Paradise.ECS;
 /// Interface for archetype registry operations.
 /// Manages unique archetypes and provides lookup by component mask.
 /// </summary>
-/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 /// <typeparam name="TArchetype">The concrete archetype type.</typeparam>
-public interface IArchetypeRegistry<TBits, TRegistry, TConfig, TArchetype>
-    where TBits : unmanaged, IStorage
+public interface IArchetypeRegistry<TMask, TRegistry, TConfig, TArchetype>
+    where TMask : unmanaged, IBitSet<TMask>
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
-    where TArchetype : class, IArchetype<TBits, TRegistry, TConfig>
+    where TArchetype : class, IArchetype<TMask, TRegistry, TConfig>
 {
     /// <summary>
     /// Gets or creates an archetype for the given component mask.
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>
     /// <returns>The archetype for this mask.</returns>
-    TArchetype GetOrCreate(HashedKey<ImmutableBitSet<TBits>> mask);
+    TArchetype GetOrCreate(HashedKey<TMask> mask);
 
     /// <summary>
     /// Gets or creates the archetype resulting from adding a component to the source archetype.
@@ -52,5 +52,5 @@ public interface IArchetypeRegistry<TBits, TRegistry, TConfig, TArchetype>
     /// </summary>
     /// <param name="description">The query description defining matching criteria.</param>
     /// <returns>The query for this description.</returns>
-    Query<TBits, TRegistry, TConfig, TArchetype> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description);
+    Query<TMask, TRegistry, TConfig, TArchetype> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TMask>> description);
 }

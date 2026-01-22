@@ -409,10 +409,10 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    public static {queryable.HelperStructPrefix}ChunkQueryBuilder ChunkQuery => default;");
         sb.AppendLine();
 
-        // Generate nested Data<TBits, TRegistry, TConfig> struct
+        // Generate nested Data<TMask, TRegistry, TConfig> struct
         GenerateNestedDataStruct(sb, queryable, indent + "    ");
 
-        // Generate nested ChunkData<TBits, TRegistry, TConfig> struct
+        // Generate nested ChunkData<TMask, TRegistry, TConfig> struct
         GenerateNestedChunkDataStruct(sb, queryable, indent + "    ");
 
         sb.AppendLine($"{indent}}}");
@@ -448,18 +448,18 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}/// <summary>");
         sb.AppendLine($"{indent}/// Iteration data providing component access. Returned by query enumeration.");
         sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}/// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly ref struct Data<TBits, TRegistry, TConfig>");
-        sb.AppendLine($"{indent}    where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine($"{indent}public readonly ref struct Data<TMask, TRegistry, TConfig>");
+        sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}    where TRegistry : global::Paradise.ECS.IComponentRegistry");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
         sb.AppendLine($"{indent}{{");
 
         // Generate private fields
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ImmutableArchetypeLayout<TBits, TRegistry, TConfig> _layout;");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TRegistry, TConfig> _layout;");
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkHandle _chunk;");
         sb.AppendLine($"{indent}    private readonly int _indexInChunk;");
         sb.AppendLine();
@@ -468,7 +468,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"{indent}    internal Data(");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkManager chunkManager,");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkHandle chunk,");
         sb.AppendLine($"{indent}        int indexInChunk)");
         sb.AppendLine($"{indent}    {{");
@@ -538,21 +538,21 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}public readonly struct {prefix}QueryBuilder");
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{indent}    /// <summary>Builds a typed query for the specified world.</summary>");
-        sb.AppendLine($"{indent}    /// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
+        sb.AppendLine($"{indent}    /// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}    /// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
         sb.AppendLine($"{indent}    /// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
         sb.AppendLine($"{indent}    /// <param name=\"world\">The world to query.</param>");
         sb.AppendLine($"{indent}    /// <returns>A typed query that iterates over {queryable.TypeName}.Data instances.</returns>");
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    public {prefix}Query<TBits, TRegistry, TConfig> Build<TBits, TRegistry, TConfig>(");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world)");
-        sb.AppendLine($"{indent}        where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine($"{indent}    public {prefix}Query<TMask, TRegistry, TConfig> Build<TMask, TRegistry, TConfig>(");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TRegistry, TConfig> world)");
+        sb.AppendLine($"{indent}        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}        where TRegistry : global::Paradise.ECS.IComponentRegistry");
         sb.AppendLine($"{indent}        where TConfig : global::Paradise.ECS.IConfig, new()");
         sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TBits>.Descriptions[{queryable.TypeName}.QueryableId];");
+        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[{queryable.TypeName}.QueryableId];");
         sb.AppendLine($"{indent}        var query = world.Registry.GetOrCreateQuery(hashedDescription);");
-        sb.AppendLine($"{indent}        return new {prefix}Query<TBits, TRegistry, TConfig>(world, query);");
+        sb.AppendLine($"{indent}        return new {prefix}Query<TMask, TRegistry, TConfig>(world, query);");
         sb.AppendLine($"{indent}    }}");
         sb.AppendLine($"{indent}}}");
     }
@@ -561,26 +561,26 @@ public class QueryableGenerator : IIncrementalGenerator
     {
         var prefix = queryable.HelperStructPrefix;
         sb.AppendLine();
-        var dataType = $"{queryable.TypeName}.Data<TBits, TRegistry, TConfig>";
+        var dataType = $"{queryable.TypeName}.Data<TMask, TRegistry, TConfig>";
 
         sb.AppendLine($"{indent}/// <summary>");
         sb.AppendLine($"{indent}/// Typed query that returns {queryable.TypeName}.Data instances during iteration.");
         sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}/// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly struct {prefix}Query<TBits, TRegistry, TConfig>");
-        sb.AppendLine($"{indent}    where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine($"{indent}public readonly struct {prefix}Query<TMask, TRegistry, TConfig>");
+        sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}    where TRegistry : global::Paradise.ECS.IComponentRegistry");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> _query;");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Query<TMask, TRegistry, TConfig, global::Paradise.ECS.Archetype<TMask, TRegistry, TConfig>> _query;");
         sb.AppendLine();
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"{indent}    internal {prefix}Query(");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world,");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> query)");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TRegistry, TConfig> world,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.Query<TMask, TRegistry, TConfig, global::Paradise.ECS.Archetype<TMask, TRegistry, TConfig>> query)");
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        _chunkManager = world.ChunkManager;");
         sb.AppendLine($"{indent}        _query = query;");
@@ -610,8 +610,8 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    public ref struct Enumerator");
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}        private global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>>.ChunkEnumerator _chunkEnumerator;");
-        sb.AppendLine($"{indent}        private global::Paradise.ECS.ImmutableArchetypeLayout<TBits, TRegistry, TConfig> _currentLayout;");
+        sb.AppendLine($"{indent}        private global::Paradise.ECS.Query<TMask, TRegistry, TConfig, global::Paradise.ECS.Archetype<TMask, TRegistry, TConfig>>.ChunkEnumerator _chunkEnumerator;");
+        sb.AppendLine($"{indent}        private global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TRegistry, TConfig> _currentLayout;");
         sb.AppendLine($"{indent}        private global::Paradise.ECS.ChunkHandle _currentChunk;");
         sb.AppendLine($"{indent}        private int _indexInChunk;");
         sb.AppendLine($"{indent}        private int _entitiesInChunk;");
@@ -619,7 +619,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"{indent}        internal Enumerator(");
         sb.AppendLine($"{indent}            global::Paradise.ECS.ChunkManager chunkManager,");
-        sb.AppendLine($"{indent}            global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> query)");
+        sb.AppendLine($"{indent}            global::Paradise.ECS.Query<TMask, TRegistry, TConfig, global::Paradise.ECS.Archetype<TMask, TRegistry, TConfig>> query)");
         sb.AppendLine($"{indent}        {{");
         sb.AppendLine($"{indent}            _chunkManager = chunkManager;");
         sb.AppendLine($"{indent}            _chunkEnumerator = query.Chunks.GetEnumerator();");
@@ -662,18 +662,18 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}/// <summary>");
         sb.AppendLine($"{indent}/// Chunk data providing span-based component access for batch processing.");
         sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}/// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly ref struct ChunkData<TBits, TRegistry, TConfig>");
-        sb.AppendLine($"{indent}    where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine($"{indent}public readonly ref struct ChunkData<TMask, TRegistry, TConfig>");
+        sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}    where TRegistry : global::Paradise.ECS.IComponentRegistry");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
         sb.AppendLine($"{indent}{{");
 
         // Generate private fields
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ImmutableArchetypeLayout<TBits, TRegistry, TConfig> _layout;");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TRegistry, TConfig> _layout;");
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkHandle _chunk;");
         sb.AppendLine($"{indent}    private readonly int _entityCount;");
         sb.AppendLine();
@@ -682,7 +682,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"{indent}    internal ChunkData(");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkManager chunkManager,");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkHandle chunk,");
         sb.AppendLine($"{indent}        int entityCount)");
         sb.AppendLine($"{indent}    {{");
@@ -764,21 +764,21 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}public readonly struct {prefix}ChunkQueryBuilder");
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{indent}    /// <summary>Builds a typed chunk query for the specified world.</summary>");
-        sb.AppendLine($"{indent}    /// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
+        sb.AppendLine($"{indent}    /// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}    /// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
         sb.AppendLine($"{indent}    /// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
         sb.AppendLine($"{indent}    /// <param name=\"world\">The world to query.</param>");
         sb.AppendLine($"{indent}    /// <returns>A typed chunk query that iterates over {queryable.TypeName}.ChunkData instances.</returns>");
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    public {prefix}ChunkQuery<TBits, TRegistry, TConfig> Build<TBits, TRegistry, TConfig>(");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world)");
-        sb.AppendLine($"{indent}        where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine($"{indent}    public {prefix}ChunkQuery<TMask, TRegistry, TConfig> Build<TMask, TRegistry, TConfig>(");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TRegistry, TConfig> world)");
+        sb.AppendLine($"{indent}        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}        where TRegistry : global::Paradise.ECS.IComponentRegistry");
         sb.AppendLine($"{indent}        where TConfig : global::Paradise.ECS.IConfig, new()");
         sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TBits>.Descriptions[{queryable.TypeName}.QueryableId];");
+        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[{queryable.TypeName}.QueryableId];");
         sb.AppendLine($"{indent}        var query = world.Registry.GetOrCreateQuery(hashedDescription);");
-        sb.AppendLine($"{indent}        return new {prefix}ChunkQuery<TBits, TRegistry, TConfig>(world, query);");
+        sb.AppendLine($"{indent}        return new {prefix}ChunkQuery<TMask, TRegistry, TConfig>(world, query);");
         sb.AppendLine($"{indent}    }}");
         sb.AppendLine($"{indent}}}");
     }
@@ -787,26 +787,26 @@ public class QueryableGenerator : IIncrementalGenerator
     {
         var prefix = queryable.HelperStructPrefix;
         sb.AppendLine();
-        var chunkDataType = $"{queryable.TypeName}.ChunkData<TBits, TRegistry, TConfig>";
+        var chunkDataType = $"{queryable.TypeName}.ChunkData<TMask, TRegistry, TConfig>";
 
         sb.AppendLine($"{indent}/// <summary>");
         sb.AppendLine($"{indent}/// Typed chunk query that returns {queryable.TypeName}.ChunkData instances for batch processing.");
         sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}/// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
+        sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TRegistry\">The component registry type.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly struct {prefix}ChunkQuery<TBits, TRegistry, TConfig>");
-        sb.AppendLine($"{indent}    where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine($"{indent}public readonly struct {prefix}ChunkQuery<TMask, TRegistry, TConfig>");
+        sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}    where TRegistry : global::Paradise.ECS.IComponentRegistry");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> _query;");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Query<TMask, TRegistry, TConfig, global::Paradise.ECS.Archetype<TMask, TRegistry, TConfig>> _query;");
         sb.AppendLine();
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"{indent}    internal {prefix}ChunkQuery(");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TBits, TRegistry, TConfig> world,");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> query)");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TRegistry, TConfig> world,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.Query<TMask, TRegistry, TConfig, global::Paradise.ECS.Archetype<TMask, TRegistry, TConfig>> query)");
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        _chunkManager = world.ChunkManager;");
         sb.AppendLine($"{indent}        _query = query;");
@@ -836,12 +836,12 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    public ref struct Enumerator");
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}        private global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>>.ChunkEnumerator _chunkEnumerator;");
+        sb.AppendLine($"{indent}        private global::Paradise.ECS.Query<TMask, TRegistry, TConfig, global::Paradise.ECS.Archetype<TMask, TRegistry, TConfig>>.ChunkEnumerator _chunkEnumerator;");
         sb.AppendLine();
         sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"{indent}        internal Enumerator(");
         sb.AppendLine($"{indent}            global::Paradise.ECS.ChunkManager chunkManager,");
-        sb.AppendLine($"{indent}            global::Paradise.ECS.Query<TBits, TRegistry, TConfig, global::Paradise.ECS.Archetype<TBits, TRegistry, TConfig>> query)");
+        sb.AppendLine($"{indent}            global::Paradise.ECS.Query<TMask, TRegistry, TConfig, global::Paradise.ECS.Archetype<TMask, TRegistry, TConfig>> query)");
         sb.AppendLine($"{indent}        {{");
         sb.AppendLine($"{indent}            _chunkManager = chunkManager;");
         sb.AppendLine($"{indent}            _chunkEnumerator = query.Chunks.GetEnumerator();");
@@ -884,18 +884,18 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine("/// Registry containing query descriptions and component masks for all queryable types.");
         sb.AppendLine("/// Indexed by queryable QueryableId for O(1) lookup.");
         sb.AppendLine("/// </summary>");
-        sb.AppendLine("/// <typeparam name=\"TBits\">The bit storage type for component masks.</typeparam>");
-        sb.AppendLine("public static class QueryableRegistry<TBits>");
-        sb.AppendLine("    where TBits : unmanaged, global::Paradise.ECS.IStorage");
+        sb.AppendLine("/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
+        sb.AppendLine("public static class QueryableRegistry<TMask>");
+        sb.AppendLine("    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine("{");
-        sb.AppendLine($"    private static readonly global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TBits>>> s_descriptions;");
+        sb.AppendLine($"    private static readonly global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TMask>>> s_descriptions;");
         sb.AppendLine();
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Gets the query descriptions for all queryable types, indexed by QueryableId.");
         sb.AppendLine("    /// Descriptions are pre-wrapped in HashedKey for efficient lookup without re-computing hash.");
         sb.AppendLine("    /// Access All, None, Any masks via Description[id].Value.All/None/Any.");
         sb.AppendLine("    /// </summary>");
-        sb.AppendLine($"    public static global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TBits>>> Descriptions => s_descriptions;");
+        sb.AppendLine($"    public static global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TMask>>> Descriptions => s_descriptions;");
         sb.AppendLine();
         sb.AppendLine("    /// <summary>");
         sb.AppendLine("    /// Gets the total number of registered queryable types.");
@@ -904,7 +904,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine("    static QueryableRegistry()");
         sb.AppendLine("    {");
-        sb.AppendLine($"        var descriptions = new global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TBits>>[{maxId + 1}];");
+        sb.AppendLine($"        var descriptions = new global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TMask>>[{maxId + 1}];");
         sb.AppendLine();
 
         // Generate mask initialization for each queryable
@@ -920,7 +920,7 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.Append($"        var anyMask{typeId} = ");
             GenerateMask(sb, info.AnyComponents);
             sb.AppendLine(";");
-            sb.AppendLine($"        descriptions[{typeId}] = (global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TBits>>)new global::Paradise.ECS.ImmutableQueryDescription<TBits>(allMask{typeId}, noneMask{typeId}, anyMask{typeId});");
+            sb.AppendLine($"        descriptions[{typeId}] = (global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TMask>>)new global::Paradise.ECS.ImmutableQueryDescription<TMask>(allMask{typeId}, noneMask{typeId}, anyMask{typeId});");
             sb.AppendLine();
         }
 
@@ -937,8 +937,8 @@ public class QueryableGenerator : IIncrementalGenerator
 
     private static void GenerateQueryableAliases(SourceProductionContext context, int componentCount, bool suppressGlobalUsings)
     {
-        var bitType = GetOptimalBitStorageType(componentCount);
-        var bitTypeFullyQualified = $"global::Paradise.ECS.{bitType}";
+        var bitStorageType = GetOptimalBitStorageType(componentCount);
+        var maskTypeFullyQualified = $"global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.{bitStorageType}>";
 
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
@@ -947,12 +947,12 @@ public class QueryableGenerator : IIncrementalGenerator
         if (suppressGlobalUsings)
         {
             sb.AppendLine("// All global usings suppressed by [assembly: SuppressGlobalUsings]");
-            sb.AppendLine($"// To use QueryableRegistry, reference: global::Paradise.ECS.QueryableRegistry<{bitTypeFullyQualified}>");
+            sb.AppendLine($"// To use QueryableRegistry, reference: global::Paradise.ECS.QueryableRegistry<{maskTypeFullyQualified}>");
         }
         else
         {
-            sb.AppendLine("// Type alias for QueryableRegistry using the same bit type as components");
-            sb.AppendLine($"global using QueryableRegistry = global::Paradise.ECS.QueryableRegistry<{bitTypeFullyQualified}>;");
+            sb.AppendLine("// Type alias for QueryableRegistry using the same mask type as components");
+            sb.AppendLine($"global using QueryableRegistry = global::Paradise.ECS.QueryableRegistry<{maskTypeFullyQualified}>;");
         }
 
         context.AddSource("QueryableAliases.g.cs", sb.ToString());
@@ -992,12 +992,12 @@ public class QueryableGenerator : IIncrementalGenerator
     {
         if (components.IsEmpty)
         {
-            sb.Append("global::Paradise.ECS.ImmutableBitSet<TBits>.Empty");
+            sb.Append("TMask.Empty");
             return;
         }
 
         // Generate mask by ORing component TypeIds
-        sb.Append("global::Paradise.ECS.ImmutableBitSet<TBits>.Empty");
+        sb.Append("TMask.Empty");
         foreach (var component in components)
         {
             sb.Append($".Set(global::{component}.TypeId)");

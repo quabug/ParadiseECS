@@ -7,9 +7,9 @@ namespace Paradise.ECS;
 /// <summary>
 /// Header portion of the archetype layout data.
 /// </summary>
-/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 [StructLayout(LayoutKind.Sequential)]
-public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
+public struct ArchetypeLayoutHeader<TMask> where TMask : unmanaged, IBitSet<TMask>
 {
     /// <summary>Maximum entities that fit in a single chunk for this archetype.</summary>
     public int EntitiesPerChunk;
@@ -27,10 +27,10 @@ public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
     public int BaseOffsetsOffset;
 
     /// <summary>The component mask for this archetype.</summary>
-    public ImmutableBitSet<TBits> ComponentMask;
+    public TMask ComponentMask;
 
     /// <summary>Size of this header in bytes.</summary>
-    public static readonly int SizeInBytes = Unsafe.SizeOf<ArchetypeLayoutHeader<TBits>>();
+    public static readonly int SizeInBytes = Unsafe.SizeOf<ArchetypeLayoutHeader<TMask>>();
 }
 
 /// <summary>
@@ -38,7 +38,7 @@ public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
 /// Uses Struct of Arrays (SoA) layout where each component type has a contiguous array.
 /// This provides better cache utilization and SIMD opportunities when iterating components.
 /// </summary>
-/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 /// <remarks>
@@ -50,15 +50,15 @@ public struct ArchetypeLayoutHeader<TBits> where TBits : unmanaged, IStorage
 /// Entity IDs (4 bytes each) are stored at the beginning of each chunk.
 /// Memory is allocated as a single block containing:
 /// <code>
-/// [ImmutableArchetypeLayout struct][ArchetypeLayoutHeader&lt;TBits&gt;][BaseOffsets (short[])]
+/// [ImmutableArchetypeLayout struct][ArchetypeLayoutHeader&lt;TMask&gt;][BaseOffsets (short[])]
 /// </code>
 /// BaseOffsets uses short (2 bytes) indexed by (componentId - minComponentId).
 /// -1 indicates component not present; valid offsets are 0 to 32767.
 /// Component sizes are looked up from TRegistry.TypeInfos.
 /// Use <see cref="Create"/> to allocate and <see cref="Free"/> to deallocate.
 /// </remarks>
-public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TConfig>
-    where TBits : unmanaged, IStorage
+public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TRegistry, TConfig>
+    where TMask : unmanaged, IBitSet<TMask>
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
@@ -113,16 +113,16 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
     /// <summary>
     /// Gets the component mask for this archetype.
     /// </summary>
-    public ImmutableBitSet<TBits> ComponentMask
+    public TMask ComponentMask
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => Header.ComponentMask;
     }
 
-    private ref ArchetypeLayoutHeader<TBits> Header
+    private ref ArchetypeLayoutHeader<TMask> Header
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => ref Unsafe.AsRef<ArchetypeLayoutHeader<TBits>>(_data);
+        get => ref Unsafe.AsRef<ArchetypeLayoutHeader<TMask>>(_data);
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
     /// <returns>A pointer to the allocated data (as nint). Use <see cref="Free"/> to deallocate.</returns>
     public static nint Create(
         IAllocator allocator,
-        ImmutableBitSet<TBits> componentMask)
+        TMask componentMask)
     {
         // Calculate min/max component ID range using FirstSetBit/LastSetBit
         int minId = componentMask.FirstSetBit();
@@ -150,14 +150,14 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
         int componentSlots = maxId - minId + 1;
         int componentCount = componentMask.PopCount();
 
-        // Layout: [Header<TBits>][BaseOffsets (short[])]
-        int baseOffsetsOffset = Memory.AlignUp(ArchetypeLayoutHeader<TBits>.SizeInBytes, sizeof(ushort));
+        // Layout: [Header<TMask>][BaseOffsets (short[])]
+        int baseOffsetsOffset = Memory.AlignUp(ArchetypeLayoutHeader<TMask>.SizeInBytes, sizeof(ushort));
         int totalBytes = baseOffsetsOffset + componentSlots * sizeof(ushort);
 
         byte* data = (byte*)allocator.Allocate((nuint)totalBytes);
 
         // Initialize header
-        ref var header = ref Unsafe.AsRef<ArchetypeLayoutHeader<TBits>>(data);
+        ref var header = ref Unsafe.AsRef<ArchetypeLayoutHeader<TMask>>(data);
         header.ComponentCount = componentCount;
         header.MinComponentId = minId;
         header.MaxComponentId = maxId;
@@ -174,9 +174,9 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
 
     private static void InitializeLayout(
         byte* data,
-        ImmutableBitSet<TBits> componentMask)
+        TMask componentMask)
     {
-        ref var header = ref Unsafe.AsRef<ArchetypeLayoutHeader<TBits>>(data);
+        ref var header = ref Unsafe.AsRef<ArchetypeLayoutHeader<TMask>>(data);
         int minId = header.MinComponentId;
         int componentSlots = header.MaxComponentId - minId + 1;
         var baseOffsets = new Span<short>((short*)(data + header.BaseOffsetsOffset), componentSlots);
@@ -192,7 +192,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
 
         // Calculate total size per entity (entity ID + components, without alignment)
         int totalSizePerEntity = TConfig.EntityIdByteSize;
-        foreach (int componentId in componentMask)
+        for (int componentId = componentMask.FirstSetBit(); componentId >= 0; componentId = componentMask.NextSetBit(componentId))
         {
             totalSizePerEntity += typeInfos[componentId].Size;
         }
@@ -202,7 +202,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
         {
             header.EntitiesPerChunk = TConfig.ChunkSize / TConfig.EntityIdByteSize;
             // Mark all tag components as present (offset after entity IDs, but size 0)
-            foreach (int componentId in componentMask)
+            for (int componentId = componentMask.FirstSetBit(); componentId >= 0; componentId = componentMask.NextSetBit(componentId))
             {
                 baseOffsets[componentId - minId] = 0;
             }
@@ -233,7 +233,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
     }
 
     private static int CalculateAndStoreOffsets(
-        ImmutableBitSet<TBits> componentMask,
+        TMask componentMask,
         ImmutableArray<ComponentTypeInfo> typeInfos,
         Span<short> baseOffsets,
         int minId,
@@ -242,7 +242,7 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TBits, TRegistry, TCo
         // Start after entity ID array (aligned to 4 bytes, which entity IDs naturally are)
         int currentOffset = entitiesPerChunk * TConfig.EntityIdByteSize;
 
-        foreach (int componentId in componentMask)
+        for (int componentId = componentMask.FirstSetBit(); componentId >= 0; componentId = componentMask.NextSetBit(componentId))
         {
             var comp = typeInfos[componentId];
             int slotIndex = componentId - minId;

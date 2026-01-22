@@ -772,7 +772,7 @@ public class ComponentGeneratorBitStorageTests
         var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
-        await Assert.That(aliases).Contains("using Bit64");
+        await Assert.That(aliases).Contains("using ImmutableBitSet<Bit64>");
         await Assert.That(aliases).Contains("Component count: 1");
     }
 

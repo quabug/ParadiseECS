@@ -3,7 +3,8 @@ namespace Paradise.ECS;
 /// <summary>
 /// Interface for fixed-size bitset operations used in archetype matching.
 /// </summary>
-public interface IBitSet<TSelf> where TSelf : unmanaged, IBitSet<TSelf>
+public interface IBitSet<TSelf> : IEquatable<TSelf>
+    where TSelf : unmanaged, IBitSet<TSelf>
 {
     /// <summary>
     /// Maximum number of bits this bitset can hold.
@@ -69,4 +70,23 @@ public interface IBitSet<TSelf> where TSelf : unmanaged, IBitSet<TSelf>
     /// Counts the number of set bits.
     /// </summary>
     int PopCount();
+
+    /// <summary>
+    /// Returns the index of the first (lowest) bit that is set.
+    /// </summary>
+    /// <returns>The zero-based index of the first set bit, or -1 if no bits are set.</returns>
+    int FirstSetBit();
+
+    /// <summary>
+    /// Returns the index of the last (highest) bit that is set.
+    /// </summary>
+    /// <returns>The zero-based index of the last set bit, or -1 if no bits are set.</returns>
+    int LastSetBit();
+
+    /// <summary>
+    /// Returns the index of the next set bit after the specified index.
+    /// </summary>
+    /// <param name="afterIndex">The index to start searching after.</param>
+    /// <returns>The zero-based index of the next set bit, or -1 if no more bits are set.</returns>
+    int NextSetBit(int afterIndex);
 }

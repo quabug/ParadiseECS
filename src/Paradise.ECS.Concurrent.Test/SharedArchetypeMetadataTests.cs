@@ -3,12 +3,12 @@ namespace Paradise.ECS.Concurrent.Test;
 public class SharedArchetypeMetadataTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _metadata;
+    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _metadata;
 
     public SharedArchetypeMetadataTests()
     {
         // Create a fresh instance for isolated testing
-        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
+        _metadata = new SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(s_config);
     }
 
     public void Dispose()
@@ -168,17 +168,17 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_NewDescription_ReturnsSequentialId()
     {
-        var desc1 = new ImmutableQueryDescription<Bit64>(
+        var desc1 = new ImmutableQueryDescription<ImmutableBitSet<Bit64>>(
             ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
             ImmutableBitSet<Bit64>.Empty,
             ImmutableBitSet<Bit64>.Empty);
-        var desc2 = new ImmutableQueryDescription<Bit64>(
+        var desc2 = new ImmutableQueryDescription<ImmutableBitSet<Bit64>>(
             ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId),
             ImmutableBitSet<Bit64>.Empty,
             ImmutableBitSet<Bit64>.Empty);
 
-        int id1 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc1);
-        int id2 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc2);
+        int id1 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)desc1);
+        int id2 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)desc2);
 
         await Assert.That(id1).IsEqualTo(0);
         await Assert.That(id2).IsEqualTo(1);
@@ -188,13 +188,13 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_SameDescriptionTwice_ReturnsSameId()
     {
-        var desc = new ImmutableQueryDescription<Bit64>(
+        var desc = new ImmutableQueryDescription<ImmutableBitSet<Bit64>>(
             ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
             ImmutableBitSet<Bit64>.Empty,
             ImmutableBitSet<Bit64>.Empty);
 
-        int id1 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc);
-        int id2 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc);
+        int id1 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)desc);
+        int id2 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)desc);
 
         await Assert.That(id1).IsEqualTo(id2);
         await Assert.That(_metadata.QueryDescriptionCount).IsEqualTo(1);
@@ -203,11 +203,11 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetQueryDescription_ValidId_ReturnsDescription()
     {
-        var desc = new ImmutableQueryDescription<Bit64>(
+        var desc = new ImmutableQueryDescription<ImmutableBitSet<Bit64>>(
             ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
             ImmutableBitSet<Bit64>.Empty,
             ImmutableBitSet<Bit64>.Empty);
-        int id = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc);
+        int id = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)desc);
 
         var retrieved = _metadata.GetQueryDescription(id);
 
@@ -223,7 +223,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task Dispose_PreventsNewOperations()
     {
-        var localMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
+        var localMetadata = new SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(s_config);
         localMetadata.Dispose();
 
         var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
@@ -234,7 +234,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task Dispose_MultipleTimes_DoesNotThrow()
     {
-        using var localMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
+        using var localMetadata = new SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(s_config);
 
         await Assert.That(() =>
         {
@@ -247,13 +247,13 @@ public class SharedArchetypeMetadataTests : IDisposable
 public class SharedArchetypeMetadataConcurrencyTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _metadata;
+    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _metadata;
 
     private const int TestComponentCount = 5;
 
     public SharedArchetypeMetadataConcurrencyTests()
     {
-        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
+        _metadata = new SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(s_config);
     }
 
     public void Dispose()
@@ -350,11 +350,11 @@ public class SharedArchetypeMetadataConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreateQueryId_SameDescription_ReturnsSameId()
     {
-        var desc = new ImmutableQueryDescription<Bit64>(
+        var desc = new ImmutableQueryDescription<ImmutableBitSet<Bit64>>(
             ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
             ImmutableBitSet<Bit64>.Empty,
             ImmutableBitSet<Bit64>.Empty);
-        var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)desc;
+        var hashedDesc = (HashedKey<ImmutableQueryDescription<ImmutableBitSet<Bit64>>>)desc;
 
         var tasks = new Task<int>[10];
         for (int i = 0; i < tasks.Length; i++)
