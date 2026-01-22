@@ -403,6 +403,23 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
     public SetBitEnumerator GetEnumerator() => new(this);
 
     /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ForEach<TAction>(scoped ref TAction action) where TAction : IBitAction, allows ref struct
+    {
+        var span = GetReadOnlySpan();
+        for (int bucketIndex = 0; bucketIndex < ULongCount; bucketIndex++)
+        {
+            ulong bucket = span[bucketIndex];
+            while (bucket != 0)
+            {
+                int bitPos = BitOperations.TrailingZeroCount(bucket);
+                action.Invoke(bucketIndex * 64 + bitPos);
+                bucket &= bucket - 1; // Clear lowest set bit
+            }
+        }
+    }
+
+    /// <inheritdoc/>
     public override string ToString() => $"ImmutableBitSet<{typeof(TBits).Name}>({PopCount()} bits set)";
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -191,21 +192,17 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TRegistry, TCo
         var typeInfos = TRegistry.TypeInfos;
 
         // Calculate total size per entity (entity ID + components, without alignment)
-        int totalSizePerEntity = TConfig.EntityIdByteSize;
-        for (int componentId = componentMask.FirstSetBit(); componentId >= 0; componentId = componentMask.NextSetBit(componentId))
-        {
-            totalSizePerEntity += typeInfos[componentId].Size;
-        }
+        var sumAction = new SumComponentSizesAction { TypeInfos = typeInfos, TotalSize = TConfig.EntityIdByteSize };
+        componentMask.ForEach(ref sumAction);
+        int totalSizePerEntity = sumAction.TotalSize;
 
         // Tag-only archetype: only entity IDs
         if (totalSizePerEntity == TConfig.EntityIdByteSize)
         {
             header.EntitiesPerChunk = TConfig.ChunkSize / TConfig.EntityIdByteSize;
             // Mark all tag components as present (offset after entity IDs, but size 0)
-            for (int componentId = componentMask.FirstSetBit(); componentId >= 0; componentId = componentMask.NextSetBit(componentId))
-            {
-                baseOffsets[componentId - minId] = 0;
-            }
+            var zeroAction = new SetZeroOffsetsAction { BaseOffsets = baseOffsets, MinId = minId };
+            componentMask.ForEach(ref zeroAction);
             return;
         }
 
@@ -240,28 +237,71 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TRegistry, TCo
         int entitiesPerChunk)
     {
         // Start after entity ID array (aligned to 4 bytes, which entity IDs naturally are)
-        int currentOffset = entitiesPerChunk * TConfig.EntityIdByteSize;
-
-        for (int componentId = componentMask.FirstSetBit(); componentId >= 0; componentId = componentMask.NextSetBit(componentId))
+        var action = new CalculateOffsetsAction
         {
-            var comp = typeInfos[componentId];
-            int slotIndex = componentId - minId;
+            TypeInfos = typeInfos,
+            BaseOffsets = baseOffsets,
+            MinId = minId,
+            EntitiesPerChunk = entitiesPerChunk,
+            CurrentOffset = entitiesPerChunk * TConfig.EntityIdByteSize
+        };
+        componentMask.ForEach(ref action);
+        return action.CurrentOffset;
+    }
+
+    private struct SumComponentSizesAction : IBitAction
+    {
+        public ImmutableArray<ComponentTypeInfo> TypeInfos;
+        public int TotalSize;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Invoke(int bitIndex)
+        {
+            TotalSize += TypeInfos[bitIndex].Size;
+        }
+    }
+
+    [SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Required by IBitAction interface")]
+    private ref struct SetZeroOffsetsAction : IBitAction
+    {
+        public Span<short> BaseOffsets;
+        public int MinId;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Invoke(int bitIndex)
+        {
+            BaseOffsets[bitIndex - MinId] = 0;
+        }
+    }
+
+    private ref struct CalculateOffsetsAction : IBitAction
+    {
+        public ImmutableArray<ComponentTypeInfo> TypeInfos;
+        public Span<short> BaseOffsets;
+        public int MinId;
+        public int EntitiesPerChunk;
+        public int CurrentOffset;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Invoke(int bitIndex)
+        {
+            var comp = TypeInfos[bitIndex];
+            int slotIndex = bitIndex - MinId;
 
             // Tag components (size 0) have offset 0
             if (comp.Size == 0)
             {
-                baseOffsets[slotIndex] = 0;
-                continue;
+                BaseOffsets[slotIndex] = 0;
+                return;
             }
 
             // Align the base offset
             int alignment = comp.Alignment > 0 ? comp.Alignment : 1;
-            currentOffset = Memory.AlignUp(currentOffset, alignment);
+            CurrentOffset = Memory.AlignUp(CurrentOffset, alignment);
 
-            baseOffsets[slotIndex] = (short)currentOffset;
-            currentOffset += comp.Size * entitiesPerChunk;
+            BaseOffsets[slotIndex] = (short)CurrentOffset;
+            CurrentOffset += comp.Size * EntitiesPerChunk;
         }
-        return currentOffset;
     }
 
     /// <summary>

@@ -632,6 +632,23 @@ public readonly struct ImmutableBitVector<TStorage> : IEquatable<ImmutableBitVec
 
     public Enumerator GetEnumerator() => new(this);
 
+    /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ForEach<TAction>(scoped ref TAction action) where TAction : IBitAction, allows ref struct
+    {
+        ref var ulongs = ref Unsafe.As<TStorage, ulong>(ref Unsafe.AsRef(in _storage));
+        for (int bucketIndex = 0; bucketIndex < ULongCount; bucketIndex++)
+        {
+            ulong bucket = Unsafe.Add(ref ulongs, bucketIndex);
+            while (bucket != 0)
+            {
+                int bitPos = BitOperations.TrailingZeroCount(bucket);
+                action.Invoke((bucketIndex << 6) + bitPos);
+                bucket &= bucket - 1; // Clear lowest set bit
+            }
+        }
+    }
+
     public ref struct Enumerator
     {
         private readonly ImmutableBitVector<TStorage> _immutableBitVector;

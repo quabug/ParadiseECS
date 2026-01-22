@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
 namespace Paradise.ECS.Concurrent;
@@ -557,19 +558,44 @@ public sealed class World<TMask, TRegistry, TConfig> : IDisposable
         var srcBytes = _chunkManager.GetBytes(srcChunkHandle);
         var dstBytes = _chunkManager.GetBytes(dstChunkHandle);
 
-        var typeInfos = TRegistry.TypeInfos;
-
-        for (int componentId = sharedMask.FirstSetBit(); componentId >= 0; componentId = sharedMask.NextSetBit(componentId))
+        var action = new CopyComponentsAction<TMask, TRegistry, TConfig>
         {
-            var info = typeInfos[componentId];
+            TypeInfos = TRegistry.TypeInfos,
+            SrcLayout = srcLayout,
+            DstLayout = dstLayout,
+            SrcBytes = srcBytes,
+            DstBytes = dstBytes,
+            SrcIndexInChunk = srcIndexInChunk,
+            DstIndexInChunk = dstIndexInChunk
+        };
+        sharedMask.ForEach(ref action);
+    }
+
+    private ref struct CopyComponentsAction<TM, TR, TC> : IBitAction
+        where TM : unmanaged, IBitSet<TM>
+        where TR : IComponentRegistry
+        where TC : IConfig, new()
+    {
+        public ImmutableArray<ComponentTypeInfo> TypeInfos;
+        public ImmutableArchetypeLayout<TM, TR, TC> SrcLayout;
+        public ImmutableArchetypeLayout<TM, TR, TC> DstLayout;
+        public Span<byte> SrcBytes;
+        public Span<byte> DstBytes;
+        public int SrcIndexInChunk;
+        public int DstIndexInChunk;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Invoke(int bitIndex)
+        {
+            var info = TypeInfos[bitIndex];
             if (info.Size == 0)
-                continue; // Skip tag components
+                return; // Skip tag components
 
-            int srcOffset = srcLayout.GetEntityComponentOffset(srcIndexInChunk, new ComponentId(componentId));
-            int dstOffset = dstLayout.GetEntityComponentOffset(dstIndexInChunk, new ComponentId(componentId));
+            int srcOffset = SrcLayout.GetEntityComponentOffset(SrcIndexInChunk, new ComponentId(bitIndex));
+            int dstOffset = DstLayout.GetEntityComponentOffset(DstIndexInChunk, new ComponentId(bitIndex));
 
-            var srcData = srcBytes.Slice(srcOffset, info.Size);
-            var dstData = dstBytes.Slice(dstOffset, info.Size);
+            var srcData = SrcBytes.Slice(srcOffset, info.Size);
+            var dstData = DstBytes.Slice(dstOffset, info.Size);
             srcData.CopyTo(dstData);
         }
     }

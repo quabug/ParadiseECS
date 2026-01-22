@@ -1,6 +1,19 @@
 namespace Paradise.ECS;
 
 /// <summary>
+/// Callback interface for iterating over set bits in a bitset.
+/// Implement as a struct for optimal performance (enables JIT inlining).
+/// </summary>
+public interface IBitAction
+{
+    /// <summary>
+    /// Called for each set bit in the bitset.
+    /// </summary>
+    /// <param name="bitIndex">The index of the set bit.</param>
+    void Invoke(int bitIndex);
+}
+
+/// <summary>
 /// Interface for fixed-size bitset operations used in archetype matching.
 /// </summary>
 public interface IBitSet<TSelf> : IEquatable<TSelf>
@@ -84,9 +97,10 @@ public interface IBitSet<TSelf> : IEquatable<TSelf>
     int LastSetBit();
 
     /// <summary>
-    /// Returns the index of the next set bit after the specified index.
+    /// Iterates over all set bits and invokes the action for each.
+    /// Implement this method with optimized bucket-based iteration for best performance.
     /// </summary>
-    /// <param name="afterIndex">The index to start searching after.</param>
-    /// <returns>The zero-based index of the next set bit, or -1 if no more bits are set.</returns>
-    int NextSetBit(int afterIndex);
+    /// <typeparam name="TAction">The action type (use struct for inlining).</typeparam>
+    /// <param name="action">The action to invoke for each set bit.</param>
+    void ForEach<TAction>(scoped ref TAction action) where TAction : IBitAction, allows ref struct;
 }

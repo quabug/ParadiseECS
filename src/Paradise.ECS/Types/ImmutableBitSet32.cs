@@ -116,6 +116,19 @@ public readonly record struct ImmutableBitSet32 : IBitSet<ImmutableBitSet32>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public SetBitEnumerator GetEnumerator() => new(_bits);
 
+    /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ForEach<TAction>(scoped ref TAction action) where TAction : IBitAction, allows ref struct
+    {
+        uint remaining = _bits;
+        while (remaining != 0)
+        {
+            int bitPos = BitOperations.TrailingZeroCount(remaining);
+            action.Invoke(bitPos);
+            remaining &= remaining - 1; // Clear lowest set bit
+        }
+    }
+
     public override string ToString() => $"ImmutableBitSet32({PopCount()} bits set, 0x{_bits:X8})";
 
     public ref struct SetBitEnumerator
