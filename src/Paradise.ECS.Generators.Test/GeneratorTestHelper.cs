@@ -54,10 +54,11 @@ public static class GeneratorTestHelper
             references.Add(MetadataReference.CreateFromFile(netstandardPath));
         }
 
-        // Add Paradise.ECS reference if requested
+        // Add Paradise.ECS and Paradise.ECS.Tag references if requested
         if (includeEcsReferences)
         {
             references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.ComponentAttribute).Assembly.Location));
+            references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.TagAttribute).Assembly.Location));
         }
 
         var compilation = CSharpCompilation.Create(
@@ -218,10 +219,11 @@ public static class GeneratorTestHelper
             references.Add(MetadataReference.CreateFromFile(netstandardPath));
         }
 
-        // Add Paradise.ECS reference if requested
+        // Add Paradise.ECS and Paradise.ECS.Tag references if requested
         if (includeEcsReferences)
         {
             references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.ComponentAttribute).Assembly.Location));
+            references.Add(MetadataReference.CreateFromFile(typeof(Paradise.ECS.TagAttribute).Assembly.Location));
         }
 
         var compilation = CSharpCompilation.Create(

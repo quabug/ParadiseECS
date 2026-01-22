@@ -2,12 +2,10 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Paradise.ECS.Test" />
-    <InternalsVisibleTo Include="Paradise.ECS.Tag" />
-    <InternalsVisibleTo Include="Paradise.ECS.Concurrent" />
-    <InternalsVisibleTo Include="Paradise.ECS.Concurrent.Test" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Paradise.ECS\Paradise.ECS.csproj" />
     <ProjectReference Include="..\Paradise.ECS.Generators\Paradise.ECS.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
