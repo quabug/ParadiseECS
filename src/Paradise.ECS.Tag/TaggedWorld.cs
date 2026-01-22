@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Paradise.ECS;
@@ -94,16 +93,18 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
     /// Creates a new TaggedWorld with externally provided subsystems.
     /// The caller is responsible for disposing the provided resources.
     /// </summary>
+    /// <param name="config">The configuration instance with runtime settings.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
     /// <param name="sharedMetadata">The shared archetype metadata.</param>
     /// <param name="chunkTagRegistry">The chunk tag registry for per-chunk tag filtering.</param>
     public TaggedWorld(
+        TConfig config,
         ChunkManager chunkManager,
         SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
         ChunkTagRegistry<TTagMask> chunkTagRegistry)
     {
         _chunkTagRegistry = chunkTagRegistry;
-        _world = new World<TBits, TRegistry, TConfig>(new TConfig(), sharedMetadata, chunkManager);
+        _world = new World<TBits, TRegistry, TConfig>(config, sharedMetadata, chunkManager);
     }
 
     /// <summary>
@@ -205,8 +206,9 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
 
         foreach (var archetype in _world.Archetypes)
         {
-            if (archetype is null) continue;
-            Debug.Assert(archetype.Layout.ComponentMask.Get(TEntityTags.TypeId.Value));
+            if (archetype is null || !archetype.Layout.ComponentMask.Get(TEntityTags.TypeId.Value))
+                continue;
+
             int chunkCount = archetype.ChunkCount;
             for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
             {
@@ -253,8 +255,8 @@ public sealed class TaggedWorld<TBits, TRegistry, TConfig, TEntityTags, TTagMask
         // Iterate all archetypes that have EntityTags component
         foreach (var archetype in _world.Archetypes)
         {
-            if (archetype is null) continue;
-            Debug.Assert(archetype.Layout.ComponentMask.Get(TEntityTags.TypeId.Value));
+            if (archetype is null || !archetype.Layout.ComponentMask.Get(TEntityTags.TypeId.Value))
+                continue;
 
             int chunkCount = archetype.ChunkCount;
             for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)

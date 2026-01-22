@@ -309,7 +309,7 @@ public sealed class TaggedWorldTests : IDisposable
 
     public TaggedWorldTests()
     {
-        _world = new World(_chunkManager, _sharedMetadata, _chunkTagRegistry);
+        _world = new World(s_config, _chunkManager, _sharedMetadata, _chunkTagRegistry);
     }
 
     public void Dispose()

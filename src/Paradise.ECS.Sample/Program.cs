@@ -14,7 +14,7 @@ using var sharedMetadata = new SharedArchetypeMetadata(config);
 using var chunkTagRegistry = new ChunkTagRegistry<ImmutableBitSet32>(config.ChunkAllocator, GameConfig.MaxMetaBlocks, GameConfig.ChunkSize);
 
 // Create the world using the generated World alias
-using var world = new World(chunkManager, sharedMetadata, chunkTagRegistry);
+using var world = new World(config, chunkManager, sharedMetadata, chunkTagRegistry);
 
 // Run all samples in sequence
 var (emptyEntity, playerEntity, enemies) = EntityCreationSample.Run(world);
