@@ -443,7 +443,38 @@ bool mayMatch = world.ChunkTagRegistry.ChunkMayMatch(chunkHandle, requiredTags);
 TagMask chunkMask = world.ChunkTagRegistry.GetChunkMask(chunkHandle);
 ```
 
-**Note:** Chunk masks use "sticky" optimization - bits remain set after tag removal until `world.RebuildChunkMasks()` is called. This avoids expensive per-entity scanning on removal while still enabling effective chunk-level filtering.
+##### Sticky Mask Optimization
+
+Chunk masks use a "sticky" optimization where bits remain set after tag removal. This is a deliberate trade-off:
+
+**Why Sticky Masks:**
+- Tag removal is O(1) instead of O(n) per-chunk scan
+- Avoids expensive recomputation on every `RemoveTag` call
+- Enables high-frequency tag toggling without performance penalty
+
+**Query Performance Impact:**
+- Stale bits cause false-positive chunk matches during tag queries
+- A query for tag A may check chunks where no entity has tag A anymore
+- Entity-level filtering remains correct (just extra work at chunk level)
+- Impact scales with stale bit count, not entity count
+
+**When to Rebuild:**
+```csharp
+// Check if stale bits have accumulated
+var stats = world.ComputeStaleBitStatistics();
+Console.WriteLine($"Stale bits: {stats.TotalStaleBits}, Ratio: {stats.StaleBitRatio:P0}");
+
+// Rebuild if stats.SuggestsRebuild or during natural breaks
+if (stats.SuggestsRebuild || isLevelTransition)
+{
+    world.RebuildChunkMasks(); // O(n) full scan
+}
+```
+
+**Best Practices:**
+- Call `RebuildChunkMasks()` at natural breakpoints (level loads, scene transitions)
+- Monitor `ComputeStaleBitStatistics()` if tag queries seem slow
+- Consider rebuild when `StaleBitRatio` > 50% or `ChunksWithStaleBitsRatio` > 25%
 
 ### Queryable Structs (Type-Safe Generated Queries)
 
