@@ -13,7 +13,7 @@ public static class GeneratedTypesSample
         // Verify the ComponentMask alias works
         Console.WriteLine($"  ComponentMask type: {typeof(ComponentMask).FullName}");
 
-        // Verify the World alias works (TaggedWorld with EnableTags)
+        // Verify the World alias works (TaggedWorld when Paradise.ECS.Tag is referenced)
         Console.WriteLine($"  World type: {typeof(World).FullName}");
 
         // Verify component type IDs are assigned

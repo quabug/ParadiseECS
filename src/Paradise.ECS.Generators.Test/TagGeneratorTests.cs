@@ -11,8 +11,6 @@ public class TagGeneratorBasicTests
         const string source = """
             using Paradise.ECS;
 
-            [assembly: EnableTags]
-
             namespace TestNamespace;
 
             [Tag]
@@ -36,8 +34,6 @@ public class TagGeneratorBasicTests
         const string source = """
             using Paradise.ECS;
 
-            [assembly: EnableTags]
-
             namespace TestNamespace;
 
             [Tag(Id = 5)]
@@ -58,8 +54,6 @@ public class TagGeneratorBasicTests
     {
         const string source = """
             using Paradise.ECS;
-
-            [assembly: EnableTags]
 
             namespace TestNamespace;
 
@@ -95,8 +89,6 @@ public class TagGeneratorMaskSizingTests
         const string source = """
             using Paradise.ECS;
 
-            [assembly: EnableTags]
-
             namespace TestNamespace;
 
             [Tag(Id = 100)]
@@ -119,8 +111,6 @@ public class TagGeneratorMaskSizingTests
     {
         const string source = """
             using Paradise.ECS;
-
-            [assembly: EnableTags]
 
             namespace TestNamespace;
 
@@ -145,8 +135,6 @@ public class TagGeneratorMaskSizingTests
         const string source = """
             using Paradise.ECS;
 
-            [assembly: EnableTags]
-
             namespace TestNamespace;
 
             [Tag(Id = 31)]
@@ -169,8 +157,6 @@ public class TagGeneratorMaskSizingTests
     {
         const string source = """
             using Paradise.ECS;
-
-            [assembly: EnableTags]
 
             namespace TestNamespace;
 

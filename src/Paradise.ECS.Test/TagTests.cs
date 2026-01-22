@@ -1,5 +1,3 @@
-[assembly: Paradise.ECS.EnableTags]
-
 namespace Paradise.ECS.Test;
 
 /// <summary>
