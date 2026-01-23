@@ -60,12 +60,7 @@ public class QueryableGenerator : IIncrementalGenerator
         if (typeSymbol.TypeKind != TypeKind.Struct)
             return null;
 
-        // Get fully qualified name for sorting
-        var fullyQualifiedName = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        if (fullyQualifiedName.StartsWith("global::", StringComparison.Ordinal))
-            fullyQualifiedName = fullyQualifiedName.Substring(8);
-
-        // Check if it's a ref struct
+        var fullyQualifiedName = GeneratorUtilities.GetFullyQualifiedName(typeSymbol);
         var isRefStruct = typeSymbol.IsRefLikeType;
 
         // Check if it's partial
@@ -74,29 +69,9 @@ public class QueryableGenerator : IIncrementalGenerator
             .OfType<StructDeclarationSyntax>()
             .Any(s => s.Modifiers.Any(m => m.Text == "partial"));
 
-        // Get namespace
-        var ns = typeSymbol.ContainingNamespace.IsGlobalNamespace
-            ? null
-            : typeSymbol.ContainingNamespace.ToDisplayString();
-
-        // Get type name and containing types for nested queryables
+        var ns = GeneratorUtilities.GetNamespace(typeSymbol);
         var typeName = typeSymbol.Name;
-        var containingTypesList = new List<ContainingTypeInfo>();
-        var parent = typeSymbol.ContainingType;
-        while (parent != null)
-        {
-            var keyword = parent.TypeKind switch
-            {
-                TypeKind.Class => parent.IsRecord ? "record class" : "class",
-                TypeKind.Struct => parent.IsRecord ? "record struct" : "struct",
-                TypeKind.Interface => "interface",
-                _ => "struct"
-            };
-            containingTypesList.Add(new ContainingTypeInfo(parent.Name, keyword));
-            parent = parent.ContainingType;
-        }
-        containingTypesList.Reverse();
-        var containingTypes = containingTypesList.ToImmutableArray();
+        var containingTypes = GeneratorUtilities.GetContainingTypes(typeSymbol);
 
         // Get optional manual Id from [Queryable(Id = X)]
         int? manualId = null;
@@ -115,10 +90,10 @@ public class QueryableGenerator : IIncrementalGenerator
         // Track component -> list of attribute types for duplicate detection
         var componentUsages = new Dictionary<string, List<string>>();
         var withComponents = new List<string>();
-        var withComponentsAccess = new List<ComponentAccessInfo>();
+        var withComponentsAccess = new List<ComponentInfo>();
         var withoutComponents = new List<string>();
         var anyComponents = new List<string>();
-        var optionalComponents = new List<OptionalComponentInfo>();
+        var optionalComponents = new List<ComponentInfo>();
 
         foreach (var attr in typeSymbol.GetAttributes())
         {
@@ -168,7 +143,7 @@ public class QueryableGenerator : IIncrementalGenerator
                         }
                     }
 
-                    withComponentsAccess.Add(new ComponentAccessInfo(
+                    withComponentsAccess.Add(new ComponentInfo(
                         componentFullName, componentTypeName, customName, isReadOnly, queryOnly));
                 }
                 else if (metadataName.StartsWith("Paradise.ECS.WithoutAttribute<", StringComparison.Ordinal))
@@ -202,7 +177,7 @@ public class QueryableGenerator : IIncrementalGenerator
                         }
                     }
 
-                    optionalComponents.Add(new OptionalComponentInfo(
+                    optionalComponents.Add(new ComponentInfo(
                         componentFullName, componentTypeName, customName, isReadOnly));
                 }
 
@@ -350,20 +325,6 @@ public class QueryableGenerator : IIncrementalGenerator
 
         // Generate QueryableRegistry
         GenerateQueryableRegistry(context, queryableWithIds, componentCount, suppressGlobalUsings);
-    }
-
-    private static string GetOptimalMaskType(int componentCount)
-    {
-        if (componentCount <= 32) return "global::Paradise.ECS.SmallBitSet<uint>";
-        if (componentCount <= 64) return "global::Paradise.ECS.SmallBitSet<ulong>";
-        if (componentCount <= 128) return "global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.Bit128>";
-        if (componentCount <= 256) return "global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.Bit256>";
-        if (componentCount <= 512) return "global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.Bit512>";
-        if (componentCount <= 1024) return "global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.Bit1024>";
-
-        // For >1024, calculate custom type name aligned to 256 bits (4 ulongs)
-        var capacity = ((componentCount + 255) / 256) * 256;
-        return $"global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.Bit{capacity}>";
     }
 
     private static void GeneratePartialStruct(
@@ -938,7 +899,7 @@ public class QueryableGenerator : IIncrementalGenerator
 
     private static void GenerateQueryableAliases(SourceProductionContext context, int componentCount, bool suppressGlobalUsings)
     {
-        var maskTypeFullyQualified = GetOptimalMaskType(componentCount);
+        var maskTypeFullyQualified = GeneratorUtilities.GetOptimalMaskType(componentCount);
 
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
@@ -1015,10 +976,10 @@ public class QueryableGenerator : IIncrementalGenerator
         public ImmutableArray<ContainingTypeInfo> ContainingTypes { get; }
         public int? ManualId { get; }
         public ImmutableArray<string> WithComponents { get; }
-        public ImmutableArray<ComponentAccessInfo> WithComponentsAccess { get; }
+        public ImmutableArray<ComponentInfo> WithComponentsAccess { get; }
         public ImmutableArray<string> WithoutComponents { get; }
         public ImmutableArray<string> AnyComponents { get; }
-        public ImmutableArray<OptionalComponentInfo> OptionalComponents { get; }
+        public ImmutableArray<ComponentInfo> OptionalComponents { get; }
         public ImmutableArray<(string Component, List<string> Attributes)> DuplicateComponents { get; }
 
         public bool HasDuplicates => !DuplicateComponents.IsEmpty;
@@ -1055,10 +1016,10 @@ public class QueryableGenerator : IIncrementalGenerator
             ImmutableArray<ContainingTypeInfo> containingTypes,
             int? manualId,
             ImmutableArray<string> withComponents,
-            ImmutableArray<ComponentAccessInfo> withComponentsAccess,
+            ImmutableArray<ComponentInfo> withComponentsAccess,
             ImmutableArray<string> withoutComponents,
             ImmutableArray<string> anyComponents,
-            ImmutableArray<OptionalComponentInfo> optionalComponents,
+            ImmutableArray<ComponentInfo> optionalComponents,
             ImmutableArray<(string Component, List<string> Attributes)> duplicateComponents)
         {
             FullyQualifiedName = fullyQualifiedName;
@@ -1078,22 +1039,10 @@ public class QueryableGenerator : IIncrementalGenerator
         }
     }
 
-    private readonly struct ContainingTypeInfo
-    {
-        public string Name { get; }
-        public string Keyword { get; }
-
-        public ContainingTypeInfo(string name, string keyword)
-        {
-            Name = name;
-            Keyword = keyword;
-        }
-    }
-
     /// <summary>
-    /// Information about a component access from With&lt;T&gt; attribute.
+    /// Information about a component access from With&lt;T&gt; or Optional&lt;T&gt; attribute.
     /// </summary>
-    private readonly struct ComponentAccessInfo
+    private readonly struct ComponentInfo
     {
         /// <summary>Fully qualified component type name.</summary>
         public string ComponentFullName { get; }
@@ -1104,54 +1053,24 @@ public class QueryableGenerator : IIncrementalGenerator
         /// <summary>Property name (Name ?? ComponentTypeName).</summary>
         public string PropertyName { get; }
 
-        /// <summary>If true, generates ref readonly property.</summary>
+        /// <summary>If true, generates ref readonly property/method.</summary>
         public bool IsReadOnly { get; }
 
-        /// <summary>If true, component used only for filtering, no property generated.</summary>
+        /// <summary>If true, component used only for filtering, no property generated. Only applicable to With components.</summary>
         public bool QueryOnly { get; }
 
-        public ComponentAccessInfo(
+        public ComponentInfo(
             string componentFullName,
             string componentTypeName,
             string? customName,
             bool isReadOnly,
-            bool queryOnly)
+            bool queryOnly = false)
         {
             ComponentFullName = componentFullName;
             ComponentTypeName = componentTypeName;
             PropertyName = customName ?? componentTypeName;
             IsReadOnly = isReadOnly;
             QueryOnly = queryOnly;
-        }
-    }
-
-    /// <summary>
-    /// Information about an optional component from Optional&lt;T&gt; attribute.
-    /// </summary>
-    private readonly struct OptionalComponentInfo
-    {
-        /// <summary>Fully qualified component type name.</summary>
-        public string ComponentFullName { get; }
-
-        /// <summary>Simple type name (without namespace).</summary>
-        public string ComponentTypeName { get; }
-
-        /// <summary>Property name (Name ?? ComponentTypeName).</summary>
-        public string PropertyName { get; }
-
-        /// <summary>If true, generates ref readonly method.</summary>
-        public bool IsReadOnly { get; }
-
-        public OptionalComponentInfo(
-            string componentFullName,
-            string componentTypeName,
-            string? customName,
-            bool isReadOnly)
-        {
-            ComponentFullName = componentFullName;
-            ComponentTypeName = componentTypeName;
-            PropertyName = customName ?? componentTypeName;
-            IsReadOnly = isReadOnly;
         }
     }
 }

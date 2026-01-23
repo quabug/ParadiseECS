@@ -772,7 +772,7 @@ public class ComponentGeneratorBitStorageTests
         var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
-        await Assert.That(aliases).Contains("using SmallBitSet<uint>");
+        await Assert.That(aliases).Contains("global using ComponentMask = global::Paradise.ECS.SmallBitSet<uint>");
         await Assert.That(aliases).Contains("Component count: 1");
     }
 
