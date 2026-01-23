@@ -36,7 +36,7 @@ public static class GeneratedTypesSample
         Console.WriteLine($"  Health.Size: {Health.Size} bytes");
 
         // Verify ComponentRegistry
-        Console.WriteLine($"  ComponentRegistry.TypeInfos.Length: {ComponentRegistry.TypeInfos.Length}");
+        Console.WriteLine($"  ComponentRegistry.TypeInfos.Length: {ComponentRegistry.Shared.TypeInfos.Length}");
         Console.WriteLine();
     }
 }

@@ -6,18 +6,16 @@ namespace Paradise.ECS;
 /// A query builder bound to a specific TaggedWorld, enabling clean fluent API with minimal type parameters.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 /// <typeparam name="TEntityTags">The EntityTags component type.</typeparam>
 /// <typeparam name="TTagMask">The tag mask type.</typeparam>
-public readonly ref struct TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TEntityTags, TTagMask>
+public readonly ref struct TaggedWorldQueryBuilder<TMask, TConfig, TEntityTags, TTagMask>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
     where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
     where TTagMask : unmanaged, IBitSet<TTagMask>
 {
-    private readonly TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> _world;
+    private readonly TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> _world;
     private readonly QueryBuilder<TMask> _queryBuilder;
     private readonly TTagMask _requiredTags;
 
@@ -25,7 +23,7 @@ public readonly ref struct TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TE
     /// Creates a new query builder bound to the specified world.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal TaggedWorldQueryBuilder(TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> world)
+    internal TaggedWorldQueryBuilder(TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> world)
     {
         _world = world;
         _queryBuilder = QueryBuilder<TMask>.Create();
@@ -34,7 +32,7 @@ public readonly ref struct TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TE
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private TaggedWorldQueryBuilder(
-        TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> world,
+        TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> world,
         QueryBuilder<TMask> queryBuilder,
         TTagMask requiredTags)
     {
@@ -49,7 +47,7 @@ public readonly ref struct TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TE
     /// <typeparam name="T">The component type that must be present.</typeparam>
     /// <returns>A new builder with the added constraint.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TEntityTags, TTagMask> With<T>()
+    public TaggedWorldQueryBuilder<TMask, TConfig, TEntityTags, TTagMask> With<T>()
         where T : unmanaged, IComponent
         => new(_world, _queryBuilder.With<T>(), _requiredTags);
 
@@ -59,7 +57,7 @@ public readonly ref struct TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TE
     /// <typeparam name="T">The component type that must not be present.</typeparam>
     /// <returns>A new builder with the added constraint.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TEntityTags, TTagMask> Without<T>()
+    public TaggedWorldQueryBuilder<TMask, TConfig, TEntityTags, TTagMask> Without<T>()
         where T : unmanaged, IComponent
         => new(_world, _queryBuilder.Without<T>(), _requiredTags);
 
@@ -69,7 +67,7 @@ public readonly ref struct TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TE
     /// <typeparam name="T">The component type to add to the any-of set.</typeparam>
     /// <returns>A new builder with the added constraint.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TEntityTags, TTagMask> WithAny<T>()
+    public TaggedWorldQueryBuilder<TMask, TConfig, TEntityTags, TTagMask> WithAny<T>()
         where T : unmanaged, IComponent
         => new(_world, _queryBuilder.WithAny<T>(), _requiredTags);
 
@@ -80,7 +78,7 @@ public readonly ref struct TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TE
     /// <typeparam name="TTag">The tag type that must be present.</typeparam>
     /// <returns>A new builder with the added tag constraint.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TEntityTags, TTagMask> WithTag<TTag>()
+    public TaggedWorldQueryBuilder<TMask, TConfig, TEntityTags, TTagMask> WithTag<TTag>()
         where TTag : ITag
         => new(_world, _queryBuilder, _requiredTags.Set(TTag.TagId));
 
@@ -89,10 +87,10 @@ public readonly ref struct TaggedWorldQueryBuilder<TMask, TRegistry, TConfig, TE
     /// </summary>
     /// <returns>A query that iterates entities matching both component and tag constraints.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public TaggedWorldQuery<TMask, TRegistry, TConfig, TEntityTags, TTagMask> Build()
+    public TaggedWorldQuery<TMask, TConfig, TEntityTags, TTagMask> Build()
     {
         var query = _queryBuilder.Build(_world.World);
-        return new TaggedWorldQuery<TMask, TRegistry, TConfig, TEntityTags, TTagMask>(
+        return new TaggedWorldQuery<TMask, TConfig, TEntityTags, TTagMask>(
             _world,
             query.Query,
             _requiredTags);

@@ -6,14 +6,12 @@ namespace Paradise.ECS;
 /// A wrapper combining a World and an Entity, providing convenient component access APIs.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public readonly struct WorldEntity<TMask, TRegistry, TConfig>
+public readonly struct WorldEntity<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
-    private readonly World<TMask, TRegistry, TConfig> _world;
+    private readonly World<TMask, TConfig> _world;
     private readonly Entity _entity;
 
     /// <summary>
@@ -22,7 +20,7 @@ public readonly struct WorldEntity<TMask, TRegistry, TConfig>
     /// <param name="world">The world containing the entity.</param>
     /// <param name="entity">The entity handle.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal WorldEntity(World<TMask, TRegistry, TConfig> world, Entity entity)
+    internal WorldEntity(World<TMask, TConfig> world, Entity entity)
     {
         _world = world;
         _entity = entity;
@@ -35,15 +33,6 @@ public readonly struct WorldEntity<TMask, TRegistry, TConfig>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _entity;
-    }
-
-    /// <summary>
-    /// Gets the world containing this entity.
-    /// </summary>
-    public World<TMask, TRegistry, TConfig> World
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _world;
     }
 
     /// <summary>
@@ -76,7 +65,7 @@ public readonly struct WorldEntity<TMask, TRegistry, TConfig>
     /// Implicit conversion to Entity.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static implicit operator Entity(WorldEntity<TMask, TRegistry, TConfig> worldEntity)
+    public static implicit operator Entity(WorldEntity<TMask, TConfig> worldEntity)
         => worldEntity._entity;
 }
 
@@ -84,15 +73,13 @@ public readonly struct WorldEntity<TMask, TRegistry, TConfig>
 /// A wrapper combining a World and a Query, providing WorldEntity enumeration.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public readonly struct WorldQuery<TMask, TRegistry, TConfig>
+public readonly struct WorldQuery<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
-    private readonly World<TMask, TRegistry, TConfig> _world;
-    private readonly Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> _query;
+    private readonly World<TMask, TConfig> _world;
+    private readonly Query<TMask, TConfig, Archetype<TMask, TConfig>> _query;
 
     /// <summary>
     /// Creates a new WorldQuery wrapper.
@@ -101,8 +88,8 @@ public readonly struct WorldQuery<TMask, TRegistry, TConfig>
     /// <param name="query">The query to iterate.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal WorldQuery(
-        World<TMask, TRegistry, TConfig> world,
-        Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> query)
+        World<TMask, TConfig> world,
+        Query<TMask, TConfig, Archetype<TMask, TConfig>> query)
     {
         _world = world;
         _query = query;
@@ -111,7 +98,7 @@ public readonly struct WorldQuery<TMask, TRegistry, TConfig>
     /// <summary>
     /// Gets the underlying query for accessing archetypes and chunks directly.
     /// </summary>
-    public Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> Query
+    public Query<TMask, TConfig, Archetype<TMask, TConfig>> Query
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _query;
@@ -147,13 +134,13 @@ public readonly struct WorldQuery<TMask, TRegistry, TConfig>
     /// </summary>
     public ref struct Enumerator
     {
-        private readonly World<TMask, TRegistry, TConfig> _world;
-        private Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>.EntityIdEnumerator _inner;
+        private readonly World<TMask, TConfig> _world;
+        private Query<TMask, TConfig, Archetype<TMask, TConfig>>.EntityIdEnumerator _inner;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal Enumerator(
-            World<TMask, TRegistry, TConfig> world,
-            Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> query)
+            World<TMask, TConfig> world,
+            Query<TMask, TConfig, Archetype<TMask, TConfig>> query)
         {
             _world = world;
             _inner = query.GetEnumerator();
@@ -162,7 +149,7 @@ public readonly struct WorldQuery<TMask, TRegistry, TConfig>
         /// <summary>
         /// Gets the current WorldEntity.
         /// </summary>
-        public WorldEntity<TMask, TRegistry, TConfig> Current
+        public WorldEntity<TMask, TConfig> Current
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => new(_world, _world.GetEntity(_inner.Current));
@@ -180,15 +167,13 @@ public readonly struct WorldQuery<TMask, TRegistry, TConfig>
 /// A wrapper combining chunk data with layout information, providing typed component span access.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public readonly ref struct WorldChunk<TMask, TRegistry, TConfig>
+public readonly ref struct WorldChunk<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
     private readonly ChunkManager _chunkManager;
-    private readonly ImmutableArchetypeLayout<TMask, TRegistry, TConfig> _layout;
+    private readonly ImmutableArchetypeLayout<TMask, TConfig> _layout;
     private readonly ChunkHandle _handle;
     private readonly int _entityCount;
 
@@ -202,7 +187,7 @@ public readonly ref struct WorldChunk<TMask, TRegistry, TConfig>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal WorldChunk(
         ChunkManager chunkManager,
-        ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,
+        ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle handle,
         int entityCount)
     {
@@ -233,7 +218,7 @@ public readonly ref struct WorldChunk<TMask, TRegistry, TConfig>
     /// <summary>
     /// Gets the archetype layout for this chunk.
     /// </summary>
-    public ImmutableArchetypeLayout<TMask, TRegistry, TConfig> Layout
+    public ImmutableArchetypeLayout<TMask, TConfig> Layout
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _layout;
@@ -302,15 +287,13 @@ public readonly ref struct WorldChunk<TMask, TRegistry, TConfig>
 /// A wrapper combining a World and a Query, providing WorldChunk enumeration for batch processing.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public readonly struct WorldChunkQuery<TMask, TRegistry, TConfig>
+public readonly struct WorldChunkQuery<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
     private readonly ChunkManager _chunkManager;
-    private readonly Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> _query;
+    private readonly Query<TMask, TConfig, Archetype<TMask, TConfig>> _query;
 
     /// <summary>
     /// Creates a new WorldChunkQuery wrapper.
@@ -319,8 +302,8 @@ public readonly struct WorldChunkQuery<TMask, TRegistry, TConfig>
     /// <param name="query">The query to iterate.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal WorldChunkQuery(
-        World<TMask, TRegistry, TConfig> world,
-        Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> query)
+        World<TMask, TConfig> world,
+        Query<TMask, TConfig, Archetype<TMask, TConfig>> query)
     {
         _chunkManager = world.ChunkManager;
         _query = query;
@@ -329,7 +312,7 @@ public readonly struct WorldChunkQuery<TMask, TRegistry, TConfig>
     /// <summary>
     /// Gets the underlying query for accessing archetypes directly.
     /// </summary>
-    public Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> Query
+    public Query<TMask, TConfig, Archetype<TMask, TConfig>> Query
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _query;
@@ -366,12 +349,12 @@ public readonly struct WorldChunkQuery<TMask, TRegistry, TConfig>
     public ref struct Enumerator
     {
         private readonly ChunkManager _chunkManager;
-        private Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>.ChunkEnumerator _inner;
+        private Query<TMask, TConfig, Archetype<TMask, TConfig>>.ChunkEnumerator _inner;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal Enumerator(
             ChunkManager chunkManager,
-            Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> query)
+            Query<TMask, TConfig, Archetype<TMask, TConfig>> query)
         {
             _chunkManager = chunkManager;
             _inner = query.Chunks.GetEnumerator();
@@ -380,13 +363,13 @@ public readonly struct WorldChunkQuery<TMask, TRegistry, TConfig>
         /// <summary>
         /// Gets the current WorldChunk.
         /// </summary>
-        public WorldChunk<TMask, TRegistry, TConfig> Current
+        public WorldChunk<TMask, TConfig> Current
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
                 var info = _inner.Current;
-                return new WorldChunk<TMask, TRegistry, TConfig>(
+                return new WorldChunk<TMask, TConfig>(
                     _chunkManager,
                     info.Archetype.Layout,
                     info.Handle,
@@ -404,18 +387,16 @@ public readonly struct WorldChunkQuery<TMask, TRegistry, TConfig>
 
 /// <summary>
 /// A lightweight, read-only view over a collection of archetypes that match specific component criteria.
-/// The underlying list of archetypes is managed by the <see cref="ArchetypeRegistry{TMask, TRegistry, TConfig}"/>
+/// The underlying list of archetypes is managed by the <see cref="ArchetypeRegistry{TMask, TConfig}"/>
 /// and is updated automatically as new matching archetypes are created.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 /// <typeparam name="TArchetype">The archetype type.</typeparam>
-public readonly struct Query<TMask, TRegistry, TConfig, TArchetype>
+public readonly struct Query<TMask, TConfig, TArchetype>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
-    where TArchetype : IArchetype<TMask, TRegistry, TConfig>
+    where TArchetype : IArchetype<TMask, TConfig>
 {
     private readonly List<TArchetype> _matchingArchetypes;
 

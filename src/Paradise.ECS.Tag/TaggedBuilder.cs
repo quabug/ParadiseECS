@@ -35,13 +35,12 @@ public readonly struct EnsureTagsBuilder<TInner, TEntityTags, TTagMask> : ICompo
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void WriteComponents<TMask, TRegistry, TConfig, TChunkManager>(
+    public void WriteComponents<TMask, TConfig, TChunkManager>(
         TChunkManager chunkManager,
-        ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,
+        ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
         where TMask : unmanaged, IBitSet<TMask>
-        where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TChunkManager : IChunkManager
     {
@@ -89,13 +88,12 @@ public readonly struct WithTag<TTag, TInnerBuilder, TEntityTags, TTagMask> : ICo
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void WriteComponents<TMask, TRegistry, TConfig, TChunkManager>(
+    public void WriteComponents<TMask, TConfig, TChunkManager>(
         TChunkManager chunkManager,
-        ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,
+        ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
         where TMask : unmanaged, IBitSet<TMask>
-        where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TChunkManager : IChunkManager
     {
@@ -140,7 +138,6 @@ public static class TaggedBuilderExtensions
     /// </summary>
     /// <typeparam name="TBuilder">The builder type.</typeparam>
     /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-    /// <typeparam name="TRegistry">The component registry type.</typeparam>
     /// <typeparam name="TConfig">The world configuration type.</typeparam>
     /// <typeparam name="TEntityTags">The EntityTags component type.</typeparam>
     /// <typeparam name="TTagMask">The tag mask type.</typeparam>
@@ -148,12 +145,11 @@ public static class TaggedBuilderExtensions
     /// <param name="world">The TaggedWorld (used only for type inference, not accessed).</param>
     /// <returns>An EnsureTagsBuilder that includes the EntityTags component with an empty mask.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static EnsureTagsBuilder<TBuilder, TEntityTags, TTagMask> EnsureTags<TBuilder, TMask, TRegistry, TConfig, TEntityTags, TTagMask>(
+    public static EnsureTagsBuilder<TBuilder, TEntityTags, TTagMask> EnsureTags<TBuilder, TMask, TConfig, TEntityTags, TTagMask>(
         this TBuilder builder,
-        TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> world)
+        TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> world)
         where TBuilder : unmanaged, IComponentsBuilder
         where TMask : unmanaged, IBitSet<TMask>
-        where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
         where TTagMask : unmanaged, IBitSet<TTagMask>
@@ -167,7 +163,6 @@ public static class TaggedBuilderExtensions
     /// </summary>
     /// <typeparam name="TBuilder">The builder type.</typeparam>
     /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-    /// <typeparam name="TRegistry">The component registry type.</typeparam>
     /// <typeparam name="TConfig">The world configuration type.</typeparam>
     /// <typeparam name="TEntityTags">The EntityTags component type.</typeparam>
     /// <typeparam name="TTagMask">The tag mask type.</typeparam>
@@ -177,13 +172,12 @@ public static class TaggedBuilderExtensions
     /// <param name="world">The TaggedWorld (used only for type inference, not accessed).</param>
     /// <returns>A WithTag builder that includes the EntityTags component with the specified tag.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static WithTag<TTag, TBuilder, TEntityTags, TTagMask> AddTag<TBuilder, TMask, TRegistry, TConfig, TEntityTags, TTagMask, TTag>(
+    public static WithTag<TTag, TBuilder, TEntityTags, TTagMask> AddTag<TBuilder, TMask, TConfig, TEntityTags, TTagMask, TTag>(
         this TBuilder builder,
         TTag tag,
-        TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> world)
+        TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> world)
         where TBuilder : unmanaged, IComponentsBuilder
         where TMask : unmanaged, IBitSet<TMask>
-        where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
         where TTagMask : unmanaged, IBitSet<TTagMask>
@@ -205,10 +199,9 @@ public static class ComponentsBuilderTaggedWorldExtensions
         /// Delegates to the underlying World.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity Build<TMask, TRegistry, TConfig, TEntityTags, TTagMask>(
-            TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> taggedWorld)
+        public Entity Build<TMask, TConfig, TEntityTags, TTagMask>(
+            TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld)
             where TMask : unmanaged, IBitSet<TMask>
-            where TRegistry : IComponentRegistry
             where TConfig : IConfig, new()
             where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
             where TTagMask : unmanaged, IBitSet<TTagMask>
@@ -221,11 +214,10 @@ public static class ComponentsBuilderTaggedWorldExtensions
         /// Overwrites all components on an existing entity with the builder's components.
         /// Preserves the EntityTags component and its tag mask.
         /// </summary>
-        public Entity Overwrite<TMask, TRegistry, TConfig, TEntityTags, TTagMask>(
+        public Entity Overwrite<TMask, TConfig, TEntityTags, TTagMask>(
             Entity entity,
-            TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> taggedWorld)
+            TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld)
             where TMask : unmanaged, IBitSet<TMask>
-            where TRegistry : IComponentRegistry
             where TConfig : IConfig, new()
             where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
             where TTagMask : unmanaged, IBitSet<TTagMask>
@@ -239,11 +231,10 @@ public static class ComponentsBuilderTaggedWorldExtensions
         /// Delegates to the underlying World.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity AddTo<TMask, TRegistry, TConfig, TEntityTags, TTagMask>(
+        public Entity AddTo<TMask, TConfig, TEntityTags, TTagMask>(
             Entity entity,
-            TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> taggedWorld)
+            TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld)
             where TMask : unmanaged, IBitSet<TMask>
-            where TRegistry : IComponentRegistry
             where TConfig : IConfig, new()
             where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
             where TTagMask : unmanaged, IBitSet<TTagMask>

@@ -1,6 +1,6 @@
 # Paradise.ECS Roadmap
 
-> Last updated: 2026-01-22
+> Last updated: 2026-01-23
 
 ## Vision
 
@@ -106,7 +106,8 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 ### In Progress
 
-*(None currently)*
+- [~] **Refactor Generic Parameters** (feature/refactor-generic-parameters)
+  - Refactor generic type parameters across the codebase for improved API clarity and consistency
 
 ### Planned
 

@@ -40,7 +40,6 @@ public struct ArchetypeLayoutHeader<TMask> where TMask : unmanaged, IBitSet<TMas
 /// This provides better cache utilization and SIMD opportunities when iterating components.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 /// <remarks>
 /// Memory layout example for 100 entities with Position(12B), Velocity(12B), Health(8B):
@@ -55,12 +54,11 @@ public struct ArchetypeLayoutHeader<TMask> where TMask : unmanaged, IBitSet<TMas
 /// </code>
 /// BaseOffsets uses short (2 bytes) indexed by (componentId - minComponentId).
 /// -1 indicates component not present; valid offsets are 0 to 32767.
-/// Component sizes are looked up from TRegistry.TypeInfos.
+/// Component sizes are looked up from the ComponentTypeInfo array.
 /// Use <see cref="Create"/> to allocate and <see cref="Free"/> to deallocate.
 /// </remarks>
-public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TRegistry, TConfig>
+public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
     private readonly byte* _data;
@@ -128,13 +126,15 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TRegistry, TCo
 
     /// <summary>
     /// Creates a new archetype layout from a component mask.
-    /// Component type information is obtained from <typeparamref name="TRegistry"/>.TypeInfos.
+    /// Component type information is obtained from the provided type info array.
     /// </summary>
     /// <param name="allocator">The memory allocator to use.</param>
+    /// <param name="typeInfos">The component type information array.</param>
     /// <param name="componentMask">The component mask defining which components are in this archetype.</param>
     /// <returns>A pointer to the allocated data (as nint). Use <see cref="Free"/> to deallocate.</returns>
     public static nint Create(
         IAllocator allocator,
+        ImmutableArray<ComponentTypeInfo> typeInfos,
         TMask componentMask)
     {
         // Calculate min/max component ID range using FirstSetBit/LastSetBit
@@ -169,12 +169,13 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TRegistry, TCo
         short* baseOffsets = (short*)(data + baseOffsetsOffset);
         Unsafe.InitBlock(baseOffsets, 0xFF, (uint)(componentSlots * sizeof(short)));
 
-        InitializeLayout(data, componentMask);
+        InitializeLayout(data, typeInfos, componentMask);
         return (nint)data;
     }
 
     private static void InitializeLayout(
         byte* data,
+        ImmutableArray<ComponentTypeInfo> typeInfos,
         TMask componentMask)
     {
         ref var header = ref Unsafe.AsRef<ArchetypeLayoutHeader<TMask>>(data);
@@ -188,8 +189,6 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TRegistry, TCo
             header.EntitiesPerChunk = TConfig.ChunkSize / TConfig.EntityIdByteSize;
             return;
         }
-
-        var typeInfos = TRegistry.TypeInfos;
 
         // Calculate total size per entity (entity ID + components, without alignment)
         var sumAction = new SumComponentSizesAction { TypeInfos = typeInfos, TotalSize = TConfig.EntityIdByteSize };
@@ -356,57 +355,6 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TRegistry, TCo
     }
 
     /// <summary>
-    /// Gets the base offset for a component type's array within the chunk.
-    /// </summary>
-    /// <param name="type">The component type.</param>
-    /// <returns>The base offset, or -1 if the component is not in this archetype or type is not a registered component.</returns>
-    public int GetBaseOffset(Type type)
-    {
-        var id = TRegistry.GetId(type);
-        return id.IsValid ? GetBaseOffset(id) : -1;
-    }
-
-    /// <summary>
-    /// Checks if this archetype contains the specified component type.
-    /// </summary>
-    /// <param name="type">The component type.</param>
-    /// <returns><c>true</c> if the component is present; otherwise, <c>false</c>.</returns>
-    public bool HasComponent(Type type)
-    {
-        var id = TRegistry.GetId(type);
-        return id.IsValid && ComponentMask.Get(id.Value);
-    }
-
-    /// <summary>
-    /// Calculates the byte offset for a specific entity and component type.
-    /// </summary>
-    /// <param name="entityIndex">The entity's index within the chunk.</param>
-    /// <param name="type">The component type.</param>
-    /// <returns>The byte offset from chunk start, or -1 if component not present or type is not a registered component.</returns>
-    public int GetEntityComponentOffset(int entityIndex, Type type)
-    {
-        var id = TRegistry.GetId(type);
-        return id.IsValid ? GetEntityComponentOffset(entityIndex, id) : -1;
-    }
-
-    /// <summary>
-    /// Calculates the byte offset for a specific entity and component.
-    /// Uses <typeparamref name="TRegistry"/>.TypeInfos to look up the component size.
-    /// </summary>
-    /// <param name="entityIndex">The entity's index within the chunk.</param>
-    /// <param name="componentId">The component ID.</param>
-    /// <returns>The byte offset from chunk start, or -1 if component not present.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int GetEntityComponentOffset(int entityIndex, ComponentId componentId)
-    {
-        int baseOffset = GetBaseOffset(componentId);
-        if (baseOffset < 0)
-            return -1;
-
-        return baseOffset + entityIndex * TRegistry.TypeInfos[componentId.Value].Size;
-    }
-
-    /// <summary>
     /// Calculates the byte offset for a specific entity and component type.
     /// </summary>
     /// <typeparam name="T">The component type.</typeparam>
@@ -415,7 +363,11 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TRegistry, TCo
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int GetEntityComponentOffset<T>(int entityIndex) where T : unmanaged, IComponent
     {
-        return GetEntityComponentOffset(entityIndex, T.TypeId);
+        int baseOffset = GetBaseOffset(T.TypeId);
+        if (baseOffset < 0)
+            return -1;
+
+        return baseOffset + entityIndex * T.Size;
     }
 
     /// <summary>

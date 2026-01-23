@@ -5,11 +5,11 @@ namespace Paradise.ECS.Test;
 /// </summary>
 public sealed class SharedArchetypeMetadataTests : IDisposable
 {
-    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _metadata;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _metadata;
 
     public SharedArchetypeMetadataTests()
     {
-        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(new DefaultConfig());
+        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, new DefaultConfig());
     }
 
     public void Dispose()

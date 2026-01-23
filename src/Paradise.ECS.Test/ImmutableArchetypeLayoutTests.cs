@@ -9,11 +9,11 @@ public sealed class ImmutableArchetypeLayoutTests
     public async Task Create_EmptyMask_CreatesValidLayout()
     {
         var mask = SmallBitSet<ulong>.Empty;
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var componentCount = layout.ComponentCount;
             var isEmpty = layout.ComponentMask.IsEmpty;
             var entitiesPerChunk = layout.EntitiesPerChunk;
@@ -24,7 +24,7 @@ public sealed class ImmutableArchetypeLayoutTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
@@ -32,11 +32,11 @@ public sealed class ImmutableArchetypeLayoutTests
     public async Task Create_SingleComponent_CreatesValidLayout()
     {
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var componentCount = layout.ComponentCount;
             var hasPosition = layout.HasComponent<TestPosition>();
             var hasVelocity = layout.HasComponent<TestVelocity>();
@@ -47,7 +47,7 @@ public sealed class ImmutableArchetypeLayoutTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
@@ -58,11 +58,11 @@ public sealed class ImmutableArchetypeLayoutTests
             .Set(TestPosition.TypeId)
             .Set(TestVelocity.TypeId)
             .Set(TestHealth.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var componentCount = layout.ComponentCount;
             var hasPosition = layout.HasComponent<TestPosition>();
             var hasVelocity = layout.HasComponent<TestVelocity>();
@@ -75,7 +75,7 @@ public sealed class ImmutableArchetypeLayoutTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
@@ -83,11 +83,11 @@ public sealed class ImmutableArchetypeLayoutTests
     public async Task EntitiesPerChunk_ReasonableValue()
     {
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var entitiesPerChunk = layout.EntitiesPerChunk;
 
             // With 16KB chunks and 12-byte Position + 4-byte EntityId = 16 bytes per entity
@@ -96,7 +96,7 @@ public sealed class ImmutableArchetypeLayoutTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
@@ -104,18 +104,18 @@ public sealed class ImmutableArchetypeLayoutTests
     public async Task GetBaseOffset_ExistingComponent_ReturnsValidOffset()
     {
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var offset = layout.GetBaseOffset<TestPosition>();
 
             await Assert.That(offset).IsGreaterThanOrEqualTo(0);
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
@@ -123,18 +123,18 @@ public sealed class ImmutableArchetypeLayoutTests
     public async Task GetBaseOffset_NonExistentComponent_ReturnsNegativeOne()
     {
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var offset = layout.GetBaseOffset<TestVelocity>();
 
             await Assert.That(offset).IsEqualTo(-1);
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
@@ -142,18 +142,18 @@ public sealed class ImmutableArchetypeLayoutTests
     public async Task GetEntityComponentOffset_ValidComponent_ReturnsValidOffset()
     {
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var offset = layout.GetEntityComponentOffset<TestPosition>(0);
 
             await Assert.That(offset).IsGreaterThanOrEqualTo(0);
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
@@ -161,11 +161,11 @@ public sealed class ImmutableArchetypeLayoutTests
     public async Task GetEntityComponentOffset_DifferentEntities_DifferentOffsets()
     {
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var offset0 = layout.GetEntityComponentOffset<TestPosition>(0);
             var offset1 = layout.GetEntityComponentOffset<TestPosition>(1);
             var offsetDiff = offset1 - offset0;
@@ -175,15 +175,15 @@ public sealed class ImmutableArchetypeLayoutTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
     [Test]
     public async Task GetEntityIdOffset_ReturnsCorrectOffset()
     {
-        var offset0 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.GetEntityIdOffset(0);
-        var offset1 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.GetEntityIdOffset(1);
+        var offset0 = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.GetEntityIdOffset(0);
+        var offset1 = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.GetEntityIdOffset(1);
 
         await Assert.That(offset0).IsEqualTo(0);
         await Assert.That(offset1).IsEqualTo(4); // sizeof(int)
@@ -193,11 +193,11 @@ public sealed class ImmutableArchetypeLayoutTests
     public async Task HasComponent_ByComponentId_ReturnsCorrectResult()
     {
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var hasPosition = layout.HasComponent(TestPosition.TypeId);
             var hasVelocity = layout.HasComponent(TestVelocity.TypeId);
 
@@ -206,7 +206,7 @@ public sealed class ImmutableArchetypeLayoutTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
@@ -216,11 +216,11 @@ public sealed class ImmutableArchetypeLayoutTests
         var mask = SmallBitSet<ulong>.Empty
             .Set(TestPosition.TypeId)
             .Set(TestHealth.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var minComponentId = layout.MinComponentId;
             var maxComponentId = layout.MaxComponentId;
             var expectedMin = Math.Min(TestHealth.TypeId.Value, TestPosition.TypeId.Value);
@@ -232,7 +232,7 @@ public sealed class ImmutableArchetypeLayoutTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 
@@ -240,11 +240,11 @@ public sealed class ImmutableArchetypeLayoutTests
     public async Task TagComponent_ZeroSize_HasValidOffset()
     {
         var mask = SmallBitSet<ulong>.Empty.Set(TestTag.TypeId);
-        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(NativeMemoryAllocator.Shared, mask);
+        var data = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
 
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(data);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var hasTag = layout.HasComponent<TestTag>();
             // Tag components have offset 0 (they don't take space)
             var offset = layout.GetBaseOffset<TestTag>();
@@ -254,7 +254,7 @@ public sealed class ImmutableArchetypeLayoutTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, data);
         }
     }
 }

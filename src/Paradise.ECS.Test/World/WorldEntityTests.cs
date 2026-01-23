@@ -7,12 +7,12 @@ public sealed class WorldEntityTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
-    private readonly World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _world;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata = new(ComponentRegistry.Shared, s_config);
+    private readonly World<SmallBitSet<ulong>, DefaultConfig> _world;
 
     public WorldEntityTests()
     {
-        _world = new World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config, _sharedMetadata, _chunkManager);
+        _world = new World<SmallBitSet<ulong>, DefaultConfig>(s_config, _sharedMetadata, _chunkManager);
     }
 
     public void Dispose()
@@ -58,8 +58,8 @@ public sealed class WorldEntityTests : IDisposable
     {
         var config = new DefaultConfig { DefaultEntityCapacity = 4 };
         using var chunkManager = ChunkManager.Create(config);
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(config);
-        var world = new World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(config, sharedMetadata, chunkManager);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        var world = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager);
 
         var entities = new Entity[10];
         for (int i = 0; i < entities.Length; i++)

@@ -100,11 +100,13 @@ public class DefaultConfigAttributeTests
             }
             """;
 
-        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
 
-        await Assert.That(aliases).IsNotNull();
-        // Should use auto-generated ComponentRegistry from Paradise.ECS namespace (default)
-        await Assert.That(aliases).Contains("global::Paradise.ECS.ComponentRegistry");
+        await Assert.That(registry).IsNotNull();
+        // ComponentRegistry should be generated in the default Paradise.ECS namespace
+        await Assert.That(registry).Contains("namespace Paradise.ECS;");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+        await Assert.That(registry).Contains("public static ComponentRegistry Shared { get; } = new();");
     }
 
     [Test]
@@ -260,9 +262,12 @@ public class DefaultConfigAttributeTests
             }
             """;
 
-        var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
+        var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
 
-        await Assert.That(aliases).IsNotNull();
-        await Assert.That(aliases).Contains("global::MyGame.ECS.ComponentRegistry");
+        await Assert.That(registry).IsNotNull();
+        // ComponentRegistry should be generated in the custom namespace
+        await Assert.That(registry).Contains("namespace MyGame.ECS;");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+        await Assert.That(registry).Contains("public static ComponentRegistry Shared { get; } = new();");
     }
 }

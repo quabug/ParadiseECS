@@ -9,8 +9,8 @@ public sealed class StressTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private ChunkManager? _chunkManager;
-    private SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>? _sharedMetadata;
-    private World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>? _world;
+    private SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>? _sharedMetadata;
+    private World<SmallBitSet<ulong>, DefaultConfig>? _world;
 
     public void Dispose()
     {
@@ -22,8 +22,8 @@ public sealed class StressTests : IDisposable
     private void CreateWorld()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
-        _world = new World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(
+        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        _world = new World<SmallBitSet<ulong>, DefaultConfig>(
             s_config,
             _sharedMetadata,
             _chunkManager);
@@ -372,7 +372,7 @@ public sealed class StressTests : IDisposable
         _world.AddComponent<TestPosition>(entity);
 
         // Build many queries with same description
-        var queries = new List<Query<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig, Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>>();
+        var queries = new List<Query<SmallBitSet<ulong>, DefaultConfig, Archetype<SmallBitSet<ulong>, DefaultConfig>>>();
         for (int i = 0; i < 100; i++)
         {
             var query = new QueryBuilder<SmallBitSet<ulong>>()

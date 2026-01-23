@@ -79,8 +79,8 @@ public sealed class EntityIdByteSizeTests
     public async Task ByteConfig_SpawnUpToLimit_Succeeds()
     {
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
-        var world = new World<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        var world = new World<SmallBitSet<ulong>, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities (IDs 0-255)
         var entities = new Entity[256];
@@ -97,8 +97,8 @@ public sealed class EntityIdByteSizeTests
     public async Task ByteConfig_SpawnBeyondLimit_ThrowsInvalidOperationException()
     {
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
-        var world = new World<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        var world = new World<SmallBitSet<ulong>, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities (IDs 0-255) - this should succeed
         for (int i = 0; i < 256; i++)
@@ -115,8 +115,8 @@ public sealed class EntityIdByteSizeTests
     public async Task ByteConfig_SpawnAfterDespawn_ReusesIdWithinLimit()
     {
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
-        var world = new World<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        var world = new World<SmallBitSet<ulong>, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities
         var entities = new Entity[256];
@@ -144,8 +144,8 @@ public sealed class EntityIdByteSizeTests
     public async Task ShortConfig_SpawnWithinLimit_Succeeds()
     {
         using var chunkManager = ChunkManager.Create(new ShortEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>(new ShortEntityIdConfig());
-        var world = new World<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>(new ShortEntityIdConfig(), sharedMetadata, chunkManager);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ShortEntityIdConfig>(ComponentRegistry.Shared, new ShortEntityIdConfig());
+        var world = new World<SmallBitSet<ulong>, ShortEntityIdConfig>(new ShortEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 1000 entities - well within the 65535 limit
         for (int i = 0; i < 1000; i++)
@@ -164,8 +164,8 @@ public sealed class EntityIdByteSizeTests
     public async Task ByteConfig_CreateEntityBeyondLimit_ThrowsInvalidOperationException()
     {
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
-        var world = new World<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        var world = new World<SmallBitSet<ulong>, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities (IDs 0-255)
         for (int i = 0; i < 256; i++)
@@ -189,12 +189,13 @@ public sealed class EntityIdByteSizeTests
     {
         // ByteEntityIdConfig: ChunkSize=4096, EntityIdByteSize=1
         // Expected: 4096 / 1 = 4096 entities per chunk
-        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>.Create(
+        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>.Create(
             NativeMemoryAllocator.Shared,
+            ComponentRegistry.Shared.TypeInfos,
             SmallBitSet<ulong>.Empty);
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(layoutData);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>(layoutData);
             int entitiesPerChunk = layout.EntitiesPerChunk;
             int expected = ByteEntityIdConfig.ChunkSize / ByteEntityIdConfig.EntityIdByteSize;
 
@@ -203,7 +204,7 @@ public sealed class EntityIdByteSizeTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
         }
     }
 
@@ -212,12 +213,13 @@ public sealed class EntityIdByteSizeTests
     {
         // ShortEntityIdConfig: ChunkSize=4096, EntityIdByteSize=2
         // Expected: 4096 / 2 = 2048 entities per chunk
-        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>.Create(
+        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>.Create(
             NativeMemoryAllocator.Shared,
+            ComponentRegistry.Shared.TypeInfos,
             SmallBitSet<ulong>.Empty);
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>(layoutData);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>(layoutData);
             int entitiesPerChunk = layout.EntitiesPerChunk;
             int expected = ShortEntityIdConfig.ChunkSize / ShortEntityIdConfig.EntityIdByteSize;
 
@@ -226,7 +228,7 @@ public sealed class EntityIdByteSizeTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
         }
     }
 
@@ -235,12 +237,13 @@ public sealed class EntityIdByteSizeTests
     {
         // DefaultConfig: ChunkSize=16384, EntityIdByteSize=4
         // Expected: 16384 / 4 = 4096 entities per chunk
-        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Create(
+        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Create(
             NativeMemoryAllocator.Shared,
+            ComponentRegistry.Shared.TypeInfos,
             SmallBitSet<ulong>.Empty);
         try
         {
-            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(layoutData);
+            var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(layoutData);
             int entitiesPerChunk = layout.EntitiesPerChunk;
             int expected = DefaultConfig.ChunkSize / DefaultConfig.EntityIdByteSize;
 
@@ -249,7 +252,7 @@ public sealed class EntityIdByteSizeTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
         }
     }
 
@@ -262,14 +265,14 @@ public sealed class EntityIdByteSizeTests
         // ShortConfig: per entity = 2 + 12 = 14 bytes -> 4096 / 14 = 292 entities
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId.Value);
 
-        var byteLayoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>.Create(
-            NativeMemoryAllocator.Shared, mask);
-        var shortLayoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>.Create(
-            NativeMemoryAllocator.Shared, mask);
+        var byteLayoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>.Create(
+            NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
+        var shortLayoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>.Create(
+            NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
         try
         {
-            var byteLayout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(byteLayoutData);
-            var shortLayout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>(shortLayoutData);
+            var byteLayout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>(byteLayoutData);
+            var shortLayout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>(shortLayoutData);
             int byteEntitiesPerChunk = byteLayout.EntitiesPerChunk;
             int shortEntitiesPerChunk = shortLayout.EntitiesPerChunk;
 
@@ -278,8 +281,8 @@ public sealed class EntityIdByteSizeTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>.Free(NativeMemoryAllocator.Shared, byteLayoutData);
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>.Free(NativeMemoryAllocator.Shared, shortLayoutData);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>.Free(NativeMemoryAllocator.Shared, byteLayoutData);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>.Free(NativeMemoryAllocator.Shared, shortLayoutData);
         }
     }
 
@@ -294,8 +297,8 @@ public sealed class EntityIdByteSizeTests
         // not sizeof(int). If sizeof(int) is used, writing entity ID at index N
         // would overwrite entity ID at index N+1/N+2/N+3, corrupting data.
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
-        var registry = new ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(sharedMetadata, chunkManager);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        var registry = new ArchetypeRegistry<SmallBitSet<ulong>, ByteEntityIdConfig>(sharedMetadata, chunkManager);
 
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId.Value);
         var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
@@ -328,8 +331,8 @@ public sealed class EntityIdByteSizeTests
     {
         // Similar test for 2-byte EntityIdByteSize
         using var chunkManager = ChunkManager.Create(new ShortEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>(new ShortEntityIdConfig());
-        var registry = new ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>(sharedMetadata, chunkManager);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ShortEntityIdConfig>(ComponentRegistry.Shared, new ShortEntityIdConfig());
+        var registry = new ArchetypeRegistry<SmallBitSet<ulong>, ShortEntityIdConfig>(sharedMetadata, chunkManager);
 
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId.Value);
         var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
@@ -360,8 +363,8 @@ public sealed class EntityIdByteSizeTests
         // Test specifically for the swap-remove copy path using sizeof(int)
         // When entity at middle is removed, last entity's ID should be copied correctly
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(new ByteEntityIdConfig());
-        var registry = new ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>(sharedMetadata, chunkManager);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        var registry = new ArchetypeRegistry<SmallBitSet<ulong>, ByteEntityIdConfig>(sharedMetadata, chunkManager);
 
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId.Value);
         var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
@@ -396,13 +399,13 @@ public sealed class EntityIdByteSizeTests
         // ByteConfig: EntityIdByteSize = 1
         // Expected offsets: entity 0 -> 0, entity 1 -> 1, entity 2 -> 2, etc.
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId.Value);
-        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>.Create(
-            NativeMemoryAllocator.Shared, mask);
+        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>.Create(
+            NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
         try
         {
-            int offset0 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>.GetEntityIdOffset(0);
-            int offset1 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>.GetEntityIdOffset(1);
-            int offset2 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>.GetEntityIdOffset(2);
+            int offset0 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>.GetEntityIdOffset(0);
+            int offset1 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>.GetEntityIdOffset(1);
+            int offset2 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>.GetEntityIdOffset(2);
 
             await Assert.That(offset0).IsEqualTo(0);
             await Assert.That(offset1).IsEqualTo(1); // ByteEntityIdConfig.EntityIdByteSize = 1
@@ -410,7 +413,7 @@ public sealed class EntityIdByteSizeTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ByteEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, ByteEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
         }
     }
 
@@ -421,13 +424,13 @@ public sealed class EntityIdByteSizeTests
         // ShortConfig: EntityIdByteSize = 2
         // Expected offsets: entity 0 -> 0, entity 1 -> 2, entity 2 -> 4, etc.
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId.Value);
-        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>.Create(
-            NativeMemoryAllocator.Shared, mask);
+        var layoutData = ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>.Create(
+            NativeMemoryAllocator.Shared, ComponentRegistry.Shared.TypeInfos, mask);
         try
         {
-            int offset0 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>.GetEntityIdOffset(0);
-            int offset1 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>.GetEntityIdOffset(1);
-            int offset2 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>.GetEntityIdOffset(2);
+            int offset0 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>.GetEntityIdOffset(0);
+            int offset1 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>.GetEntityIdOffset(1);
+            int offset2 = ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>.GetEntityIdOffset(2);
 
             await Assert.That(offset0).IsEqualTo(0);
             await Assert.That(offset1).IsEqualTo(2); // ShortEntityIdConfig.EntityIdByteSize = 2
@@ -435,7 +438,7 @@ public sealed class EntityIdByteSizeTests
         }
         finally
         {
-            ImmutableArchetypeLayout<SmallBitSet<ulong>, ComponentRegistry, ShortEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
+            ImmutableArchetypeLayout<SmallBitSet<ulong>, ShortEntityIdConfig>.Free(NativeMemoryAllocator.Shared, layoutData);
         }
     }
 

@@ -303,7 +303,7 @@ public sealed class TaggedWorldTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata _sharedMetadata = new(s_config);
+    private readonly SharedArchetypeMetadata _sharedMetadata = new(ComponentRegistry.Shared, s_config);
     private readonly ChunkTagRegistry<TagMask> _chunkTagRegistry = new(s_config.ChunkAllocator, DefaultConfig.MaxMetaBlocks, DefaultConfig.ChunkSize);
     private readonly World _world;
 
@@ -447,7 +447,7 @@ public sealed class TaggedWorldTests : IDisposable
 
         // Get entity's chunk handle
         var location = _world.World.GetLocation(entity);
-        var archetype = _world.World.Registry.GetById(location.ArchetypeId)!;
+        var archetype = _world.World.ArchetypeRegistry.GetById(location.ArchetypeId)!;
         var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
 
@@ -466,7 +466,7 @@ public sealed class TaggedWorldTests : IDisposable
 
         // Both should be in same chunk
         var location = _world.World.GetLocation(e1);
-        var archetype = _world.World.Registry.GetById(location.ArchetypeId)!;
+        var archetype = _world.World.ArchetypeRegistry.GetById(location.ArchetypeId)!;
         var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
 
@@ -496,7 +496,7 @@ public sealed class TaggedWorldTests : IDisposable
         var loc1 = _world.World.GetLocation(e1);
         var loc2 = _world.World.GetLocation(e2);
         await Assert.That(loc1.ArchetypeId).IsEqualTo(loc2.ArchetypeId);
-        var arch = _world.World.Registry.GetById(loc1.ArchetypeId)!;
+        var arch = _world.World.ArchetypeRegistry.GetById(loc1.ArchetypeId)!;
         var (chunkIdx1, _) = arch.GetChunkLocation(loc1.GlobalIndex);
         var (chunkIdx2, _) = arch.GetChunkLocation(loc2.GlobalIndex);
         await Assert.That(chunkIdx1).IsEqualTo(chunkIdx2);
@@ -509,7 +509,7 @@ public sealed class TaggedWorldTests : IDisposable
         await Assert.That(e2TagsAfter.Get(TestIsActive.TagId.Value)).IsTrue();
 
         var location = _world.World.GetLocation(e1);
-        var archetype = _world.World.Registry.GetById(location.ArchetypeId)!;
+        var archetype = _world.World.ArchetypeRegistry.GetById(location.ArchetypeId)!;
         var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
 
@@ -531,7 +531,7 @@ public sealed class TaggedWorldTests : IDisposable
         _world.RemoveTag<TestIsActive>(e1);
 
         var location = _world.World.GetLocation(e1);
-        var archetype = _world.World.Registry.GetById(location.ArchetypeId)!;
+        var archetype = _world.World.ArchetypeRegistry.GetById(location.ArchetypeId)!;
         var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
 
@@ -555,7 +555,7 @@ public sealed class TaggedWorldTests : IDisposable
         _world.AddTag<TestIsEnemy>(entity);
 
         var location = _world.World.GetLocation(entity);
-        var archetype = _world.World.Registry.GetById(location.ArchetypeId)!;
+        var archetype = _world.World.ArchetypeRegistry.GetById(location.ArchetypeId)!;
         var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
 
@@ -570,7 +570,7 @@ public sealed class TaggedWorldTests : IDisposable
         _world.AddTag<TestIsActive>(entity);
 
         var location = _world.World.GetLocation(entity);
-        var archetype = _world.World.Registry.GetById(location.ArchetypeId)!;
+        var archetype = _world.World.ArchetypeRegistry.GetById(location.ArchetypeId)!;
         var (chunkIndex, _) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
 

@@ -2,17 +2,16 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public static class ArchetypeRegistryExtension
 {
-    extension<TMask, TRegistry, TConfig>(ArchetypeRegistry<TMask, TRegistry, TConfig> registry)
+    extension<TMask, TConfig>(ArchetypeRegistry<TMask, TConfig> registry)
         where TMask : unmanaged, IBitSet<TMask>
-        where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
     {
-        public Archetype<TMask, TRegistry, TConfig> GetOrCreate(TMask mask)
+        public Archetype<TMask, TConfig> GetOrCreate(TMask mask)
         {
             return registry.GetOrCreate((HashedKey<TMask>)mask);
         }
 
-        public bool TryGet(TMask mask, out Archetype<TMask, TRegistry, TConfig>? store)
+        public bool TryGet(TMask mask, out Archetype<TMask, TConfig>? store)
         {
             return registry.TryGet((HashedKey<TMask>)mask, out store);
         }
@@ -23,15 +22,15 @@ public class ArchetypeRegistryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new() { DefaultChunkCapacity = 16 };
     private readonly ChunkManager _chunkManager;
-    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _sharedMetadata;
-    private readonly ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata;
+    private readonly ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig> _registry;
 
     public ArchetypeRegistryTests()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
-        _registry = new ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(
-            _sharedMetadata, _chunkManager);
+        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        _registry = new ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig>(
+            _sharedMetadata, ComponentRegistry.Shared.TypeInfos, _chunkManager);
     }
 
     public void Dispose()
@@ -272,8 +271,8 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new() { DefaultChunkCapacity = 64 };
     private readonly ChunkManager _chunkManager;
-    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _sharedMetadata;
-    private readonly ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata;
+    private readonly ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig> _registry;
 
     // Number of test components available in ComponentRegistry (0-4)
     private const int TestComponentCount = 5;
@@ -281,9 +280,9 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     public ArchetypeRegistryConcurrencyTests()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
-        _registry = new ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(
-            _sharedMetadata, _chunkManager);
+        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        _registry = new ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig>(
+            _sharedMetadata, ComponentRegistry.Shared.TypeInfos, _chunkManager);
     }
 
     public void Dispose()
@@ -298,7 +297,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     {
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
-        var tasks = new Task<Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>[10];
+        var tasks = new Task<Archetype<SmallBitSet<ulong>, DefaultConfig>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreate(mask));
@@ -318,7 +317,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreate_DifferentMasks_CreatesMultipleArchetypes()
     {
-        var tasks = new Task<Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>[TestComponentCount];
+        var tasks = new Task<Archetype<SmallBitSet<ulong>, DefaultConfig>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int bitIndex = i;
@@ -342,7 +341,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var posOnly = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
-        var tasks = new Task<Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>[10];
+        var tasks = new Task<Archetype<SmallBitSet<ulong>, DefaultConfig>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId));
@@ -365,7 +364,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
         var empty = SmallBitSet<ulong>.Empty;
         var source = _registry.GetOrCreate(empty);
 
-        var tasks = new Task<Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>[TestComponentCount];
+        var tasks = new Task<Archetype<SmallBitSet<ulong>, DefaultConfig>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int componentId = i;

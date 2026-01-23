@@ -5,11 +5,9 @@ namespace Paradise.ECS;
 /// An archetype stores entities that share the same component composition.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public interface IArchetype<TMask, TRegistry, TConfig>
+public interface IArchetype<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
     /// <summary>
@@ -20,7 +18,7 @@ public interface IArchetype<TMask, TRegistry, TConfig>
     /// <summary>
     /// Gets the layout describing component offsets within this archetype.
     /// </summary>
-    ImmutableArchetypeLayout<TMask, TRegistry, TConfig> Layout { get; }
+    ImmutableArchetypeLayout<TMask, TConfig> Layout { get; }
 
     /// <summary>
     /// Gets the current number of entities in this archetype.

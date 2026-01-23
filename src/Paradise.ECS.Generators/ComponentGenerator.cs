@@ -355,22 +355,21 @@ public class ComponentGenerator : IIncrementalGenerator
             sb.AppendLine($"global using ComponentMask = {maskTypeFull};");
             sb.AppendLine($"global using QueryBuilder = global::Paradise.ECS.QueryBuilder<{maskTypeFull}>;");
 
-            var registry = $"global::{config.RootNamespace}.ComponentRegistry";
             var configTypeFull = $"global::{configType}";
-            sb.AppendLine($"global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<{maskTypeFull}, {registry}, {configTypeFull}>;");
-            sb.AppendLine($"global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<{maskTypeFull}, {registry}, {configTypeFull}>;");
+            sb.AppendLine($"global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<{maskTypeFull}, {configTypeFull}>;");
+            sb.AppendLine($"global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<{maskTypeFull}, {configTypeFull}>;");
 
             if (enableTags)
             {
                 var entityTags = $"global::{config.RootNamespace}.EntityTags";
-                sb.AppendLine($"global using World = global::Paradise.ECS.TaggedWorld<{maskTypeFull}, {registry}, {configTypeFull}, {entityTags}, {tagMaskType}>;");
+                sb.AppendLine($"global using World = global::Paradise.ECS.TaggedWorld<{maskTypeFull}, {configTypeFull}, {entityTags}, {tagMaskType}>;");
             }
             else
             {
-                sb.AppendLine($"global using World = global::Paradise.ECS.World<{maskTypeFull}, {registry}, {configTypeFull}>;");
+                sb.AppendLine($"global using World = global::Paradise.ECS.World<{maskTypeFull}, {configTypeFull}>;");
             }
 
-            sb.AppendLine($"global using Query = global::Paradise.ECS.Query<{maskTypeFull}, {registry}, {configTypeFull}, global::Paradise.ECS.Archetype<{maskTypeFull}, {registry}, {configTypeFull}>>;");
+            sb.AppendLine($"global using Query = global::Paradise.ECS.Query<{maskTypeFull}, {configTypeFull}, global::Paradise.ECS.Archetype<{maskTypeFull}, {configTypeFull}>>;");
         }
 
         context.AddSource("ComponentAliases.g.cs", sb.ToString());
@@ -473,19 +472,18 @@ public class ComponentGenerator : IIncrementalGenerator
         sb.AppendLine("        s_typeInfos = typeInfosBuilder.MoveToImmutable();");
         sb.AppendLine("    }");
         sb.AppendLine();
-        sb.AppendLine("    public static global::Paradise.ECS.ComponentId GetId(global::System.Type type) =>");
-        sb.AppendLine("        s_typeToId!.TryGetValue(type, out var id) ? id : global::Paradise.ECS.ComponentId.Invalid;");
+        sb.AppendLine("    // Static accessors");
+        sb.AppendLine("    public static global::System.Collections.Frozen.FrozenDictionary<global::System.Type, global::Paradise.ECS.ComponentId> TypeToIdStatic => s_typeToId!;");
+        sb.AppendLine("    public static global::System.Collections.Frozen.FrozenDictionary<global::System.Guid, global::Paradise.ECS.ComponentId> GuidToIdStatic => s_guidToId!;");
+        sb.AppendLine("    public static global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ComponentTypeInfo> TypeInfosStatic => s_typeInfos;");
         sb.AppendLine();
-        sb.AppendLine("    public static bool TryGetId(global::System.Type type, out global::Paradise.ECS.ComponentId id) =>");
-        sb.AppendLine("        s_typeToId!.TryGetValue(type, out id);");
+        sb.AppendLine("    // Instance members implementing IComponentRegistry");
+        sb.AppendLine("    public global::System.Collections.Frozen.FrozenDictionary<global::System.Type, global::Paradise.ECS.ComponentId> TypeToId => TypeToIdStatic;");
+        sb.AppendLine("    public global::System.Collections.Frozen.FrozenDictionary<global::System.Guid, global::Paradise.ECS.ComponentId> GuidToId => GuidToIdStatic;");
+        sb.AppendLine("    public global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ComponentTypeInfo> TypeInfos => TypeInfosStatic;");
         sb.AppendLine();
-        sb.AppendLine("    public static global::Paradise.ECS.ComponentId GetId(global::System.Guid guid) =>");
-        sb.AppendLine("        s_guidToId!.TryGetValue(guid, out var id) ? id : global::Paradise.ECS.ComponentId.Invalid;");
-        sb.AppendLine();
-        sb.AppendLine("    public static bool TryGetId(global::System.Guid guid, out global::Paradise.ECS.ComponentId id) =>");
-        sb.AppendLine("        s_guidToId!.TryGetValue(guid, out id);");
-        sb.AppendLine();
-        sb.AppendLine("    public static global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ComponentTypeInfo> TypeInfos => s_typeInfos;");
+        sb.AppendLine("    /// <summary>Shared singleton instance of the component registry.</summary>");
+        sb.AppendLine("    public static ComponentRegistry Shared { get; } = new();");
         sb.AppendLine("}");
 
         context.AddSource("ComponentRegistry.g.cs", sb.ToString());
