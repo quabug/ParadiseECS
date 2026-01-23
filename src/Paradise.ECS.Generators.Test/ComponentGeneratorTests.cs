@@ -756,7 +756,7 @@ public class ComponentGeneratorRegistryTests
 public class ComponentGeneratorBitStorageTests
 {
     [Test]
-    public async Task FewComponents_UsesBit64()
+    public async Task FewComponents_UsesSmallBitSetUint()
     {
         const string source = """
             using Paradise.ECS;
@@ -772,7 +772,7 @@ public class ComponentGeneratorBitStorageTests
         var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
-        await Assert.That(aliases).Contains("using ImmutableBitSet<Bit64>");
+        await Assert.That(aliases).Contains("using SmallBitSet<uint>");
         await Assert.That(aliases).Contains("Component count: 1");
     }
 
@@ -791,7 +791,8 @@ public class ComponentGeneratorBitStorageTests
         var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
 
         await Assert.That(aliases).IsNotNull();
-        await Assert.That(aliases).Contains("global using ComponentMask = global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.Bit64>");
+        // With 1 component (≤32), uses SmallBitSet<uint>
+        await Assert.That(aliases).Contains("global using ComponentMask = global::Paradise.ECS.SmallBitSet<uint>");
     }
 }
 
@@ -1043,7 +1044,7 @@ public class ComponentGeneratorSuppressGlobalUsingsTests
 
         await Assert.That(aliases).IsNotNull();
         await Assert.That(aliases).Contains("global using ComponentMask =");
-        await Assert.That(aliases).Contains("global using ComponentMaskBits =");
+        // ComponentMaskBits is only generated for ImmutableBitSet (>64 components), not for SmallBitSet
         await Assert.That(aliases).Contains("global using QueryBuilder =");
         await Assert.That(aliases).Contains("global using World =");
         await Assert.That(aliases).Contains("global using Query =");

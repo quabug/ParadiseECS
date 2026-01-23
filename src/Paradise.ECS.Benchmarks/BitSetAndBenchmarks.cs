@@ -7,7 +7,7 @@ namespace Paradise.ECS.Concurrent.Benchmarks;
 public class BitSetAndBenchmarks
 {
     private long _int64A, _int64B;
-    private ImmutableBitSet<Bit64> _bit64A, _bit64B;
+    private SmallBitSet<ulong> _bit64A, _bit64B;
     private ImmutableBitSet<Bit256> _bit256A, _bit256B;
     private ImmutableBitSet<Bit512> _bit512A, _bit512B;
     private ImmutableBitSet<Bit1024> _bit1024A, _bit1024B;
@@ -36,8 +36,8 @@ public class BitSetAndBenchmarks
         _int64A = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50);
         _int64B = (1L << 10) | (1L << 20) | (1L << 40) | (1L << 63);
 
-        _bit64A = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50);
-        _bit64B = ImmutableBitSet<Bit64>.Empty.Set(10).Set(20).Set(40).Set(63);
+        _bit64A = SmallBitSet<ulong>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50);
+        _bit64B = SmallBitSet<ulong>.Empty.Set(10).Set(20).Set(40).Set(63);
 
         _bit256A = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit256B = ImmutableBitSet<Bit256>.Empty.Set(60).Set(120).Set(200).Set(240);
@@ -123,7 +123,7 @@ public class BitSetAndBenchmarks
     public long Int64_And() => _int64A & _int64B;
 
     [Benchmark]
-    public ImmutableBitSet<Bit64> Bit64_And() => _bit64A.And(_bit64B);
+    public SmallBitSet<ulong> Bit64_And() => _bit64A.And(_bit64B);
 
     [Benchmark]
     public BitArray BitArray64_And() => _bitArray64A.And(_bitArray64B);

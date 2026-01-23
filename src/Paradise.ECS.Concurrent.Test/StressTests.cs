@@ -9,8 +9,8 @@ public sealed class StressTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private ChunkManager? _chunkManager;
-    private SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>? _sharedMetadata;
-    private World<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>? _world;
+    private SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>? _sharedMetadata;
+    private World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>? _world;
 
     public void Dispose()
     {
@@ -22,8 +22,8 @@ public sealed class StressTests : IDisposable
     private void CreateWorld()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(s_config);
-        _world = new World<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(
+        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
+        _world = new World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(
             s_config,
             _sharedMetadata,
             _chunkManager);
@@ -73,7 +73,7 @@ public sealed class StressTests : IDisposable
             _world.AddComponent(entity, new TestPosition { X = i });
         }
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world!.ArchetypeRegistry);
 
@@ -193,15 +193,15 @@ public sealed class StressTests : IDisposable
         _world.AddComponent<TestHealth>(e7);
 
         // Verify queries
-        var posQuery = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var posQuery = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
-        var velQuery = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var velQuery = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
 
-        var healthQuery = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var healthQuery = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestHealth>()
             .Build(_world.ArchetypeRegistry);
 
@@ -238,7 +238,7 @@ public sealed class StressTests : IDisposable
             _world.AddComponent<TestVelocity>(e4);
         }
 
-        var posQuery = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var posQuery = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world!.ArchetypeRegistry);
 
@@ -372,10 +372,10 @@ public sealed class StressTests : IDisposable
         _world.AddComponent<TestPosition>(entity);
 
         // Build many queries with same description
-        var queries = new List<Query<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig, Archetype<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>>>();
+        var queries = new List<Query<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig, Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>>();
         for (int i = 0; i < 100; i++)
         {
-            var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+            var query = new QueryBuilder<SmallBitSet<ulong>>()
                 .With<TestPosition>()
                 .Build(_world.ArchetypeRegistry);
             queries.Add(query);
@@ -399,7 +399,7 @@ public sealed class StressTests : IDisposable
             _world.AddComponent(entity, new TestPosition { X = i });
         }
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world!.ArchetypeRegistry);
 

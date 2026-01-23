@@ -7,12 +7,12 @@ public sealed class WorldQueryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
-    private readonly World<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _world;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
+    private readonly World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _world;
 
     public WorldQueryTests()
     {
-        _world = new World<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(
+        _world = new World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(
             s_config,
             _sharedMetadata,
             _chunkManager);
@@ -30,7 +30,7 @@ public sealed class WorldQueryTests : IDisposable
     [Test]
     public async Task Query_EmptyWorld_ReturnsEmptyQuery()
     {
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -49,7 +49,7 @@ public sealed class WorldQueryTests : IDisposable
         _world.AddComponent<TestPosition>(e2);
         _world.AddComponent<TestVelocity>(e3); // Should not match
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -63,7 +63,7 @@ public sealed class WorldQueryTests : IDisposable
     [Test]
     public async Task Query_AfterSpawn_UpdatesCount()
     {
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -84,7 +84,7 @@ public sealed class WorldQueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -102,7 +102,7 @@ public sealed class WorldQueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestVelocity>(entity);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -121,7 +121,7 @@ public sealed class WorldQueryTests : IDisposable
         _world.AddComponent<TestPosition>(entity);
         _world.AddComponent<TestVelocity>(entity);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .With<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
@@ -148,7 +148,7 @@ public sealed class WorldQueryTests : IDisposable
         _world.AddComponent<TestPosition>(e2);
         _world.AddComponent<TestVelocity>(e2);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
@@ -162,7 +162,7 @@ public sealed class WorldQueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Without<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
@@ -191,7 +191,7 @@ public sealed class WorldQueryTests : IDisposable
         var e3 = _world.Spawn();
         _world.AddComponent<TestHealth>(e3); // Should not match
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .WithAny<TestPosition>()
             .WithAny<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
@@ -220,7 +220,7 @@ public sealed class WorldQueryTests : IDisposable
         var e4 = _world.Spawn();
         _world.AddComponent<TestVelocity>(e4);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .WithAny<TestVelocity>()
             .WithAny<TestHealth>()
@@ -255,7 +255,7 @@ public sealed class WorldQueryTests : IDisposable
         var e4 = _world.Spawn();
         _world.AddComponent<TestPosition>(e4);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()           // Required
             .Without<TestHealth>()          // Excluded
             .WithAny<TestVelocity>()        // Any of these
@@ -277,7 +277,7 @@ public sealed class WorldQueryTests : IDisposable
         var e3 = _world.Spawn();
         _world.AddComponent<TestHealth>(e3);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .Build(_world.ArchetypeRegistry);
 
         // Empty query should match all archetypes
@@ -303,11 +303,11 @@ public sealed class WorldQueryTests : IDisposable
         _world.AddComponent<TestPosition>(e3);
         _world.AddComponent<TestHealth>(e3);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
-        var visitedArchetypes = new List<Archetype<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>>();
+        var visitedArchetypes = new List<Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>();
         foreach (var archetype in query.Archetypes)
         {
             visitedArchetypes.Add(archetype);
@@ -329,7 +329,7 @@ public sealed class WorldQueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestPosition { X = 10, Y = 20, Z = 30 });
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -366,11 +366,11 @@ public sealed class WorldQueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestPosition>(entity);
 
-        var query1 = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query1 = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
-        var query2 = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query2 = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
@@ -387,11 +387,11 @@ public sealed class WorldQueryTests : IDisposable
         var e2 = _world.Spawn();
         _world.AddComponent<TestVelocity>(e2);
 
-        var queryPosition = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var queryPosition = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 
-        var queryVelocity = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var queryVelocity = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestVelocity>()
             .Build(_world.ArchetypeRegistry);
 
@@ -409,7 +409,7 @@ public sealed class WorldQueryTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent<TestTag>(entity);
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestTag>()
             .Build(_world.ArchetypeRegistry);
 
@@ -429,7 +429,7 @@ public sealed class WorldQueryTests : IDisposable
             if (i % 3 == 0) _world.AddComponent<TestHealth>(entity);
         }
 
-        var query = new QueryBuilder<ImmutableBitSet<Bit64>>()
+        var query = new QueryBuilder<SmallBitSet<ulong>>()
             .With<TestPosition>()
             .Build(_world.ArchetypeRegistry);
 

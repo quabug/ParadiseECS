@@ -7,12 +7,12 @@ public sealed class ArchetypeTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
-    private readonly ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
+    private readonly ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _registry;
 
     public ArchetypeTests()
     {
-        _registry = new ArchetypeRegistry<ImmutableBitSet<Bit64>, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
+        _registry = new ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
     }
 
     public void Dispose()
@@ -26,8 +26,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task Archetype_NewlyCreated_HasZeroEntities()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
 
         var archetype = _registry.GetOrCreate(hashedKey);
 
@@ -38,8 +38,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task Archetype_HasCorrectId()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
 
         var archetype = _registry.GetOrCreate(hashedKey);
 
@@ -49,8 +49,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task Archetype_HasCorrectLayout()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
 
         var archetype = _registry.GetOrCreate(hashedKey);
 
@@ -65,8 +65,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task AllocateEntity_FirstEntity_ReturnsIndexZero()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         var entity = new Entity(0, 1);
@@ -78,8 +78,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task AllocateEntity_IncrementsEntityCount()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -91,8 +91,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task AllocateEntity_MultipleEntities_ReturnsSequentialIndices()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         var idx0 = archetype.AllocateEntity(new Entity(0, 1));
@@ -107,8 +107,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task AllocateEntity_CreatesChunkWhenNeeded()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -123,8 +123,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task RemoveEntity_SingleEntity_DecrementsCount()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -136,8 +136,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task RemoveEntity_LastEntity_ReturnsNegativeOne()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -149,8 +149,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task RemoveEntity_SwapRemove_ReturnsMovedEntityId()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -167,8 +167,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task RemoveEntity_InvalidIndex_ReturnsNegativeOne()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -183,8 +183,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task RemoveEntity_TrimsEmptyChunks()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -203,8 +203,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task GetChunk_ValidIndex_ReturnsChunkHandle()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -221,8 +221,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task GetGlobalIndex_FirstChunkFirstEntity_ReturnsZero()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         var globalIndex = archetype.GetGlobalIndex(0, 0);
@@ -233,8 +233,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task GetGlobalIndex_CalculatesCorrectly()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         int entitiesPerChunk = archetype.Layout.EntitiesPerChunk;
@@ -255,8 +255,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task GetChunkLocation_ZeroIndex_ReturnsFirstChunkFirstPosition()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(0);
@@ -268,8 +268,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task GetChunkLocation_RoundTrip_Consistent()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         int entitiesPerChunk = archetype.Layout.EntitiesPerChunk;
@@ -288,8 +288,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task Clear_RemovesAllEntities()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -305,8 +305,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task Clear_FreesAllChunks()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         // Allocate enough entities to create at least one chunk
@@ -326,8 +326,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task Clear_CanAllocateAgain()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -346,8 +346,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task EmptyArchetype_AllocatesEntities()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty;
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty;
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         var idx = archetype.AllocateEntity(new Entity(0, 1));
@@ -359,8 +359,8 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task EmptyArchetype_RemovesEntities()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty;
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var mask = SmallBitSet<ulong>.Empty;
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));
@@ -379,11 +379,11 @@ public sealed class ArchetypeTests : IDisposable
     [Test]
     public async Task MultiComponent_AllocateAndRemove_Works()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty
+        var mask = SmallBitSet<ulong>.Empty
             .Set(TestPosition.TypeId)
             .Set(TestVelocity.TypeId)
             .Set(TestHealth.TypeId);
-        var hashedKey = (HashedKey<ImmutableBitSet<Bit64>>)mask;
+        var hashedKey = (HashedKey<SmallBitSet<ulong>>)mask;
         var archetype = _registry.GetOrCreate(hashedKey);
 
         archetype.AllocateEntity(new Entity(0, 1));

@@ -7,8 +7,8 @@ public class BitSetIsEmptyBenchmarks
 {
     private long _int64Empty;
     private long _int64NonEmpty;
-    private ImmutableBitSet<Bit64> _bit64Empty;
-    private ImmutableBitSet<Bit64> _bit64NonEmpty;
+    private SmallBitSet<ulong> _bit64Empty;
+    private SmallBitSet<ulong> _bit64NonEmpty;
     private ImmutableBitSet<Bit256> _bit256Empty;
     private ImmutableBitSet<Bit256> _bit256NonEmpty;
     private ImmutableBitSet<Bit512> _bit512Empty;
@@ -47,8 +47,8 @@ public class BitSetIsEmptyBenchmarks
         _int64Empty = 0L;
         _int64NonEmpty = 1L << 63;
 
-        _bit64Empty = ImmutableBitSet<Bit64>.Empty;
-        _bit64NonEmpty = ImmutableBitSet<Bit64>.Empty.Set(63);  // Last bit
+        _bit64Empty = SmallBitSet<ulong>.Empty;
+        _bit64NonEmpty = SmallBitSet<ulong>.Empty.Set(63);  // Last bit
 
         _bit256Empty = ImmutableBitSet<Bit256>.Empty;
         _bit256NonEmpty = ImmutableBitSet<Bit256>.Empty.Set(255);  // Last bit
