@@ -57,7 +57,7 @@ public class QueryableGenerator : IIncrementalGenerator
             return null;
 
         // Verify it's a struct
-        if (typeSymbol.TypeKind != TypeKind.Struct)
+        if (typeSymbol.TypeKind != Microsoft.CodeAnalysis.TypeKind.Struct)
             return null;
 
         var fullyQualifiedName = GeneratorUtilities.GetFullyQualifiedName(typeSymbol);
