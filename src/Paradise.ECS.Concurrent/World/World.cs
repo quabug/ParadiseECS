@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
 namespace Paradise.ECS.Concurrent;
@@ -6,17 +7,17 @@ namespace Paradise.ECS.Concurrent;
 /// The central ECS world that coordinates entities, components, and systems.
 /// Owns all subsystems and provides a unified API for entity manipulation.
 /// </summary>
-/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TRegistry">The component registry type.</typeparam>
 /// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
-public sealed class World<TBits, TRegistry, TConfig> : IDisposable
-    where TBits : unmanaged, IStorage
+public sealed class World<TMask, TRegistry, TConfig> : IDisposable
+    where TMask : unmanaged, IBitSet<TMask>
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
-    private readonly SharedArchetypeMetadata<TBits, TRegistry, TConfig> _sharedMetadata;
+    private readonly SharedArchetypeMetadata<TMask, TRegistry, TConfig> _sharedMetadata;
     private readonly ChunkManager _chunkManager;
-    private readonly ArchetypeRegistry<TBits, TRegistry, TConfig> _archetypeRegistry;
+    private readonly ArchetypeRegistry<TMask, TRegistry, TConfig> _archetypeRegistry;
     private readonly EntityManager _entityManager;
     private readonly Lock _structuralChangeLock = new();
 
@@ -26,7 +27,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// <summary>
     /// Gets the shared archetype metadata used by this world.
     /// </summary>
-    public SharedArchetypeMetadata<TBits, TRegistry, TConfig> SharedMetadata => _sharedMetadata;
+    public SharedArchetypeMetadata<TMask, TRegistry, TConfig> SharedMetadata => _sharedMetadata;
 
     /// <summary>
     /// Gets the chunk manager for memory allocation.
@@ -36,7 +37,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// <summary>
     /// Gets the archetype registry.
     /// </summary>
-    public ArchetypeRegistry<TBits, TRegistry, TConfig> ArchetypeRegistry => _archetypeRegistry;
+    public ArchetypeRegistry<TMask, TRegistry, TConfig> ArchetypeRegistry => _archetypeRegistry;
 
     /// <summary>
     /// Gets the number of currently alive entities.
@@ -51,7 +52,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
     public World(TConfig config,
-                 SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+                 SharedArchetypeMetadata<TMask, TRegistry, TConfig> sharedMetadata,
                  ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
@@ -59,7 +60,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
 
         _sharedMetadata = sharedMetadata;
         _chunkManager = chunkManager;
-        _archetypeRegistry = new ArchetypeRegistry<TBits, TRegistry, TConfig>(sharedMetadata, chunkManager);
+        _archetypeRegistry = new ArchetypeRegistry<TMask, TRegistry, TConfig>(sharedMetadata, chunkManager);
         _entityManager = new EntityManager(config.DefaultEntityCapacity);
     }
 
@@ -70,7 +71,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// </summary>
     /// <param name="sharedMetadata">The shared archetype metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public World(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata,
+    public World(SharedArchetypeMetadata<TMask, TRegistry, TConfig> sharedMetadata,
                  ChunkManager chunkManager)
         : this(new TConfig(), sharedMetadata, chunkManager)
     {
@@ -104,7 +105,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
 
         // Collect component mask
-        var mask = ImmutableBitSet<TBits>.Empty;
+        var mask = TMask.Empty;
         builder.CollectTypes(ref mask);
 
         // Validate before creating to avoid inconsistent state if limit exceeded
@@ -119,7 +120,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
             return entity;
         }
 
-        var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
+        var archetype = _archetypeRegistry.GetOrCreate((HashedKey<TMask>)mask);
         PlaceEntityWithComponents(entity, archetype, builder);
 
         return entity;
@@ -144,7 +145,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         var location = GetValidatedLocation(entity);
 
         // Collect component mask
-        var mask = ImmutableBitSet<TBits>.Empty;
+        var mask = TMask.Empty;
         builder.CollectTypes(ref mask);
 
         // Remove from old archetype if it had one
@@ -157,7 +158,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
             return entity;
         }
 
-        var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
+        var archetype = _archetypeRegistry.GetOrCreate((HashedKey<TMask>)mask);
         PlaceEntityWithComponents(entity, archetype, builder);
 
         return entity;
@@ -183,7 +184,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         var location = GetValidatedLocation(entity);
 
         // Collect new component mask from builder
-        var newMask = ImmutableBitSet<TBits>.Empty;
+        var newMask = TMask.Empty;
         builder.CollectTypes(ref newMask);
 
         if (newMask.IsEmpty)
@@ -192,21 +193,19 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         // Get current mask (empty if entity has no archetype)
         var currentMask = location.IsValid
             ? _archetypeRegistry.GetById(location.ArchetypeId)!.Layout.ComponentMask
-            : ImmutableBitSet<TBits>.Empty;
+            : TMask.Empty;
 
         // Check for duplicates
         var overlap = currentMask.And(newMask);
         if (!overlap.IsEmpty)
         {
-            foreach (int id in overlap)
-            {
-                throw new InvalidOperationException($"Entity {entity} already has component with ID {id}.");
-            }
+            int id = overlap.FirstSetBit();
+            throw new InvalidOperationException($"Entity {entity} already has component with ID {id}.");
         }
 
         // Merge masks and get target archetype
         var targetMask = currentMask.Or(newMask);
-        var targetArchetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)targetMask);
+        var targetArchetype = _archetypeRegistry.GetOrCreate((HashedKey<TMask>)targetMask);
 
         // Allocate in target archetype
         int newGlobalIndex = targetArchetype.AllocateEntity(entity);
@@ -241,7 +240,7 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// </summary>
     private void PlaceEntityWithComponents<TBuilder>(
         Entity entity,
-        Archetype<TBits, TRegistry, TConfig> archetype,
+        Archetype<TMask, TRegistry, TConfig> archetype,
         TBuilder builder)
         where TBuilder : IComponentsBuilder
     {
@@ -423,8 +422,8 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         if (!location.IsValid)
         {
             // Entity has no archetype yet - create one with just this component
-            var mask = ImmutableBitSet<TBits>.Empty.Set(T.TypeId);
-            var archetype = _archetypeRegistry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
+            var mask = TMask.Empty.Set(T.TypeId);
+            var archetype = _archetypeRegistry.GetOrCreate((HashedKey<TMask>)mask);
 
             int globalIndex = archetype.AllocateEntity(entity);
             _entityManager.SetLocation(entity, new EntityLocation(entity.Version, archetype.Id, globalIndex));
@@ -500,16 +499,16 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     /// Creates a query builder for this world.
     /// </summary>
     /// <returns>A new query builder.</returns>
-    public static QueryBuilder<TBits> Query()
+    public static QueryBuilder<TMask> Query()
     {
-        return new QueryBuilder<TBits>();
+        return new QueryBuilder<TMask>();
     }
 
     private int MoveEntity(
         Entity entity,
         EntityLocation location,
-        Archetype<TBits, TRegistry, TConfig> source,
-        Archetype<TBits, TRegistry, TConfig> target)
+        Archetype<TMask, TRegistry, TConfig> source,
+        Archetype<TMask, TRegistry, TConfig> target)
     {
         // Remember old location for swap-remove handling
         int oldGlobalIndex = location.GlobalIndex;
@@ -542,8 +541,8 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
     }
 
     private void CopySharedComponents(
-        Archetype<TBits, TRegistry, TConfig> source,
-        Archetype<TBits, TRegistry, TConfig> target,
+        Archetype<TMask, TRegistry, TConfig> source,
+        Archetype<TMask, TRegistry, TConfig> target,
         ChunkHandle srcChunkHandle,
         int srcIndexInChunk,
         ChunkHandle dstChunkHandle,
@@ -559,19 +558,44 @@ public sealed class World<TBits, TRegistry, TConfig> : IDisposable
         var srcBytes = _chunkManager.GetBytes(srcChunkHandle);
         var dstBytes = _chunkManager.GetBytes(dstChunkHandle);
 
-        var typeInfos = TRegistry.TypeInfos;
-
-        foreach (int componentId in sharedMask)
+        var action = new CopyComponentsAction<TMask, TRegistry, TConfig>
         {
-            var info = typeInfos[componentId];
+            TypeInfos = TRegistry.TypeInfos,
+            SrcLayout = srcLayout,
+            DstLayout = dstLayout,
+            SrcBytes = srcBytes,
+            DstBytes = dstBytes,
+            SrcIndexInChunk = srcIndexInChunk,
+            DstIndexInChunk = dstIndexInChunk
+        };
+        sharedMask.ForEach(ref action);
+    }
+
+    private ref struct CopyComponentsAction<TM, TR, TC> : IBitAction
+        where TM : unmanaged, IBitSet<TM>
+        where TR : IComponentRegistry
+        where TC : IConfig, new()
+    {
+        public ImmutableArray<ComponentTypeInfo> TypeInfos;
+        public ImmutableArchetypeLayout<TM, TR, TC> SrcLayout;
+        public ImmutableArchetypeLayout<TM, TR, TC> DstLayout;
+        public Span<byte> SrcBytes;
+        public Span<byte> DstBytes;
+        public int SrcIndexInChunk;
+        public int DstIndexInChunk;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Invoke(int bitIndex)
+        {
+            var info = TypeInfos[bitIndex];
             if (info.Size == 0)
-                continue; // Skip tag components
+                return; // Skip tag components
 
-            int srcOffset = srcLayout.GetEntityComponentOffset(srcIndexInChunk, new ComponentId(componentId));
-            int dstOffset = dstLayout.GetEntityComponentOffset(dstIndexInChunk, new ComponentId(componentId));
+            int srcOffset = SrcLayout.GetEntityComponentOffset(SrcIndexInChunk, new ComponentId(bitIndex));
+            int dstOffset = DstLayout.GetEntityComponentOffset(DstIndexInChunk, new ComponentId(bitIndex));
 
-            var srcData = srcBytes.Slice(srcOffset, info.Size);
-            var dstData = dstBytes.Slice(dstOffset, info.Size);
+            var srcData = SrcBytes.Slice(srcOffset, info.Size);
+            var dstData = DstBytes.Slice(dstOffset, info.Size);
             srcData.CopyTo(dstData);
         }
     }
@@ -616,14 +640,14 @@ public static class ComponentsBuilderWorldExtensions
         /// <summary>
         /// Builds the entity in the specified world.
         /// </summary>
-        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
         /// <typeparam name="TRegistry">The component registry type.</typeparam>
         /// <typeparam name="TConfig">The world configuration type.</typeparam>
         /// <param name="world">The world to create the entity in.</param>
         /// <returns>The created entity.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity Build<TBits, TRegistry, TConfig>(World<TBits, TRegistry, TConfig> world)
-            where TBits : unmanaged, IStorage
+        public Entity Build<TMask, TRegistry, TConfig>(World<TMask, TRegistry, TConfig> world)
+            where TMask : unmanaged, IBitSet<TMask>
             where TRegistry : IComponentRegistry
             where TConfig : IConfig, new()
         {
@@ -635,15 +659,15 @@ public static class ComponentsBuilderWorldExtensions
         /// Any existing components are discarded. The entity must already exist and be alive.
         /// Used for deserialization or network synchronization.
         /// </summary>
-        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
         /// <typeparam name="TRegistry">The component registry type.</typeparam>
         /// <typeparam name="TConfig">The world configuration type.</typeparam>
         /// <param name="entity">The existing entity handle.</param>
         /// <param name="world">The world containing the entity.</param>
         /// <returns>The entity.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity Overwrite<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
-            where TBits : unmanaged, IStorage
+        public Entity Overwrite<TMask, TRegistry, TConfig>(Entity entity, World<TMask, TRegistry, TConfig> world)
+            where TMask : unmanaged, IBitSet<TMask>
             where TRegistry : IComponentRegistry
             where TConfig : IConfig, new()
         {
@@ -654,7 +678,7 @@ public static class ComponentsBuilderWorldExtensions
         /// Adds the builder's components to an existing entity, preserving its current components.
         /// This is a structural change that moves the entity to a new archetype.
         /// </summary>
-        /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+        /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
         /// <typeparam name="TRegistry">The component registry type.</typeparam>
         /// <typeparam name="TConfig">The world configuration type.</typeparam>
         /// <param name="entity">The existing entity handle.</param>
@@ -662,8 +686,8 @@ public static class ComponentsBuilderWorldExtensions
         /// <returns>The entity.</returns>
         /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity AddTo<TBits, TRegistry, TConfig>(Entity entity, World<TBits, TRegistry, TConfig> world)
-            where TBits : unmanaged, IStorage
+        public Entity AddTo<TMask, TRegistry, TConfig>(Entity entity, World<TMask, TRegistry, TConfig> world)
+            where TMask : unmanaged, IBitSet<TMask>
             where TRegistry : IComponentRegistry
             where TConfig : IConfig, new()
         {

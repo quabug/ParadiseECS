@@ -5,7 +5,7 @@ namespace Paradise.ECS.Sample.Samples;
 /// </summary>
 public static class GameLoopSample
 {
-    public static void Run(World world, WorldQuery<Bit64, ComponentRegistry, GameConfig> movableQuery)
+    public static void Run(World world, WorldQuery<SmallBitSet<uint>, ComponentRegistry, GameConfig> movableQuery)
     {
         Console.WriteLine("8. Game Loop Simulation (5 frames)");
         Console.WriteLine("----------------------------");

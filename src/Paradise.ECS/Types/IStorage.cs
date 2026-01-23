@@ -4,12 +4,6 @@ namespace Paradise.ECS;
 
 public interface IStorage;
 
-[InlineArray(1)]
-public struct Bit64 : IStorage
-{
-    private ulong _element0;
-}
-
 [InlineArray(2)]
 public struct Bit128 : IStorage
 {

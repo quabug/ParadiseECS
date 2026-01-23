@@ -7,20 +7,19 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace Paradise.ECS.Generators;
 
 /// <summary>
-/// Source generator that assigns component IDs to types marked with [Component]
-/// and tag IDs to types marked with [Tag].
+/// Source generator that assigns component IDs to types marked with [Component].
 /// </summary>
 [Generator]
 public class ComponentGenerator : IIncrementalGenerator
 {
     private const string ComponentAttributeFullName = "Paradise.ECS.ComponentAttribute";
-    private const string TagAttributeFullName = "Paradise.ECS.TagAttribute";
     private const string RegistryNamespaceAttributeFullName = "Paradise.ECS.ComponentRegistryNamespaceAttribute";
     private const string DefaultConfigAttributeFullName = "Paradise.ECS.DefaultConfigAttribute";
     private const string SuppressGlobalUsingsAttributeFullName = "Paradise.ECS.SuppressGlobalUsingsAttribute";
     private const string IConfigFullName = "Paradise.ECS.IConfig";
     private const string TagAssemblyName = "Paradise.ECS.Tag";
     private const string EdgeKeyFullName = "Paradise.ECS.EdgeKey";
+    private const string TagAttributeFullName = "Paradise.ECS.TagAttribute";
 
     private const int DefaultMaxComponentTypeId = (1 << 11) - 1;
     private const int DefaultMaxTagId = (1 << 11) - 1;
@@ -31,15 +30,16 @@ public class ComponentGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 ComponentAttributeFullName,
                 predicate: static (node, _) => node is StructDeclarationSyntax,
-                transform: static (ctx, _) => ExtractTypeInfo(ctx, TypeKind.Component))
+                transform: static (ctx, _) => GeneratorUtilities.ExtractTypeInfo(ctx, TypeKind.Component))
             .Where(static x => x.HasValue)
             .Select(static (x, _) => x!.Value);
 
+        // Collect tag types only for counting (to determine TagMask type)
         var tagTypes = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 TagAttributeFullName,
                 predicate: static (node, _) => node is StructDeclarationSyntax,
-                transform: static (ctx, _) => ExtractTypeInfo(ctx, TypeKind.Tag))
+                transform: static (ctx, _) => GeneratorUtilities.ExtractTypeInfo(ctx, TypeKind.Tag))
             .Where(static x => x.HasValue)
             .Select(static (x, _) => x!.Value);
 
@@ -113,85 +113,6 @@ public class ComponentGenerator : IIncrementalGenerator
             implementsIConfig);
     }
 
-    private static TypeInfo? ExtractTypeInfo(GeneratorAttributeSyntaxContext context, TypeKind kind)
-    {
-        if (context.TargetSymbol is not INamedTypeSymbol typeSymbol || typeSymbol.TypeKind != Microsoft.CodeAnalysis.TypeKind.Struct)
-            return null;
-
-        var fullyQualifiedName = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        if (fullyQualifiedName.StartsWith("global::", StringComparison.Ordinal))
-            fullyQualifiedName = fullyQualifiedName.Substring(8);
-
-        var ns = typeSymbol.ContainingNamespace.IsGlobalNamespace ? null : typeSymbol.ContainingNamespace.ToDisplayString();
-
-        // Build containing types list
-        var containingTypes = ImmutableArray.CreateBuilder<ContainingTypeInfo>();
-        string? invalidContainingType = null;
-        for (var parent = typeSymbol.ContainingType; parent != null; parent = parent.ContainingType)
-        {
-            var keyword = parent.TypeKind switch
-            {
-                Microsoft.CodeAnalysis.TypeKind.Class => parent.IsRecord ? "record class" : "class",
-                Microsoft.CodeAnalysis.TypeKind.Struct => parent.IsRecord ? "record struct" : "struct",
-                Microsoft.CodeAnalysis.TypeKind.Interface => "interface",
-                _ => "struct"
-            };
-            containingTypes.Add(new ContainingTypeInfo(parent.Name, keyword));
-            if (invalidContainingType == null && parent.IsGenericType)
-                invalidContainingType = parent.ToDisplayString(SymbolDisplayFormat.CSharpShortErrorMessageFormat);
-        }
-        containingTypes.Reverse();
-
-        // Extract GUID and manual ID from attributes
-        string? validGuid = null, invalidGuid = null;
-        int? manualId = null;
-        foreach (var attr in context.Attributes)
-        {
-            if (attr.ConstructorArguments.Length > 0 && attr.ConstructorArguments[0].Value is string ctorGuid)
-            {
-                if (Guid.TryParse(ctorGuid, out _))
-                    validGuid = ctorGuid;
-                else
-                    invalidGuid = ctorGuid;
-            }
-
-            foreach (var arg in attr.NamedArguments)
-            {
-                if (arg.Key == "Guid" && arg.Value.Value is string g)
-                {
-                    if (Guid.TryParse(g, out _))
-                    {
-                        validGuid = g;
-                        invalidGuid = null;
-                    }
-                    else
-                    {
-                        validGuid = null;
-                        invalidGuid = g;
-                    }
-                }
-                else if (arg.Key == "Id" && arg.Value.Value is int id && id >= 0)
-                    manualId = id;
-            }
-        }
-
-        var hasInstanceFields = typeSymbol.GetMembers().OfType<IFieldSymbol>().Any(f => !f.IsStatic);
-
-        return new TypeInfo(
-            kind,
-            fullyQualifiedName,
-            typeSymbol.Locations.FirstOrDefault() ?? Location.None,
-            typeSymbol.IsUnmanagedType,
-            ns,
-            typeSymbol.Name,
-            containingTypes.ToImmutable(),
-            validGuid,
-            invalidGuid,
-            invalidContainingType,
-            hasInstanceFields,
-            manualId);
-    }
-
     private static void GenerateCode(
         SourceProductionContext context,
         ImmutableArray<TypeInfo> components,
@@ -202,17 +123,17 @@ public class ComponentGenerator : IIncrementalGenerator
         // Validate and determine config type
         var configType = ValidateDefaultConfig(context, defaultConfigs);
 
-        // Process and validate tags
-        var (validTags, tagMaskType, tagMaskBitsType) = ProcessTypes(
-            context, tags, DefaultMaxTagId,
-            DiagnosticDescriptors.TagNotUnmanaged,
-            DiagnosticDescriptors.InvalidTagGuidFormat,
-            DiagnosticDescriptors.UnsupportedTagContainingType,
-            DiagnosticDescriptors.TagIdExceedsLimit,
-            DiagnosticDescriptors.DuplicateTagId,
-            t => t.HasInstanceFields ? DiagnosticDescriptors.TagHasFields : null);
+        // Calculate tag mask type from tags (for EntityTags component)
+        // We need to calculate the same mask type as TagGenerator for consistency
+        // Filter valid tags (unmanaged, no invalid containing types, valid manual IDs)
+        var tagMaskType = CalculateTagMaskType(tags);
+        var validTagCount = tags.Count(t =>
+            t.IsUnmanaged &&
+            t.InvalidContainingType == null &&
+            (!t.ManualId.HasValue || t.ManualId.Value <= DefaultMaxTagId) &&
+            !t.HasInstanceFields);
 
-        var tagsEffectivelyEnabled = config.HasTagAssemblyReference;
+        var tagsEffectivelyEnabled = config.HasTagAssemblyReference && validTagCount > 0;
 
         // Auto-generate EntityTags when tags are enabled
         // Check for user-defined EntityTags in the root namespace (fully qualified name match)
@@ -220,7 +141,7 @@ public class ComponentGenerator : IIncrementalGenerator
         var userDefinedEntityTags = components.Any(c => c.FullyQualifiedName == expectedEntityTagsFqn);
 
         // Process and validate components
-        var (validComponents, _, _) = ProcessTypes(
+        var (validComponents, _) = GeneratorUtilities.ProcessTypes(
             context, components, config.MaxComponentTypeId,
             DiagnosticDescriptors.ComponentNotUnmanaged,
             DiagnosticDescriptors.InvalidGuidFormat,
@@ -253,22 +174,13 @@ public class ComponentGenerator : IIncrementalGenerator
         // Check total component count
         if (validComponents.Count > 0)
         {
-            var maxId = CalculateMaxAssignedId(validComponents);
+            var maxId = GeneratorUtilities.CalculateMaxAssignedId(validComponents);
             if (maxId > config.MaxComponentTypeId)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     DiagnosticDescriptors.TooManyComponents, null, validComponents.Count, config.MaxComponentTypeId));
                 return;
             }
-        }
-
-        // Generate tag code
-        if (validTags.Count > 0)
-        {
-            foreach (var tag in validTags)
-                GeneratePartialStruct(context, tag, tagMaskType, "Tag_");
-            GenerateTagRegistry(context, validTags, config.RootNamespace);
-            GenerateTagAliases(context, validTags.Count, tagMaskType, tagMaskBitsType);
         }
 
         // Generate component code
@@ -284,13 +196,20 @@ public class ComponentGenerator : IIncrementalGenerator
                 GenerateCustomStorageType(context, customType, capacity / 64);
             }
 
+            // Generate partial structs for user-defined components only
+            // Auto-generated EntityTags struct is generated by TagGenerator
             foreach (var component in validComponents)
             {
-                // Auto-generated EntityTags needs a complete struct, not partial
-                // Check by fully qualified name to avoid matching user-defined EntityTags in other namespaces
-                var isAutoGenerated = autoGenerateEntityTags && component.FullyQualifiedName == expectedEntityTagsFqn;
-                GeneratePartialStruct(context, component, tagMaskType, "", isAutoGenerated, expectedEntityTagsFqn);
+                var isAutoGeneratedEntityTags = autoGenerateEntityTags && component.FullyQualifiedName == expectedEntityTagsFqn;
+                if (!isAutoGeneratedEntityTags)
+                {
+                    // For user-defined EntityTags, we need to force computed Size/Alignment
+                    // because TagGenerator will add the _mask field
+                    var isUserDefinedEntityTags = userDefinedEntityTags && component.FullyQualifiedName == expectedEntityTagsFqn;
+                    GeneratePartialStruct(context, component, forceComputedSize: isUserDefinedEntityTags);
+                }
             }
+
             GenerateGlobalUsings(context, validComponents.Count, config, configType, tagsEffectivelyEnabled, tagMaskType);
             GenerateComponentRegistry(context, validComponents, config.RootNamespace);
         }
@@ -332,87 +251,7 @@ public class ComponentGenerator : IIncrementalGenerator
         return validConfigs[0].FullyQualifiedName;
     }
 
-    private static (List<TypeInfo> Valid, string MaskType, string? BitsType) ProcessTypes(
-        SourceProductionContext context,
-        ImmutableArray<TypeInfo> types,
-        int maxId,
-        DiagnosticDescriptor notUnmanaged,
-        DiagnosticDescriptor invalidGuid,
-        DiagnosticDescriptor invalidContaining,
-        DiagnosticDescriptor idExceedsLimit,
-        DiagnosticDescriptor duplicateId,
-        Func<TypeInfo, DiagnosticDescriptor?> additionalCheck)
-    {
-        if (types.IsEmpty)
-            return (new List<TypeInfo>(), "global::Paradise.ECS.ImmutableBitSet32", null);
-
-        var sorted = types.OrderBy(t => t.FullyQualifiedName, StringComparer.Ordinal).ToList();
-        var duplicateManualIds = new HashSet<int>();
-
-        // Report diagnostics
-        foreach (var t in sorted)
-        {
-            if (!t.IsUnmanaged)
-                context.ReportDiagnostic(Diagnostic.Create(notUnmanaged, t.Location, t.FullyQualifiedName));
-            if (t.InvalidGuid != null)
-                context.ReportDiagnostic(Diagnostic.Create(invalidGuid, t.Location, t.FullyQualifiedName, t.InvalidGuid));
-            if (t.InvalidContainingType != null)
-                context.ReportDiagnostic(Diagnostic.Create(invalidContaining, t.Location, t.FullyQualifiedName, t.InvalidContainingType, "a generic type"));
-            if (t.ManualId > maxId)
-                context.ReportDiagnostic(Diagnostic.Create(idExceedsLimit, t.Location, t.FullyQualifiedName, t.ManualId, maxId));
-            if (additionalCheck(t) is { } desc)
-                context.ReportDiagnostic(Diagnostic.Create(desc, t.Location, t.FullyQualifiedName));
-        }
-
-        // Check duplicate manual IDs
-        foreach (var group in sorted.Where(t => t.ManualId.HasValue).GroupBy(t => t.ManualId!.Value).Where(g => g.Count() > 1))
-        {
-            duplicateManualIds.Add(group.Key);
-            context.ReportDiagnostic(Diagnostic.Create(duplicateId, group.First().Location, group.Key,
-                string.Join(", ", group.Select(t => t.FullyQualifiedName))));
-        }
-
-        // Filter valid types
-        var valid = sorted.Where(t =>
-            t.IsUnmanaged &&
-            t.InvalidContainingType == null &&
-            (!t.ManualId.HasValue || (t.ManualId.Value <= maxId && !duplicateManualIds.Contains(t.ManualId.Value))) &&
-            (t.Kind != TypeKind.Tag || !t.HasInstanceFields)).ToList();
-
-        // Calculate mask type
-        var maxAssignedId = CalculateMaxAssignedId(valid);
-        var requiredBits = maxAssignedId + 1;
-        string maskType;
-        string? bitsType = null;
-
-        if (requiredBits <= 32)
-            maskType = "global::Paradise.ECS.ImmutableBitSet32";
-        else
-        {
-            bitsType = requiredBits <= 64 ? "Bit64" : requiredBits <= 128 ? "Bit128" :
-                requiredBits <= 256 ? "Bit256" : requiredBits <= 512 ? "Bit512" :
-                requiredBits <= 1024 ? "Bit1024" : $"Bit{((requiredBits + 255) / 256) * 256}";
-            maskType = $"global::Paradise.ECS.ImmutableBitSet<global::Paradise.ECS.{bitsType}>";
-        }
-
-        return (valid, maskType, bitsType);
-    }
-
-    private static int CalculateMaxAssignedId(List<TypeInfo> types)
-    {
-        var manualIds = new HashSet<int>(types.Where(t => t.ManualId.HasValue).Select(t => t.ManualId!.Value));
-        var autoCount = types.Count - manualIds.Count;
-        var maxId = manualIds.Count > 0 ? manualIds.Max() : -1;
-
-        for (int i = 0, nextId = 0; i < autoCount; i++, nextId++)
-        {
-            while (manualIds.Contains(nextId)) nextId++;
-            if (nextId > maxId) maxId = nextId;
-        }
-        return maxId;
-    }
-
-    private static void GeneratePartialStruct(SourceProductionContext context, TypeInfo info, string tagMaskType, string filePrefix, bool isAutoGenerated = false, string? entityTagsFqn = null)
+    private static void GeneratePartialStruct(SourceProductionContext context, TypeInfo info, bool forceComputedSize = false)
     {
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
@@ -437,36 +276,10 @@ public class ComponentGenerator : IIncrementalGenerator
         if (info.Guid != null)
             sb.AppendLine($"{indent}[global::System.Runtime.InteropServices.Guid(\"{info.Guid}\")]");
 
-        var structKeyword = isAutoGenerated ? "struct" : "partial struct";
-
-        if (info.Kind == TypeKind.Tag)
-        {
-            sb.AppendLine($"{indent}{structKeyword} {info.TypeName} : global::Paradise.ECS.ITag");
-            sb.AppendLine($"{indent}{{");
-            sb.AppendLine($"{indent}    /// <summary>The unique tag type ID assigned at module initialization.</summary>");
-            sb.AppendLine($"{indent}    public static global::Paradise.ECS.TagId TagId {{ get; internal set; }} = global::Paradise.ECS.TagId.Invalid;");
-        }
-        else
-        {
-            // Only treat as EntityTags if the fully qualified name matches the expected EntityTags FQN
-            var isEntityTags = entityTagsFqn != null && info.FullyQualifiedName == entityTagsFqn;
-            var interfaces = isEntityTags
-                ? $"global::Paradise.ECS.IComponent, global::Paradise.ECS.IEntityTags<{tagMaskType}>"
-                : "global::Paradise.ECS.IComponent";
-
-            sb.AppendLine($"{indent}{structKeyword} {info.TypeName} : {interfaces}");
-            sb.AppendLine($"{indent}{{");
-            sb.AppendLine($"{indent}    /// <summary>The unique component type ID assigned at module initialization.</summary>");
-            sb.AppendLine($"{indent}    public static global::Paradise.ECS.ComponentId TypeId {{ get; internal set; }} = global::Paradise.ECS.ComponentId.Invalid;");
-
-            if (isEntityTags)
-            {
-                sb.AppendLine();
-                sb.AppendLine($"{indent}    private {tagMaskType} _mask;");
-                sb.AppendLine($"{indent}    /// <summary>The tag bitmask for this entity.</summary>");
-                sb.AppendLine($"{indent}    public {tagMaskType} Mask {{ get => _mask; set => _mask = value; }}");
-            }
-        }
+        sb.AppendLine($"{indent}partial struct {info.TypeName} : global::Paradise.ECS.IComponent");
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{indent}    /// <summary>The unique component type ID assigned at module initialization.</summary>");
+        sb.AppendLine($"{indent}    public static global::Paradise.ECS.ComponentId TypeId {{ get; internal set; }} = global::Paradise.ECS.ComponentId.Invalid;");
 
         sb.AppendLine();
         sb.AppendLine($"{indent}    /// <summary>The stable GUID for this component type.</summary>");
@@ -474,29 +287,23 @@ public class ComponentGenerator : IIncrementalGenerator
             ? $"{indent}    public static global::System.Guid Guid {{ get; }} = new global::System.Guid(\"{info.Guid}\");"
             : $"{indent}    public static global::System.Guid Guid => global::System.Guid.Empty;");
 
-        if (info.Kind == TypeKind.Component)
+        sb.AppendLine();
+        // Use computed size/alignment if component has instance fields OR if forced (e.g., for user-defined EntityTags)
+        if (!info.HasInstanceFields && !forceComputedSize)
         {
+            sb.AppendLine($"{indent}    /// <summary>The size of this component in bytes.</summary>");
+            sb.AppendLine($"{indent}    public static int Size => 0;");
             sb.AppendLine();
-            // Only treat as EntityTags if the fully qualified name matches the expected EntityTags FQN
-            var isEntityTags = entityTagsFqn != null && info.FullyQualifiedName == entityTagsFqn;
-            var sizeType = isEntityTags ? tagMaskType : $"global::{info.FullyQualifiedName}";
-
-            if (!info.HasInstanceFields && !isEntityTags)
-            {
-                sb.AppendLine($"{indent}    /// <summary>The size of this component in bytes.</summary>");
-                sb.AppendLine($"{indent}    public static int Size => 0;");
-                sb.AppendLine();
-                sb.AppendLine($"{indent}    /// <summary>The alignment of this component in bytes.</summary>");
-                sb.AppendLine($"{indent}    public static int Alignment => 0;");
-            }
-            else
-            {
-                sb.AppendLine($"{indent}    /// <summary>The size of this component in bytes.</summary>");
-                sb.AppendLine($"{indent}    public static int Size {{ get; }} = global::System.Runtime.CompilerServices.Unsafe.SizeOf<{sizeType}>();");
-                sb.AppendLine();
-                sb.AppendLine($"{indent}    /// <summary>The alignment of this component in bytes.</summary>");
-                sb.AppendLine($"{indent}    public static int Alignment {{ get; }} = global::Paradise.ECS.Memory.AlignOf<{sizeType}>();");
-            }
+            sb.AppendLine($"{indent}    /// <summary>The alignment of this component in bytes.</summary>");
+            sb.AppendLine($"{indent}    public static int Alignment => 0;");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}    /// <summary>The size of this component in bytes.</summary>");
+            sb.AppendLine($"{indent}    public static int Size {{ get; }} = global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::{info.FullyQualifiedName}>();");
+            sb.AppendLine();
+            sb.AppendLine($"{indent}    /// <summary>The alignment of this component in bytes.</summary>");
+            sb.AppendLine($"{indent}    public static int Alignment {{ get; }} = global::Paradise.ECS.Memory.AlignOf<global::{info.FullyQualifiedName}>();");
         }
 
         sb.AppendLine($"{indent}}}");
@@ -504,99 +311,8 @@ public class ComponentGenerator : IIncrementalGenerator
         for (int i = info.ContainingTypes.Length - 1; i >= 0; i--)
             sb.AppendLine($"{new string(' ', i * 4)}}}");
 
-        var filename = $"{filePrefix}{info.FullyQualifiedName.Replace(".", "_").Replace("+", "_")}.g.cs";
+        var filename = $"{info.FullyQualifiedName.Replace(".", "_").Replace("+", "_")}.g.cs";
         context.AddSource(filename, sb.ToString());
-    }
-
-    private static void GenerateTagRegistry(SourceProductionContext context, List<TypeInfo> tags, string rootNamespace)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("// <auto-generated/>");
-        sb.AppendLine("#nullable enable");
-        sb.AppendLine();
-        sb.AppendLine($"namespace {rootNamespace};");
-        sb.AppendLine();
-        sb.AppendLine("/// <summary>Provides runtime Type-to-TagId mapping for all registered tags.</summary>");
-        sb.AppendLine("public static class TagRegistry");
-        sb.AppendLine("{");
-        sb.AppendLine("    private static global::System.Collections.Frozen.FrozenDictionary<global::System.Type, global::Paradise.ECS.TagId>? s_typeToId;");
-        sb.AppendLine("    private static global::System.Collections.Frozen.FrozenDictionary<global::System.Guid, global::Paradise.ECS.TagId>? s_guidToId;");
-        sb.AppendLine();
-        sb.AppendLine("    [global::System.Runtime.CompilerServices.ModuleInitializer]");
-        sb.AppendLine("    internal static void Initialize()");
-        sb.AppendLine("    {");
-        sb.AppendLine("        var tags = new (global::System.Type Type, global::System.Guid Guid, int ManualId, global::System.Action<global::Paradise.ECS.TagId> SetId)[]");
-        sb.AppendLine("        {");
-
-        foreach (var tag in tags)
-        {
-            var guid = tag.Guid != null ? $"new global::System.Guid(\"{tag.Guid}\")" : "global::System.Guid.Empty";
-            var manualId = tag.ManualId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-1";
-            sb.AppendLine($"            (typeof(global::{tag.FullyQualifiedName}), {guid}, {manualId}, (global::Paradise.ECS.TagId id) => global::{tag.FullyQualifiedName}.TagId = id),");
-        }
-
-        sb.AppendLine("        };");
-        sb.AppendLine();
-        sb.AppendLine("        var typeToId = new global::System.Collections.Generic.Dictionary<global::System.Type, global::Paradise.ECS.TagId>(tags.Length);");
-        sb.AppendLine("        var guidToId = new global::System.Collections.Generic.Dictionary<global::System.Guid, global::Paradise.ECS.TagId>();");
-        sb.AppendLine("        var usedIds = new global::System.Collections.Generic.HashSet<int>();");
-        sb.AppendLine();
-        sb.AppendLine("        foreach (var tag in tags)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            if (tag.ManualId >= 0)");
-        sb.AppendLine("            {");
-        sb.AppendLine("                var id = new global::Paradise.ECS.TagId(tag.ManualId);");
-        sb.AppendLine("                tag.SetId(id);");
-        sb.AppendLine("                typeToId[tag.Type] = id;");
-        sb.AppendLine("                if (tag.Guid != global::System.Guid.Empty) guidToId[tag.Guid] = id;");
-        sb.AppendLine("                usedIds.Add(tag.ManualId);");
-        sb.AppendLine("            }");
-        sb.AppendLine("        }");
-        sb.AppendLine();
-        sb.AppendLine("        var autoTags = global::System.Linq.Enumerable.ToList(global::System.Linq.Enumerable.Where(tags, t => t.ManualId < 0));");
-        sb.AppendLine("        int nextId = 0;");
-        sb.AppendLine("        foreach (var tag in autoTags)");
-        sb.AppendLine("        {");
-        sb.AppendLine("            while (usedIds.Contains(nextId)) nextId++;");
-        sb.AppendLine("            var id = new global::Paradise.ECS.TagId(nextId);");
-        sb.AppendLine("            tag.SetId(id);");
-        sb.AppendLine("            typeToId[tag.Type] = id;");
-        sb.AppendLine("            if (tag.Guid != global::System.Guid.Empty) guidToId[tag.Guid] = id;");
-        sb.AppendLine("            usedIds.Add(nextId);");
-        sb.AppendLine("            nextId++;");
-        sb.AppendLine("        }");
-        sb.AppendLine();
-        sb.AppendLine("        s_typeToId = global::System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(typeToId);");
-        sb.AppendLine("        s_guidToId = global::System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(guidToId);");
-        sb.AppendLine("    }");
-        sb.AppendLine();
-        sb.AppendLine("    public static global::Paradise.ECS.TagId GetId(global::System.Type type) =>");
-        sb.AppendLine("        s_typeToId!.TryGetValue(type, out var id) ? id : global::Paradise.ECS.TagId.Invalid;");
-        sb.AppendLine();
-        sb.AppendLine("    public static bool TryGetId(global::System.Type type, out global::Paradise.ECS.TagId id) =>");
-        sb.AppendLine("        s_typeToId!.TryGetValue(type, out id);");
-        sb.AppendLine();
-        sb.AppendLine("    public static global::Paradise.ECS.TagId GetId(global::System.Guid guid) =>");
-        sb.AppendLine("        s_guidToId!.TryGetValue(guid, out var id) ? id : global::Paradise.ECS.TagId.Invalid;");
-        sb.AppendLine();
-        sb.AppendLine("    public static bool TryGetId(global::System.Guid guid, out global::Paradise.ECS.TagId id) =>");
-        sb.AppendLine("        s_guidToId!.TryGetValue(guid, out id);");
-        sb.AppendLine("}");
-
-        context.AddSource("TagRegistry.g.cs", sb.ToString());
-    }
-
-    private static void GenerateTagAliases(SourceProductionContext context, int tagCount, string tagMaskType, string? tagMaskBitsType)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("// <auto-generated/>");
-        sb.AppendLine($"// Tag count: {tagCount}");
-        sb.AppendLine();
-        if (tagMaskBitsType != null)
-            sb.AppendLine($"global using TagMaskBits = global::Paradise.ECS.{tagMaskBitsType};");
-        sb.AppendLine($"global using TagMask = {tagMaskType};");
-
-        context.AddSource("TagAliases.g.cs", sb.ToString());
     }
 
     private static void GenerateCustomStorageType(SourceProductionContext context, string typeName, int ulongCount)
@@ -623,14 +339,11 @@ public class ComponentGenerator : IIncrementalGenerator
         bool enableTags,
         string tagMaskType)
     {
-        var bitType = componentCount <= 64 ? "Bit64" : componentCount <= 128 ? "Bit128" :
-            componentCount <= 256 ? "Bit256" : componentCount <= 512 ? "Bit512" :
-            componentCount <= 1024 ? "Bit1024" : $"Bit{((componentCount + 255) / 256) * 256}";
-        var bitTypeFull = $"global::Paradise.ECS.{bitType}";
+        var maskTypeFull = GeneratorUtilities.GetOptimalMaskType(componentCount);
 
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
-        sb.AppendLine($"// Component count: {componentCount} → using {bitType}");
+        sb.AppendLine($"// Component count: {componentCount}");
         if (enableTags)
             sb.AppendLine("// Tags enabled (Paradise.ECS.Tag referenced) → World alias points to TaggedWorld");
         if (config.SuppressGlobalUsings)
@@ -639,26 +352,25 @@ public class ComponentGenerator : IIncrementalGenerator
 
         if (!config.SuppressGlobalUsings)
         {
-            sb.AppendLine($"global using ComponentMaskBits = {bitTypeFull};");
-            sb.AppendLine($"global using ComponentMask = global::Paradise.ECS.ImmutableBitSet<{bitTypeFull}>;");
-            sb.AppendLine($"global using QueryBuilder = global::Paradise.ECS.QueryBuilder<{bitTypeFull}>;");
+            sb.AppendLine($"global using ComponentMask = {maskTypeFull};");
+            sb.AppendLine($"global using QueryBuilder = global::Paradise.ECS.QueryBuilder<{maskTypeFull}>;");
 
             var registry = $"global::{config.RootNamespace}.ComponentRegistry";
             var configTypeFull = $"global::{configType}";
-            sb.AppendLine($"global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<{bitTypeFull}, {registry}, {configTypeFull}>;");
-            sb.AppendLine($"global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<{bitTypeFull}, {registry}, {configTypeFull}>;");
+            sb.AppendLine($"global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<{maskTypeFull}, {registry}, {configTypeFull}>;");
+            sb.AppendLine($"global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<{maskTypeFull}, {registry}, {configTypeFull}>;");
 
             if (enableTags)
             {
                 var entityTags = $"global::{config.RootNamespace}.EntityTags";
-                sb.AppendLine($"global using World = global::Paradise.ECS.TaggedWorld<{bitTypeFull}, {registry}, {configTypeFull}, {entityTags}, {tagMaskType}>;");
+                sb.AppendLine($"global using World = global::Paradise.ECS.TaggedWorld<{maskTypeFull}, {registry}, {configTypeFull}, {entityTags}, {tagMaskType}>;");
             }
             else
             {
-                sb.AppendLine($"global using World = global::Paradise.ECS.World<{bitTypeFull}, {registry}, {configTypeFull}>;");
+                sb.AppendLine($"global using World = global::Paradise.ECS.World<{maskTypeFull}, {registry}, {configTypeFull}>;");
             }
 
-            sb.AppendLine($"global using Query = global::Paradise.ECS.Query<{bitTypeFull}, {registry}, {configTypeFull}, global::Paradise.ECS.Archetype<{bitTypeFull}, {registry}, {configTypeFull}>>;");
+            sb.AppendLine($"global using Query = global::Paradise.ECS.Query<{maskTypeFull}, {registry}, {configTypeFull}, global::Paradise.ECS.Archetype<{maskTypeFull}, {registry}, {configTypeFull}>>;");
         }
 
         context.AddSource("ComponentAliases.g.cs", sb.ToString());
@@ -779,64 +491,6 @@ public class ComponentGenerator : IIncrementalGenerator
         context.AddSource("ComponentRegistry.g.cs", sb.ToString());
     }
 
-    private enum TypeKind { Component, Tag }
-
-    private readonly struct TypeInfo
-    {
-        public TypeKind Kind { get; }
-        public string FullyQualifiedName { get; }
-        public Location Location { get; }
-        public bool IsUnmanaged { get; }
-        public string? Namespace { get; }
-        public string TypeName { get; }
-        public ImmutableArray<ContainingTypeInfo> ContainingTypes { get; }
-        public string? Guid { get; }
-        public string? InvalidGuid { get; }
-        public string? InvalidContainingType { get; }
-        public bool HasInstanceFields { get; }
-        public int? ManualId { get; }
-
-        public TypeInfo(
-            TypeKind Kind,
-            string FullyQualifiedName,
-            Location Location,
-            bool IsUnmanaged,
-            string? Namespace,
-            string TypeName,
-            ImmutableArray<ContainingTypeInfo> ContainingTypes,
-            string? Guid,
-            string? InvalidGuid,
-            string? InvalidContainingType,
-            bool HasInstanceFields,
-            int? ManualId)
-        {
-            this.Kind = Kind;
-            this.FullyQualifiedName = FullyQualifiedName;
-            this.Location = Location;
-            this.IsUnmanaged = IsUnmanaged;
-            this.Namespace = Namespace;
-            this.TypeName = TypeName;
-            this.ContainingTypes = ContainingTypes;
-            this.Guid = Guid;
-            this.InvalidGuid = InvalidGuid;
-            this.InvalidContainingType = InvalidContainingType;
-            this.HasInstanceFields = HasInstanceFields;
-            this.ManualId = ManualId;
-        }
-    }
-
-    private readonly struct ContainingTypeInfo
-    {
-        public string Name { get; }
-        public string Keyword { get; }
-
-        public ContainingTypeInfo(string name, string keyword)
-        {
-            Name = name;
-            Keyword = keyword;
-        }
-    }
-
     private readonly struct GeneratorConfig
     {
         public string RootNamespace { get; }
@@ -869,5 +523,29 @@ public class ComponentGenerator : IIncrementalGenerator
             Location = location;
             ImplementsIConfig = implementsIConfig;
         }
+    }
+
+    /// <summary>
+    /// Calculates the tag mask type based on valid tags, matching TagGenerator's calculation.
+    /// </summary>
+    private static string CalculateTagMaskType(ImmutableArray<TypeInfo> tags)
+    {
+        if (tags.IsEmpty)
+            return "global::Paradise.ECS.SmallBitSet<uint>";
+
+        // Filter valid tags (same criteria as TagGenerator uses via ProcessTypes)
+        var validTags = tags.Where(t =>
+            t.IsUnmanaged &&
+            t.InvalidContainingType == null &&
+            (!t.ManualId.HasValue || t.ManualId.Value <= DefaultMaxTagId) &&
+            !t.HasInstanceFields).ToList();
+
+        if (validTags.Count == 0)
+            return "global::Paradise.ECS.SmallBitSet<uint>";
+
+        // Calculate max assigned ID accounting for manual IDs
+        var maxAssignedId = GeneratorUtilities.CalculateMaxAssignedId(validTags);
+        var requiredBits = maxAssignedId + 1;
+        return GeneratorUtilities.GetOptimalMaskType(requiredBits);
     }
 }

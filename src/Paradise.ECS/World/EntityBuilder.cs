@@ -11,15 +11,15 @@ public interface IComponentsBuilder
     /// <summary>
     /// Collects component type IDs into the component mask.
     /// </summary>
-    /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+    /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
     /// <param name="mask">The mask to add component types to.</param>
-    void CollectTypes<TBits>(ref ImmutableBitSet<TBits> mask)
-        where TBits : unmanaged, IStorage;
+    void CollectTypes<TMask>(ref TMask mask)
+        where TMask : unmanaged, IBitSet<TMask>;
 
     /// <summary>
     /// Writes component data to the entity's chunk location.
     /// </summary>
-    /// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+    /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
     /// <typeparam name="TRegistry">The component registry type.</typeparam>
     /// <typeparam name="TConfig">The world configuration type.</typeparam>
     /// <typeparam name="TChunkManager">The chunk manager type.</typeparam>
@@ -27,12 +27,12 @@ public interface IComponentsBuilder
     /// <param name="layout">The archetype layout with component offsets.</param>
     /// <param name="chunkHandle">The chunk where data should be written.</param>
     /// <param name="indexInChunk">The entity's index within the chunk.</param>
-    void WriteComponents<TBits, TRegistry, TConfig, TChunkManager>(
+    void WriteComponents<TMask, TRegistry, TConfig, TChunkManager>(
         TChunkManager chunkManager,
-        ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
+        ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
-        where TBits : unmanaged, IStorage
+        where TMask : unmanaged, IBitSet<TMask>
         where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TChunkManager : IChunkManager;
@@ -53,20 +53,20 @@ public readonly struct EntityBuilder : IComponentsBuilder
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void CollectTypes<TBits>(ref ImmutableBitSet<TBits> mask)
-        where TBits : unmanaged, IStorage
+    public void CollectTypes<TMask>(ref TMask mask)
+        where TMask : unmanaged, IBitSet<TMask>
     {
         // No components to add
     }
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void WriteComponents<TBits, TRegistry, TConfig, TChunkManager>(
+    public void WriteComponents<TMask, TRegistry, TConfig, TChunkManager>(
         TChunkManager chunkManager,
-        ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
+        ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
-        where TBits : unmanaged, IStorage
+        where TMask : unmanaged, IBitSet<TMask>
         where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TChunkManager : IChunkManager
@@ -109,8 +109,8 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void CollectTypes<TBits>(ref ImmutableBitSet<TBits> mask)
-        where TBits : unmanaged, IStorage
+    public void CollectTypes<TMask>(ref TMask mask)
+        where TMask : unmanaged, IBitSet<TMask>
     {
         InnerBuilder.CollectTypes(ref mask);
         mask = mask.Set(TComponent.TypeId);
@@ -118,12 +118,12 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void WriteComponents<TBits, TRegistry, TConfig, TChunkManager>(
+    public void WriteComponents<TMask, TRegistry, TConfig, TChunkManager>(
         TChunkManager chunkManager,
-        ImmutableArchetypeLayout<TBits, TRegistry, TConfig> layout,
+        ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
-        where TBits : unmanaged, IStorage
+        where TMask : unmanaged, IBitSet<TMask>
         where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TChunkManager : IChunkManager

@@ -7,7 +7,7 @@ namespace Paradise.ECS.Concurrent.Benchmarks;
 public class BitSetLastSetBitBenchmarks
 {
     private long _int64;
-    private ImmutableBitSet<Bit64> _bit64;
+    private SmallBitSet<ulong> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit512> _bit512;
     private ImmutableBitSet<Bit1024> _bit1024;
@@ -30,7 +30,7 @@ public class BitSetLastSetBitBenchmarks
     {
         // Last bit is somewhere in the middle to test search
         _int64 = (1L << 10) | (1L << 25) | (1L << 40);
-        _bit64 = ImmutableBitSet<Bit64>.Empty.Set(10).Set(25).Set(40);
+        _bit64 = SmallBitSet<ulong>.Empty.Set(10).Set(25).Set(40);
         _bit256 = ImmutableBitSet<Bit256>.Empty.Set(50).Set(100).Set(150);
         _bit512 = ImmutableBitSet<Bit512>.Empty.Set(100).Set(200).Set(300);
         _bit1024 = ImmutableBitSet<Bit1024>.Empty.Set(200).Set(400).Set(600);

@@ -30,13 +30,13 @@ public sealed class QueryableRegistryTests
     public async Task QueryableRegistry_Count_ReturnsCorrectCount()
     {
         // We have 3 queryable types: TestMovableEntity, TestProjectile, TestHealthEntity
-        await Assert.That(QueryableRegistry<Bit64>.Count).IsEqualTo(3);
+        await Assert.That(QueryableRegistry<SmallBitSet<ulong>>.Count).IsEqualTo(3);
     }
 
     [Test]
     public async Task QueryableRegistry_Initialize_PopulatesDescriptions()
     {
-        var descriptions = QueryableRegistry<Bit64>.Descriptions;
+        var descriptions = QueryableRegistry<SmallBitSet<ulong>>.Descriptions;
 
         await Assert.That(descriptions.IsDefault).IsFalse();
         // Array size should accommodate max ID (10) + 1 = 11
@@ -46,7 +46,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestMovableEntity_HasCorrectAllMask()
     {
-        var allMask = QueryableRegistry<Bit64>.Descriptions[TestMovableEntity.QueryableId].Value.All;
+        var allMask = QueryableRegistry<SmallBitSet<ulong>>.Descriptions[TestMovableEntity.QueryableId].Value.All;
 
         // TestMovableEntity requires TestPosition and TestHealth
         await Assert.That(allMask.Get(TestPosition.TypeId.Value)).IsTrue();
@@ -58,7 +58,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestMovableEntity_HasCorrectNoneMask()
     {
-        var noneMask = QueryableRegistry<Bit64>.Descriptions[TestMovableEntity.QueryableId].Value.None;
+        var noneMask = QueryableRegistry<SmallBitSet<ulong>>.Descriptions[TestMovableEntity.QueryableId].Value.None;
 
         // TestMovableEntity excludes TestVelocity
         await Assert.That(noneMask.Get(TestVelocity.TypeId.Value)).IsTrue();
@@ -70,7 +70,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestMovableEntity_HasEmptyAnyMask()
     {
-        var anyMask = QueryableRegistry<Bit64>.Descriptions[TestMovableEntity.QueryableId].Value.Any;
+        var anyMask = QueryableRegistry<SmallBitSet<ulong>>.Descriptions[TestMovableEntity.QueryableId].Value.Any;
 
         // TestMovableEntity has no Any constraints
         await Assert.That(anyMask.IsEmpty).IsTrue();
@@ -79,7 +79,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestProjectile_HasCorrectAllMask()
     {
-        var allMask = QueryableRegistry<Bit64>.Descriptions[TestProjectile.QueryableId].Value.All;
+        var allMask = QueryableRegistry<SmallBitSet<ulong>>.Descriptions[TestProjectile.QueryableId].Value.All;
 
         // TestProjectile requires TestPosition and TestVelocity
         await Assert.That(allMask.Get(TestPosition.TypeId.Value)).IsTrue();
@@ -89,7 +89,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestProjectile_HasEmptyNoneMask()
     {
-        var noneMask = QueryableRegistry<Bit64>.Descriptions[TestProjectile.QueryableId].Value.None;
+        var noneMask = QueryableRegistry<SmallBitSet<ulong>>.Descriptions[TestProjectile.QueryableId].Value.None;
 
         // TestProjectile has no Without constraints
         await Assert.That(noneMask.IsEmpty).IsTrue();
@@ -98,7 +98,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestProjectile_HasCorrectAnyMask()
     {
-        var anyMask = QueryableRegistry<Bit64>.Descriptions[TestProjectile.QueryableId].Value.Any;
+        var anyMask = QueryableRegistry<SmallBitSet<ulong>>.Descriptions[TestProjectile.QueryableId].Value.Any;
 
         // TestProjectile optionally has TestDamage
         await Assert.That(anyMask.Get(TestDamage.TypeId.Value)).IsTrue();
@@ -107,7 +107,7 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_TestHealthEntity_HasCorrectAllMask()
     {
-        var allMask = QueryableRegistry<Bit64>.Descriptions[TestHealthEntity.QueryableId].Value.All;
+        var allMask = QueryableRegistry<SmallBitSet<ulong>>.Descriptions[TestHealthEntity.QueryableId].Value.All;
 
         // TestHealthEntity requires only TestHealth
         await Assert.That(allMask.Get(TestHealth.TypeId.Value)).IsTrue();
@@ -119,19 +119,19 @@ public sealed class QueryableRegistryTests
     [Test]
     public async Task QueryableRegistry_Description_MatchesCorrectArchetypes()
     {
-        var description = QueryableRegistry<Bit64>.Descriptions[TestMovableEntity.QueryableId];
+        var description = QueryableRegistry<SmallBitSet<ulong>>.Descriptions[TestMovableEntity.QueryableId];
 
         // Create masks for testing
-        var positionAndHealthMask = ImmutableBitSet<Bit64>.Empty
+        var positionAndHealthMask = SmallBitSet<ulong>.Empty
             .Set(TestPosition.TypeId)
             .Set(TestHealth.TypeId);
 
-        var positionHealthVelocityMask = ImmutableBitSet<Bit64>.Empty
+        var positionHealthVelocityMask = SmallBitSet<ulong>.Empty
             .Set(TestPosition.TypeId)
             .Set(TestHealth.TypeId)
             .Set(TestVelocity.TypeId);
 
-        var onlyPositionMask = ImmutableBitSet<Bit64>.Empty
+        var onlyPositionMask = SmallBitSet<ulong>.Empty
             .Set(TestPosition.TypeId);
 
         // Should match: has Position and Health, no Velocity
@@ -148,8 +148,8 @@ public sealed class QueryableRegistryTests
     public async Task QueryableRegistry_MultipleAccesses_ReturnsSameData()
     {
         // Access registry multiple times
-        var descriptions1 = QueryableRegistry<Bit64>.Descriptions;
-        var descriptions2 = QueryableRegistry<Bit64>.Descriptions;
+        var descriptions1 = QueryableRegistry<SmallBitSet<ulong>>.Descriptions;
+        var descriptions2 = QueryableRegistry<SmallBitSet<ulong>>.Descriptions;
 
         // Should be the same immutable array (initialized once via static constructor)
         // ImmutableArray equality checks the underlying array reference

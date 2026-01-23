@@ -327,115 +327,23 @@ public readonly record struct ImmutableBitSet<TBits> : IBitSet<ImmutableBitSet<T
         return -1;
     }
 
-    /// <summary>
-    /// Performs a bitwise AND operation between two bitsets.
-    /// </summary>
-    /// <param name="left">The first bitset.</param>
-    /// <param name="right">The second bitset.</param>
-    /// <returns>A new bitset containing the result of the AND operation.</returns>
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ImmutableBitSet<TBits> operator &(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
-        => left.And(right);
-
-    /// <summary>
-    /// Performs a bitwise OR operation between two bitsets.
-    /// </summary>
-    /// <param name="left">The first bitset.</param>
-    /// <param name="right">The second bitset.</param>
-    /// <returns>A new bitset containing the result of the OR operation.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ImmutableBitSet<TBits> operator |(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
-        => left.Or(right);
-
-    /// <summary>
-    /// Performs a bitwise XOR operation between two bitsets.
-    /// </summary>
-    /// <param name="left">The first bitset.</param>
-    /// <param name="right">The second bitset.</param>
-    /// <returns>A new bitset containing the result of the XOR operation.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ImmutableBitSet<TBits> operator ^(in ImmutableBitSet<TBits> left, in ImmutableBitSet<TBits> right)
-        => left.Xor(right);
-
-    /// <summary>
-    /// Returns an enumerator that iterates through the indices of all set bits.
-    /// </summary>
-    /// <returns>An enumerator for the set bit indices.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public SetBitEnumerator GetEnumerator() => new(this);
+    public void ForEach<TAction>(scoped ref TAction action) where TAction : IBitAction, allows ref struct
+    {
+        var span = GetReadOnlySpan();
+        for (int bucketIndex = 0; bucketIndex < ULongCount; bucketIndex++)
+        {
+            ulong bucket = span[bucketIndex];
+            while (bucket != 0)
+            {
+                int bitPos = BitOperations.TrailingZeroCount(bucket);
+                action.Invoke(bucketIndex * 64 + bitPos);
+                bucket &= bucket - 1; // Clear lowest set bit
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public override string ToString() => $"ImmutableBitSet<{typeof(TBits).Name}>({PopCount()} bits set)";
-
-    /// <summary>
-    /// Enumerator for iterating through set bit indices in an <see cref="ImmutableBitSet{TBits}"/>.
-    /// </summary>
-    public ref struct SetBitEnumerator
-    {
-        private readonly ImmutableBitSet<TBits> _bitset;
-        private int _bucketIndex;
-        private ulong _currentBucket;
-        private int _current;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal SetBitEnumerator(ImmutableBitSet<TBits> bitset)
-        {
-            _bitset = bitset;
-            _bucketIndex = 0;
-            _currentBucket = 0;
-            _current = -1;
-
-            // Load first non-empty bucket
-            var span = bitset.GetReadOnlySpan();
-            while (_bucketIndex < ULongCount && span[_bucketIndex] == 0)
-            {
-                _bucketIndex++;
-            }
-
-            if (_bucketIndex < ULongCount)
-            {
-                _currentBucket = span[_bucketIndex];
-            }
-        }
-
-        /// <summary>
-        /// Gets the current set bit index.
-        /// </summary>
-        public int Current
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _current;
-        }
-
-        /// <summary>
-        /// Advances the enumerator to the next set bit.
-        /// </summary>
-        /// <returns><c>true</c> if there is another set bit; otherwise, <c>false</c>.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext()
-        {
-            while (_bucketIndex < ULongCount)
-            {
-                if (_currentBucket != 0)
-                {
-                    // Find the lowest set bit in current bucket
-                    int bitPos = BitOperations.TrailingZeroCount(_currentBucket);
-                    _current = _bucketIndex * 64 + bitPos;
-
-                    // Clear this bit for next iteration
-                    _currentBucket &= _currentBucket - 1;
-                    return true;
-                }
-
-                // Move to next bucket
-                _bucketIndex++;
-                if (_bucketIndex < ULongCount)
-                {
-                    _currentBucket = _bitset.GetReadOnlySpan()[_bucketIndex];
-                }
-            }
-
-            return false;
-        }
-    }
 }

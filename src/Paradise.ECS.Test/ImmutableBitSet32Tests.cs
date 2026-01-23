@@ -1,3 +1,5 @@
+using ImmutableBitSet32 = Paradise.ECS.SmallBitSet<uint>;
+
 namespace Paradise.ECS.Test;
 
 /// <summary>
@@ -398,35 +400,35 @@ public sealed class ImmutableBitSet32Tests
     }
 
     [Test]
-    public async Task Operators_And_WorksCorrectly()
+    public async Task And_WorksCorrectly()
     {
         var a = ImmutableBitSet32.Empty.Set(0).Set(1);
         var b = ImmutableBitSet32.Empty.Set(1).Set(2);
 
-        var result = a & b;
+        var result = a.And(b);
 
         await Assert.That(result.PopCount()).IsEqualTo(1);
         await Assert.That(result.Get(1)).IsTrue();
     }
 
     [Test]
-    public async Task Operators_Or_WorksCorrectly()
+    public async Task Or_WorksCorrectly()
     {
         var a = ImmutableBitSet32.Empty.Set(0).Set(1);
         var b = ImmutableBitSet32.Empty.Set(1).Set(2);
 
-        var result = a | b;
+        var result = a.Or(b);
 
         await Assert.That(result.PopCount()).IsEqualTo(3);
     }
 
     [Test]
-    public async Task Operators_Xor_WorksCorrectly()
+    public async Task Xor_WorksCorrectly()
     {
         var a = ImmutableBitSet32.Empty.Set(0).Set(1);
         var b = ImmutableBitSet32.Empty.Set(1).Set(2);
 
-        var result = a ^ b;
+        var result = a.Xor(b);
 
         await Assert.That(result.PopCount()).IsEqualTo(2);
         await Assert.That(result.Get(0)).IsTrue();
@@ -472,15 +474,13 @@ public sealed class ImmutableBitSet32Tests
     }
 
     [Test]
-    public async Task Enumerator_IteratesSetBits()
+    public async Task ForEach_IteratesSetBits()
     {
         var bitset = ImmutableBitSet32.Empty.Set(0).Set(5).Set(10).Set(31);
         var indices = new List<int>();
+        var action = new CollectIndicesAction(indices);
 
-        foreach (var index in bitset)
-        {
-            indices.Add(index);
-        }
+        bitset.ForEach(ref action);
 
         await Assert.That(indices.Count).IsEqualTo(4);
         await Assert.That(indices[0]).IsEqualTo(0);
@@ -490,17 +490,20 @@ public sealed class ImmutableBitSet32Tests
     }
 
     [Test]
-    public async Task Enumerator_EmptyBitset_IteratesNothing()
+    public async Task ForEach_EmptyBitset_IteratesNothing()
     {
         var bitset = ImmutableBitSet32.Empty;
         var indices = new List<int>();
+        var action = new CollectIndicesAction(indices);
 
-        foreach (var index in bitset)
-        {
-            indices.Add(index);
-        }
+        bitset.ForEach(ref action);
 
         await Assert.That(indices.Count).IsEqualTo(0);
+    }
+
+    private struct CollectIndicesAction(List<int> indices) : IBitAction
+    {
+        public void Invoke(int bitIndex) => indices.Add(bitIndex);
     }
 
     [Test]

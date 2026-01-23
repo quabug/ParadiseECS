@@ -5,20 +5,20 @@ namespace Paradise.ECS;
 /// Uses shared metadata for archetype IDs, layouts, and graph edges.
 /// Single-threaded version without concurrent access support.
 /// </summary>
-/// <typeparam name="TBits">The bit storage type for component masks.</typeparam>
+/// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
-    : IArchetypeRegistry<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>>
-    where TBits : unmanaged, IStorage
+public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
+    : IArchetypeRegistry<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>
+    where TMask : unmanaged, IBitSet<TMask>
     where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
-    private readonly SharedArchetypeMetadata<TBits, TRegistry, TConfig> _sharedMetadata;
+    private readonly SharedArchetypeMetadata<TMask, TRegistry, TConfig> _sharedMetadata;
     private readonly ChunkManager _chunkManager;
 
-    private readonly List<Archetype<TBits, TRegistry, TConfig>?> _archetypes = new();
-    private readonly List<List<Archetype<TBits, TRegistry, TConfig>>?> _queryCache = new();
+    private readonly List<Archetype<TMask, TRegistry, TConfig>?> _archetypes = new();
+    private readonly List<List<Archetype<TMask, TRegistry, TConfig>>?> _queryCache = new();
 
     /// <summary>
     /// Temporary list for collecting matched query IDs during archetype operations.
@@ -31,7 +31,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     /// </summary>
     /// <param name="sharedMetadata">The shared metadata to use.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public ArchetypeRegistry(SharedArchetypeMetadata<TBits, TRegistry, TConfig> sharedMetadata, ChunkManager chunkManager)
+    public ArchetypeRegistry(SharedArchetypeMetadata<TMask, TRegistry, TConfig> sharedMetadata, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
         ArgumentNullException.ThrowIfNull(chunkManager);
@@ -42,14 +42,14 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     /// <summary>
     /// Gets all archetypes in this registry.
     /// </summary>
-    internal IReadOnlyList<Archetype<TBits, TRegistry, TConfig>?> Archetypes => _archetypes;
+    internal IReadOnlyList<Archetype<TMask, TRegistry, TConfig>?> Archetypes => _archetypes;
 
     /// <summary>
     /// Gets or creates an archetype for the given component mask.
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>
     /// <returns>The archetype store for this mask.</returns>
-    public Archetype<TBits, TRegistry, TConfig> GetOrCreate(HashedKey<ImmutableBitSet<TBits>> mask)
+    public Archetype<TMask, TRegistry, TConfig> GetOrCreate(HashedKey<TMask> mask)
     {
         var matchedQueries = _tempMatchedQueries;
         matchedQueries.Clear();
@@ -68,8 +68,8 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to add.</param>
     /// <returns>The target archetype with the component added.</returns>
-    public Archetype<TBits, TRegistry, TConfig> GetOrCreateWithAdd(
-        Archetype<TBits, TRegistry, TConfig> source,
+    public Archetype<TMask, TRegistry, TConfig> GetOrCreateWithAdd(
+        Archetype<TMask, TRegistry, TConfig> source,
         ComponentId componentId)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -91,8 +91,8 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to remove.</param>
     /// <returns>The target archetype with the component removed.</returns>
-    public Archetype<TBits, TRegistry, TConfig> GetOrCreateWithRemove(
-        Archetype<TBits, TRegistry, TConfig> source,
+    public Archetype<TMask, TRegistry, TConfig> GetOrCreateWithRemove(
+        Archetype<TMask, TRegistry, TConfig> source,
         ComponentId componentId)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -113,7 +113,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     /// </summary>
     /// <param name="description">The query description defining matching criteria.</param>
     /// <returns>The query for this description.</returns>
-    public Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TBits>> description)
+    public Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TMask>> description)
     {
         // Get or create global query ID
         int queryId = _sharedMetadata.GetOrCreateQueryId(description);
@@ -121,7 +121,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
         // Fast path: query already exists in this world
         if ((uint)queryId < (uint)_queryCache.Count && _queryCache[queryId] is { } existingList)
         {
-            return new Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>>(existingList);
+            return new Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>(existingList);
         }
 
         // Grow list if needed by adding nulls
@@ -135,7 +135,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
         // Get matched archetype IDs from shared metadata and add only locally existing archetypes
         var matchedIds = _sharedMetadata.GetMatchedArchetypeIds(queryId);
         int matchedCount = matchedIds.Count;
-        var archetypes = new List<Archetype<TBits, TRegistry, TConfig>>(matchedCount);
+        var archetypes = new List<Archetype<TMask, TRegistry, TConfig>>(matchedCount);
 
         int localArchetypeCount = _archetypes.Count;
         for (int i = 0; i < matchedCount; i++)
@@ -150,7 +150,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
         }
 
         _queryCache[queryId] = archetypes;
-        return new Query<TBits, TRegistry, TConfig, Archetype<TBits, TRegistry, TConfig>>(archetypes);
+        return new Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>(archetypes);
     }
 
     /// <summary>
@@ -158,7 +158,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     /// </summary>
     /// <param name="archetypeId">The archetype ID.</param>
     /// <returns>The archetype store, or null if not found in this world.</returns>
-    public Archetype<TBits, TRegistry, TConfig>? GetById(int archetypeId)
+    public Archetype<TMask, TRegistry, TConfig>? GetById(int archetypeId)
     {
         return (uint)archetypeId < (uint)_archetypes.Count ? _archetypes[archetypeId] : null;
     }
@@ -183,7 +183,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     /// <param name="archetypeId">The global archetype ID.</param>
     /// <param name="matchedQueries">The list of matching query IDs from shared metadata.</param>
     /// <returns>The archetype instance for this world.</returns>
-    private Archetype<TBits, TRegistry, TConfig> GetOrCreateById(int archetypeId, List<int> matchedQueries)
+    private Archetype<TMask, TRegistry, TConfig> GetOrCreateById(int archetypeId, List<int> matchedQueries)
     {
         // Fast path: archetype already exists
         if ((uint)archetypeId < (uint)_archetypes.Count && _archetypes[archetypeId] is { } existing)
@@ -201,7 +201,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
 
         // Create new archetype instance for this world
         var layoutData = _sharedMetadata.GetLayoutData(archetypeId);
-        var archetype = new Archetype<TBits, TRegistry, TConfig>(archetypeId, layoutData, _chunkManager);
+        var archetype = new Archetype<TMask, TRegistry, TConfig>(archetypeId, layoutData, _chunkManager);
 
         _archetypes[archetypeId] = archetype;
 
@@ -217,7 +217,7 @@ public sealed class ArchetypeRegistry<TBits, TRegistry, TConfig>
     /// </summary>
     /// <param name="archetype">The newly created archetype.</param>
     /// <param name="matchedQueries">The list of matching query IDs from shared metadata.</param>
-    private void NotifyQueries(Archetype<TBits, TRegistry, TConfig> archetype, List<int> matchedQueries)
+    private void NotifyQueries(Archetype<TMask, TRegistry, TConfig> archetype, List<int> matchedQueries)
     {
         int localQueryCount = _queryCache.Count;
         int matchedCount = matchedQueries.Count;

@@ -6,7 +6,7 @@ namespace Paradise.ECS.Concurrent.Benchmarks;
 public class BitSetGetHashCodeBenchmarks
 {
     private long _int64;
-    private ImmutableBitSet<Bit64> _bit64;
+    private SmallBitSet<ulong> _bit64;
     private ImmutableBitSet<Bit256> _bit256;
     private ImmutableBitSet<Bit512> _bit512;
     private ImmutableBitSet<Bit1024> _bit1024;
@@ -28,7 +28,7 @@ public class BitSetGetHashCodeBenchmarks
     public void Setup()
     {
         _int64 = (1L << 0) | (1L << 10) | (1L << 20) | (1L << 30) | (1L << 40) | (1L << 50) | (1L << 63);
-        _bit64 = ImmutableBitSet<Bit64>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50).Set(63);
+        _bit64 = SmallBitSet<ulong>.Empty.Set(0).Set(10).Set(20).Set(30).Set(40).Set(50).Set(63);
         _bit256 = ImmutableBitSet<Bit256>.Empty.Set(0).Set(60).Set(120).Set(180);
         _bit512 = ImmutableBitSet<Bit512>.Empty.Set(0).Set(120).Set(240).Set(360);
         _bit1024 = ImmutableBitSet<Bit1024>.Empty.Set(0).Set(240).Set(480).Set(720);

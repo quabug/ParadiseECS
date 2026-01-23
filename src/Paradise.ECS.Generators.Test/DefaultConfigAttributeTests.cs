@@ -68,7 +68,8 @@ public class DefaultConfigAttributeTests
         var aliases = sources.FirstOrDefault(s => s.HintName == "ComponentAliases.g.cs").Source;
 
         await Assert.That(aliases).IsNotNull();
-        await Assert.That(aliases).Contains("global using ComponentMask = global::Paradise.ECS.ImmutableBitSet<");
+        // 1 component (≤32) -> SmallBitSet<uint>
+        await Assert.That(aliases).Contains("global using ComponentMask = global::Paradise.ECS.SmallBitSet<uint>");
         await Assert.That(aliases).Contains("global using SharedArchetypeMetadata = global::Paradise.ECS.SharedArchetypeMetadata<");
         await Assert.That(aliases).Contains("global using ArchetypeRegistry = global::Paradise.ECS.ArchetypeRegistry<");
         await Assert.That(aliases).Contains("global using World = global::Paradise.ECS.World<");
@@ -134,8 +135,8 @@ public class DefaultConfigAttributeTests
         var aliases = GeneratorTestHelper.GetGeneratedSource(source, "ComponentAliases.g.cs");
 
         await Assert.That(aliases).IsNotNull();
-        // 1 component -> Bit64
-        await Assert.That(aliases).Contains("global::Paradise.ECS.Bit64");
+        // 1 component (≤32) -> SmallBitSet<uint>
+        await Assert.That(aliases).Contains("global::Paradise.ECS.SmallBitSet<uint>");
     }
 
     [Test]

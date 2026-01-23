@@ -141,13 +141,13 @@ public sealed class HashedKeyTests
     [Test]
     public async Task ComplexType_WorksCorrectly()
     {
-        var bitset1 = ImmutableBitSet<Bit64>.Empty.Set(0).Set(1);
-        var bitset2 = ImmutableBitSet<Bit64>.Empty.Set(0).Set(1);
-        var bitset3 = ImmutableBitSet<Bit64>.Empty.Set(2);
+        var bitset1 = SmallBitSet<ulong>.Empty.Set(0).Set(1);
+        var bitset2 = SmallBitSet<ulong>.Empty.Set(0).Set(1);
+        var bitset3 = SmallBitSet<ulong>.Empty.Set(2);
 
-        var key1 = new HashedKey<ImmutableBitSet<Bit64>>(bitset1);
-        var key2 = new HashedKey<ImmutableBitSet<Bit64>>(bitset2);
-        var key3 = new HashedKey<ImmutableBitSet<Bit64>>(bitset3);
+        var key1 = new HashedKey<SmallBitSet<ulong>>(bitset1);
+        var key2 = new HashedKey<SmallBitSet<ulong>>(bitset2);
+        var key3 = new HashedKey<SmallBitSet<ulong>>(bitset3);
 
         await Assert.That(key1.Equals(key2)).IsTrue();
         await Assert.That(key1.Equals(key3)).IsFalse();

@@ -60,14 +60,14 @@ public interface IConfig
     IAllocator ChunkAllocator { get; }
 
     /// <summary>
-    /// Memory allocator for archetype metadata operations in <see cref="SharedArchetypeMetadata{TBits,TRegistry,TConfig}"/>.
+    /// Memory allocator for archetype metadata operations in <see cref="SharedArchetypeMetadata{TMask,TRegistry,TConfig}"/>.
     /// This is a runtime configuration that can vary per instance.
     /// Default: <see cref="NativeMemoryAllocator.Shared"/>.
     /// </summary>
     IAllocator MetadataAllocator { get; }
 
     /// <summary>
-    /// Memory allocator for archetype layout data in <see cref="ImmutableArchetypeLayout{TBits,TRegistry,TConfig}"/>.
+    /// Memory allocator for archetype layout data in <see cref="ImmutableArchetypeLayout{TMask,TRegistry,TConfig}"/>.
     /// This is a runtime configuration that can vary per instance.
     /// Default: <see cref="NativeMemoryAllocator.Shared"/>.
     /// </summary>

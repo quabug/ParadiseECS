@@ -104,10 +104,10 @@ public class TagGeneratorMaskSizingTests
     }
 
     /// <summary>
-    /// Tag with Id=33 requires 34 bits, so ImmutableBitSet with Bit64 is needed.
+    /// Tag with Id=33 requires 34 bits, so SmallBitSet&lt;ulong&gt; is needed.
     /// </summary>
     [Test]
-    public async Task Tag_WithId33_UsesBit64Mask()
+    public async Task Tag_WithId33_UsesSmallBitSetUlong()
     {
         const string source = """
             using Paradise.ECS;
@@ -122,15 +122,15 @@ public class TagGeneratorMaskSizingTests
         var tagAliases = sources.FirstOrDefault(s => s.HintName == "TagAliases.g.cs").Source;
 
         await Assert.That(tagAliases).IsNotNull();
-        // With Id=33, we need at least 34 bits, so Bit64 is required
-        await Assert.That(tagAliases).Contains("ImmutableBitSet<global::Paradise.ECS.Bit64>");
+        // With Id=33, we need at least 34 bits, so SmallBitSet<ulong> is required
+        await Assert.That(tagAliases).Contains("SmallBitSet<ulong>");
     }
 
     /// <summary>
-    /// Tag with Id=31 (max for 32-bit) should use ImmutableBitSet32.
+    /// Tag with Id=31 (max for 32-bit) should use SmallBitSet&lt;uint&gt;.
     /// </summary>
     [Test]
-    public async Task Tag_WithId31_UsesImmutableBitSet32()
+    public async Task Tag_WithId31_UsesSmallBitSetUint()
     {
         const string source = """
             using Paradise.ECS;
@@ -145,8 +145,8 @@ public class TagGeneratorMaskSizingTests
         var tagAliases = sources.FirstOrDefault(s => s.HintName == "TagAliases.g.cs").Source;
 
         await Assert.That(tagAliases).IsNotNull();
-        // With Id=31, we need 32 bits, ImmutableBitSet32 is sufficient
-        await Assert.That(tagAliases).Contains("ImmutableBitSet32");
+        // With Id=31, we need 32 bits, SmallBitSet<uint> is sufficient
+        await Assert.That(tagAliases).Contains("SmallBitSet<uint>");
     }
 
     /// <summary>

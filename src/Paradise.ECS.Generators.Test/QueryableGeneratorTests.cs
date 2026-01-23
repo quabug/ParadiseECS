@@ -279,7 +279,7 @@ public class QueryableGeneratorSuppressGlobalUsingsTests
 
         // Registry should still be generated
         await Assert.That(registry).IsNotNull();
-        await Assert.That(registry).Contains("public static class QueryableRegistry<TBits>");
+        await Assert.That(registry).Contains("public static class QueryableRegistry<TMask>");
 
         // Partial struct should still be generated
         await Assert.That(partialStruct).IsNotNull();

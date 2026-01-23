@@ -13,11 +13,11 @@ namespace Paradise.ECS.Generators.Test;
 public static class GeneratorTestHelper
 {
     /// <summary>
-    /// Creates a compilation with the given source code and runs the ComponentGenerator.
+    /// Creates a compilation with the given source code and runs the ComponentGenerator and TagGenerator.
     /// </summary>
     public static GeneratorDriverRunResult RunGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null, bool includeTagReference = true)
     {
-        return RunGenerators(source, [new ComponentGenerator()], includeEcsReferences, rootNamespace, includeTagReference);
+        return RunGenerators(source, [new ComponentGenerator(), new TagGenerator()], includeEcsReferences, rootNamespace, includeTagReference);
     }
 
     /// <summary>
@@ -25,7 +25,7 @@ public static class GeneratorTestHelper
     /// </summary>
     public static GeneratorDriverRunResult RunQueryableGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null, bool includeTagReference = true)
     {
-        return RunGenerators(source, [new ComponentGenerator(), new QueryableGenerator()], includeEcsReferences, rootNamespace, includeTagReference);
+        return RunGenerators(source, [new ComponentGenerator(), new TagGenerator(), new QueryableGenerator()], includeEcsReferences, rootNamespace, includeTagReference);
     }
 
     /// <summary>

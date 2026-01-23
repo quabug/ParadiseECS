@@ -3,12 +3,12 @@ namespace Paradise.ECS.Concurrent.Test;
 public class SharedArchetypeMetadataTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _metadata;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _metadata;
 
     public SharedArchetypeMetadataTests()
     {
         // Create a fresh instance for isolated testing
-        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
+        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
     }
 
     public void Dispose()
@@ -26,8 +26,8 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateArchetypeId_NewMask_ReturnsSequentialId()
     {
-        var mask1 = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var mask2 = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
+        var mask1 = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var mask2 = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestVelocity.TypeId);
 
         int id1 = _metadata.GetOrCreateArchetypeId(mask1);
         int id2 = _metadata.GetOrCreateArchetypeId(mask2);
@@ -40,7 +40,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateArchetypeId_SameMaskTwice_ReturnsSameId()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
         int id1 = _metadata.GetOrCreateArchetypeId(mask);
         int id2 = _metadata.GetOrCreateArchetypeId(mask);
@@ -52,7 +52,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetLayout_ValidId_ReturnsLayout()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         int id = _metadata.GetOrCreateArchetypeId(mask);
 
         var layout = _metadata.GetLayout(id);
@@ -71,7 +71,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task TryGetArchetypeId_ExistingMask_ReturnsTrue()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         int expectedId = _metadata.GetOrCreateArchetypeId(mask);
 
         bool found = _metadata.TryGetArchetypeId(mask, out int id);
@@ -83,7 +83,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task TryGetArchetypeId_NonExistingMask_ReturnsFalse()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
         bool found = _metadata.TryGetArchetypeId(mask, out int id);
 
@@ -94,21 +94,21 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateWithAdd_CreatesTargetArchetype()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         int sourceId = _metadata.GetOrCreateArchetypeId(mask);
 
         int targetId = _metadata.GetOrCreateWithAdd(sourceId, TestVelocity.TypeId);
 
         await Assert.That(targetId).IsNotEqualTo(sourceId);
         var targetLayout = _metadata.GetLayout(targetId);
-        var expectedMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
+        var expectedMask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
         await Assert.That(targetLayout.ComponentMask).IsEqualTo(expectedMask);
     }
 
     [Test]
     public async Task GetOrCreateWithAdd_CachesEdge()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         int sourceId = _metadata.GetOrCreateArchetypeId(mask);
 
         int targetId1 = _metadata.GetOrCreateWithAdd(sourceId, TestVelocity.TypeId);
@@ -121,7 +121,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateWithRemove_CreatesTargetArchetype()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty
             .Set(TestPosition.TypeId)
             .Set(TestVelocity.TypeId);
         int sourceId = _metadata.GetOrCreateArchetypeId(mask);
@@ -130,14 +130,14 @@ public class SharedArchetypeMetadataTests : IDisposable
 
         await Assert.That(targetId).IsNotEqualTo(sourceId);
         var targetLayout = _metadata.GetLayout(targetId);
-        var expectedMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var expectedMask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         await Assert.That(targetLayout.ComponentMask).IsEqualTo(expectedMask);
     }
 
     [Test]
     public async Task GetOrCreateWithRemove_CachesEdge()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty
             .Set(TestPosition.TypeId)
             .Set(TestVelocity.TypeId);
         int sourceId = _metadata.GetOrCreateArchetypeId(mask);
@@ -152,7 +152,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task BidirectionalEdges_AreConsistent()
     {
-        var posOnly = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var posOnly = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         int sourceId = _metadata.GetOrCreateArchetypeId(posOnly);
 
         // Add Velocity: {Position} -> {Position, Velocity}
@@ -168,17 +168,17 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_NewDescription_ReturnsSequentialId()
     {
-        var desc1 = new ImmutableQueryDescription<Bit64>(
-            ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
-            ImmutableBitSet<Bit64>.Empty,
-            ImmutableBitSet<Bit64>.Empty);
-        var desc2 = new ImmutableQueryDescription<Bit64>(
-            ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId),
-            ImmutableBitSet<Bit64>.Empty,
-            ImmutableBitSet<Bit64>.Empty);
+        var desc1 = new ImmutableQueryDescription<SmallBitSet<ulong>>(
+            SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId),
+            SmallBitSet<ulong>.Empty,
+            SmallBitSet<ulong>.Empty);
+        var desc2 = new ImmutableQueryDescription<SmallBitSet<ulong>>(
+            SmallBitSet<ulong>.Empty.Set(TestVelocity.TypeId),
+            SmallBitSet<ulong>.Empty,
+            SmallBitSet<ulong>.Empty);
 
-        int id1 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc1);
-        int id2 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc2);
+        int id1 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<SmallBitSet<ulong>>>)desc1);
+        int id2 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<SmallBitSet<ulong>>>)desc2);
 
         await Assert.That(id1).IsEqualTo(0);
         await Assert.That(id2).IsEqualTo(1);
@@ -188,13 +188,13 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetOrCreateQueryId_SameDescriptionTwice_ReturnsSameId()
     {
-        var desc = new ImmutableQueryDescription<Bit64>(
-            ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
-            ImmutableBitSet<Bit64>.Empty,
-            ImmutableBitSet<Bit64>.Empty);
+        var desc = new ImmutableQueryDescription<SmallBitSet<ulong>>(
+            SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId),
+            SmallBitSet<ulong>.Empty,
+            SmallBitSet<ulong>.Empty);
 
-        int id1 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc);
-        int id2 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc);
+        int id1 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<SmallBitSet<ulong>>>)desc);
+        int id2 = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<SmallBitSet<ulong>>>)desc);
 
         await Assert.That(id1).IsEqualTo(id2);
         await Assert.That(_metadata.QueryDescriptionCount).IsEqualTo(1);
@@ -203,11 +203,11 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task GetQueryDescription_ValidId_ReturnsDescription()
     {
-        var desc = new ImmutableQueryDescription<Bit64>(
-            ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
-            ImmutableBitSet<Bit64>.Empty,
-            ImmutableBitSet<Bit64>.Empty);
-        int id = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<Bit64>>)desc);
+        var desc = new ImmutableQueryDescription<SmallBitSet<ulong>>(
+            SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId),
+            SmallBitSet<ulong>.Empty,
+            SmallBitSet<ulong>.Empty);
+        int id = _metadata.GetOrCreateQueryId((HashedKey<ImmutableQueryDescription<SmallBitSet<ulong>>>)desc);
 
         var retrieved = _metadata.GetQueryDescription(id);
 
@@ -223,10 +223,10 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task Dispose_PreventsNewOperations()
     {
-        var localMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
+        var localMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
         localMetadata.Dispose();
 
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
         await Assert.That(() => localMetadata.GetOrCreateArchetypeId(mask)).Throws<ObjectDisposedException>();
     }
@@ -234,7 +234,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task Dispose_MultipleTimes_DoesNotThrow()
     {
-        using var localMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
+        using var localMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
 
         await Assert.That(() =>
         {
@@ -247,13 +247,13 @@ public class SharedArchetypeMetadataTests : IDisposable
 public class SharedArchetypeMetadataConcurrencyTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _metadata;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _metadata;
 
     private const int TestComponentCount = 5;
 
     public SharedArchetypeMetadataConcurrencyTests()
     {
-        _metadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
+        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
     }
 
     public void Dispose()
@@ -264,7 +264,7 @@ public class SharedArchetypeMetadataConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreateArchetypeId_SameMask_ReturnsSameId()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
         var tasks = new Task<int>[10];
         for (int i = 0; i < tasks.Length; i++)
@@ -292,7 +292,7 @@ public class SharedArchetypeMetadataConcurrencyTests : IDisposable
             int bitIndex = i;
             tasks[i] = Task.Run(() =>
             {
-                var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(bitIndex);
+                var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(bitIndex);
                 return _metadata.GetOrCreateArchetypeId(mask);
             });
         }
@@ -307,7 +307,7 @@ public class SharedArchetypeMetadataConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreateWithAdd_SameSourceAndComponent_ReturnsSameTarget()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         int sourceId = _metadata.GetOrCreateArchetypeId(mask);
 
         var tasks = new Task<int>[10];
@@ -330,7 +330,7 @@ public class SharedArchetypeMetadataConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreateWithAdd_DifferentComponents_CreatesUniqueTargets()
     {
-        var mask = (HashedKey<ImmutableBitSet<Bit64>>)ImmutableBitSet<Bit64>.Empty;
+        var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty;
         int sourceId = _metadata.GetOrCreateArchetypeId(mask);
 
         var tasks = new Task<int>[TestComponentCount];
@@ -350,11 +350,11 @@ public class SharedArchetypeMetadataConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreateQueryId_SameDescription_ReturnsSameId()
     {
-        var desc = new ImmutableQueryDescription<Bit64>(
-            ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId),
-            ImmutableBitSet<Bit64>.Empty,
-            ImmutableBitSet<Bit64>.Empty);
-        var hashedDesc = (HashedKey<ImmutableQueryDescription<Bit64>>)desc;
+        var desc = new ImmutableQueryDescription<SmallBitSet<ulong>>(
+            SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId),
+            SmallBitSet<ulong>.Empty,
+            SmallBitSet<ulong>.Empty);
+        var hashedDesc = (HashedKey<ImmutableQueryDescription<SmallBitSet<ulong>>>)desc;
 
         var tasks = new Task<int>[10];
         for (int i = 0; i < tasks.Length; i++)

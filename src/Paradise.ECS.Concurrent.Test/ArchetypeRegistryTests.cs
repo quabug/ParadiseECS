@@ -2,19 +2,19 @@ namespace Paradise.ECS.Concurrent.Test;
 
 public static class ArchetypeRegistryExtension
 {
-    extension<TBits, TRegistry, TConfig>(ArchetypeRegistry<TBits, TRegistry, TConfig> registry)
-        where TBits : unmanaged, IStorage
+    extension<TMask, TRegistry, TConfig>(ArchetypeRegistry<TMask, TRegistry, TConfig> registry)
+        where TMask : unmanaged, IBitSet<TMask>
         where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
     {
-        public Archetype<TBits, TRegistry, TConfig> GetOrCreate(ImmutableBitSet<TBits> mask)
+        public Archetype<TMask, TRegistry, TConfig> GetOrCreate(TMask mask)
         {
-            return registry.GetOrCreate((HashedKey<ImmutableBitSet<TBits>>)mask);
+            return registry.GetOrCreate((HashedKey<TMask>)mask);
         }
 
-        public bool TryGet(ImmutableBitSet<TBits> mask, out Archetype<TBits, TRegistry, TConfig>? store)
+        public bool TryGet(TMask mask, out Archetype<TMask, TRegistry, TConfig>? store)
         {
-            return registry.TryGet((HashedKey<ImmutableBitSet<TBits>>)mask, out store);
+            return registry.TryGet((HashedKey<TMask>)mask, out store);
         }
     }
 }
@@ -23,14 +23,14 @@ public class ArchetypeRegistryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new() { DefaultChunkCapacity = 16 };
     private readonly ChunkManager _chunkManager;
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata;
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _sharedMetadata;
+    private readonly ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _registry;
 
     public ArchetypeRegistryTests()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
+        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
+        _registry = new ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(
             _sharedMetadata, _chunkManager);
     }
 
@@ -44,7 +44,7 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreate_NewMask_CreatesArchetype()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
         var store = _registry.GetOrCreate(mask);
 
@@ -54,7 +54,7 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreate_SameMaskTwice_ReturnsSameArchetype()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
         var store1 = _registry.GetOrCreate(mask);
         var store2 = _registry.GetOrCreate(mask);
@@ -65,8 +65,8 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreate_DifferentMasks_CreatesDifferentArchetypes()
     {
-        var mask1 = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
-        var mask2 = ImmutableBitSet<Bit64>.Empty.Set(TestVelocity.TypeId);
+        var mask1 = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var mask2 = SmallBitSet<ulong>.Empty.Set(TestVelocity.TypeId);
 
         var store1 = _registry.GetOrCreate(mask1);
         var store2 = _registry.GetOrCreate(mask2);
@@ -78,7 +78,7 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetById_ValidId_ReturnsArchetype()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         var created = _registry.GetOrCreate(mask);
 
         var retrieved = _registry.GetById(created.Id);
@@ -105,7 +105,7 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task TryGet_ExistingMask_ReturnsTrue()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         _registry.GetOrCreate(mask);
 
         bool found = _registry.TryGet(mask, out var store);
@@ -117,7 +117,7 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task TryGet_NonExistingMask_ReturnsFalse()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
         bool found = _registry.TryGet(mask, out var store);
 
@@ -130,7 +130,7 @@ public class ArchetypeRegistryTests : IDisposable
     {
         _registry.Dispose();
 
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
         await Assert.That(() => _registry.GetOrCreate(mask)).Throws<ObjectDisposedException>();
     }
@@ -149,7 +149,7 @@ public class ArchetypeRegistryTests : IDisposable
     public async Task GetOrCreateWithAdd_CreatesTargetArchetype()
     {
         // Start with {Position}
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var posOnly = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
         // Add Velocity -> should get {Position, Velocity}
@@ -163,7 +163,7 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateWithAdd_ReusesExistingEdge()
     {
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var posOnly = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
         // First call creates edge
@@ -177,7 +177,7 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateWithAdd_CachesEdge()
     {
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var posOnly = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
         // First call creates edge
@@ -193,13 +193,13 @@ public class ArchetypeRegistryTests : IDisposable
     public async Task GetOrCreateWithRemove_CreatesTargetArchetype()
     {
         // Start with {Position, Velocity}
-        var posVel = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
+        var posVel = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
         var source = _registry.GetOrCreate(posVel);
 
         // Remove Velocity -> should get {Position}
         var target = _registry.GetOrCreateWithRemove(source, TestVelocity.TypeId);
 
-        var expectedMask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var expectedMask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         await Assert.That(target).IsNotNull();
         await Assert.That(target.Layout.ComponentMask).IsEqualTo(expectedMask);
     }
@@ -207,7 +207,7 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task GetOrCreateWithRemove_ReusesExistingEdge()
     {
-        var posVel = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
+        var posVel = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
         var source = _registry.GetOrCreate(posVel);
 
         // First call creates edge
@@ -221,7 +221,7 @@ public class ArchetypeRegistryTests : IDisposable
     [Test]
     public async Task BidirectionalEdges_AreConsistent()
     {
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var posOnly = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
         // Add Velocity: {Position} -> {Position, Velocity}
@@ -237,11 +237,11 @@ public class ArchetypeRegistryTests : IDisposable
     public async Task GetOrCreateWithAdd_ReusesExistingArchetype()
     {
         // Pre-create {Position, Velocity}
-        var posVel = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
+        var posVel = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId).Set(TestVelocity.TypeId);
         var preExisting = _registry.GetOrCreate(posVel);
 
         // Create {Position}
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var posOnly = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
         // Add Velocity should return the pre-existing archetype
@@ -254,7 +254,7 @@ public class ArchetypeRegistryTests : IDisposable
     public async Task GetOrCreateWithRemove_ReusesExistingArchetype()
     {
         // Pre-create {Position}
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var posOnly = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         var preExisting = _registry.GetOrCreate(posOnly);
 
         // Create {Position, Velocity}
@@ -272,8 +272,8 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new() { DefaultChunkCapacity = 64 };
     private readonly ChunkManager _chunkManager;
-    private readonly SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig> _sharedMetadata;
-    private readonly ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _sharedMetadata;
+    private readonly ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _registry;
 
     // Number of test components available in ComponentRegistry (0-4)
     private const int TestComponentCount = 5;
@@ -281,8 +281,8 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     public ArchetypeRegistryConcurrencyTests()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<Bit64, ComponentRegistry, DefaultConfig>(s_config);
-        _registry = new ArchetypeRegistry<Bit64, ComponentRegistry, DefaultConfig>(
+        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(s_config);
+        _registry = new ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(
             _sharedMetadata, _chunkManager);
     }
 
@@ -296,9 +296,9 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreate_SameMask_CreatesSingleArchetype()
     {
-        var mask = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
 
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[10];
+        var tasks = new Task<Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreate(mask));
@@ -318,13 +318,13 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreate_DifferentMasks_CreatesMultipleArchetypes()
     {
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[TestComponentCount];
+        var tasks = new Task<Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int bitIndex = i;
             tasks[i] = Task.Run(() =>
             {
-                var mask = ImmutableBitSet<Bit64>.Empty.Set(bitIndex);
+                var mask = SmallBitSet<ulong>.Empty.Set(bitIndex);
                 return _registry.GetOrCreate(mask);
             });
         }
@@ -339,10 +339,10 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreateWithAdd_SameSourceAndComponent_CreatesSingleEdge()
     {
-        var posOnly = ImmutableBitSet<Bit64>.Empty.Set(TestPosition.TypeId);
+        var posOnly = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
         var source = _registry.GetOrCreate(posOnly);
 
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[10];
+        var tasks = new Task<Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>[10];
         for (int i = 0; i < tasks.Length; i++)
         {
             tasks[i] = Task.Run(() => _registry.GetOrCreateWithAdd(source, TestVelocity.TypeId));
@@ -362,10 +362,10 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     [Test]
     public async Task ConcurrentGetOrCreateWithAdd_DifferentComponents_CreatesMultipleEdges()
     {
-        var empty = ImmutableBitSet<Bit64>.Empty;
+        var empty = SmallBitSet<ulong>.Empty;
         var source = _registry.GetOrCreate(empty);
 
-        var tasks = new Task<Archetype<Bit64, ComponentRegistry, DefaultConfig>>[TestComponentCount];
+        var tasks = new Task<Archetype<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>>[TestComponentCount];
         for (int i = 0; i < tasks.Length; i++)
         {
             int componentId = i;

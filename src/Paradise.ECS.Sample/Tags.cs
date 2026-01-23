@@ -27,14 +27,3 @@ public partial struct IsDamageable;
 /// </summary>
 [Tag("44444444-4444-4444-4444-444444444444")]
 public partial struct IsMarkedForDestroy;
-
-// ============================================================================
-// EntityTags Component - Stores all tags for an entity in a bitmask
-// ============================================================================
-
-/// <summary>
-/// Component that stores all tags for an entity as a bitmask.
-/// This is automatically added to entities when using TaggedWorld.
-/// </summary>
-[Component("EEEEEEEE-EEEE-EEEE-EEEE-EEEEEEEEEEEE")]
-public partial struct EntityTags;
