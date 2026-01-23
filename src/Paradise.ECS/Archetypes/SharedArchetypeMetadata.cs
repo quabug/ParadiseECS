@@ -15,7 +15,6 @@ public sealed class SharedArchetypeMetadata<TMask, TConfig> : IDisposable
     where TConfig : IConfig, new()
 {
     private readonly IAllocator _layoutAllocator;
-    public ImmutableArray<ComponentTypeInfo> TypeInfos { get; }
     private readonly Dictionary<HashedKey<TMask>, int> _maskToArchetypeId = new();
     private readonly List<nint/* ArchetypeLayout* */> _layouts = new();
     private readonly Dictionary<EdgeKey, int> _edges = new();
@@ -32,6 +31,8 @@ public sealed class SharedArchetypeMetadata<TMask, TConfig> : IDisposable
     }
 
     private bool _disposed;
+
+    public ImmutableArray<ComponentTypeInfo> TypeInfos { get; }
 
     /// <summary>
     /// Gets the number of registered archetypes.
@@ -52,15 +53,6 @@ public sealed class SharedArchetypeMetadata<TMask, TConfig> : IDisposable
     {
         TypeInfos = registry?.TypeInfos ?? throw new ArgumentNullException(nameof(registry));
         _layoutAllocator = config.LayoutAllocator ?? throw new ArgumentNullException(nameof(config), "Config.LayoutAllocator cannot be null");
-    }
-
-    /// <summary>
-    /// Creates a new shared archetype metadata instance using default configuration.
-    /// Uses <c>new TConfig()</c> for configuration with default property values.
-    /// </summary>
-    /// <param name="registry">The component registry providing type information.</param>
-    public SharedArchetypeMetadata(IComponentRegistry registry) : this(registry, new TConfig())
-    {
     }
 
     /// <summary>
