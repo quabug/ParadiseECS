@@ -449,4 +449,131 @@ public sealed class WorldCloneTests : IDisposable
     }
 
     #endregion
+
+    #region Edge Case Tests
+
+    [Test]
+    public async Task CopyFrom_WithSparseArchetypeIds()
+    {
+        // Arrange - Create entities in an intermediate world to create archetype IDs
+        // that won't be used in the source world, causing sparse archetype IDs
+        var intermediateWorld = _sharedWorld.CreateWorld();
+
+        // Create archetypes in intermediate world (these get global IDs 1, 2, 3...)
+        var tempEntity1 = intermediateWorld.Spawn();
+        intermediateWorld.AddComponent(tempEntity1, new TestHealth { Current = 1, Max = 1 });
+
+        var tempEntity2 = intermediateWorld.Spawn();
+        intermediateWorld.AddComponent(tempEntity2, new TestVelocity { X = 1, Y = 1 });
+
+        // Now create entities in source world with different archetypes
+        // This creates a gap in the source world's archetype list
+        var sourceEntity = _sourceWorld.Spawn();
+        _sourceWorld.AddComponent(sourceEntity, new TestPosition { X = 42, Y = 42 });
+
+        // Act
+        _targetWorld.CopyFrom(_sourceWorld);
+
+        // Assert
+        await Assert.That(_targetWorld.EntityCount).IsEqualTo(1);
+        await Assert.That(_targetWorld.IsAlive(sourceEntity)).IsTrue();
+        var pos = _targetWorld.GetComponent<TestPosition>(sourceEntity);
+        await Assert.That(pos.X).IsEqualTo(42);
+    }
+
+    [Test]
+    public async Task CopyFrom_EmptySourceWithExistingArchetypes()
+    {
+        // Arrange - Create archetype in source but no entities
+        // This ensures the archetype exists but has no data to copy
+        var tempEntity = _sourceWorld.Spawn();
+        _sourceWorld.AddComponent(tempEntity, new TestPosition { X = 1, Y = 1 });
+        _sourceWorld.Despawn(tempEntity);
+
+        // Target has some entities
+        var targetEntity = _targetWorld.Spawn();
+        _targetWorld.AddComponent(targetEntity, new TestVelocity { X = 5, Y = 5 });
+
+        // Act
+        _targetWorld.CopyFrom(_sourceWorld);
+
+        // Assert - Target should be cleared
+        await Assert.That(_targetWorld.EntityCount).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task CopyFrom_LargeEntityCount()
+    {
+        // Arrange - Create many entities to test chunk copying across multiple chunks
+        const int entityCount = 5000;
+        var entities = new Entity[entityCount];
+
+        for (int i = 0; i < entityCount; i++)
+        {
+            entities[i] = _sourceWorld.Spawn();
+            _sourceWorld.AddComponent(entities[i], new TestPosition { X = i, Y = i * 2, Z = i * 3 });
+            _sourceWorld.AddComponent(entities[i], new TestVelocity { X = i * 0.1f, Y = i * 0.2f, Z = i * 0.3f });
+        }
+
+        // Act
+        _targetWorld.CopyFrom(_sourceWorld);
+
+        // Assert
+        await Assert.That(_targetWorld.EntityCount).IsEqualTo(entityCount);
+
+        // Verify first, middle, and last entities
+        var pos0 = _targetWorld.GetComponent<TestPosition>(entities[0]);
+        await Assert.That(pos0.X).IsEqualTo(0);
+
+        var pos2500 = _targetWorld.GetComponent<TestPosition>(entities[2500]);
+        await Assert.That(pos2500.X).IsEqualTo(2500);
+
+        var pos4999 = _targetWorld.GetComponent<TestPosition>(entities[4999]);
+        await Assert.That(pos4999.X).IsEqualTo(4999);
+
+        var vel4999 = _targetWorld.GetComponent<TestVelocity>(entities[4999]);
+        await Assert.That(vel4999.X).IsEqualTo(4999 * 0.1f);
+    }
+
+    [Test]
+    public async Task CopyFrom_WithTagComponents()
+    {
+        // Arrange - Create entities with tag components (zero-size)
+        var entity = _sourceWorld.Spawn();
+        _sourceWorld.AddComponent(entity, new TestPosition { X = 10, Y = 20 });
+        _sourceWorld.AddComponent<TestTag>(entity);
+
+        // Act
+        _targetWorld.CopyFrom(_sourceWorld);
+
+        // Assert
+        await Assert.That(_targetWorld.EntityCount).IsEqualTo(1);
+        await Assert.That(_targetWorld.HasComponent<TestPosition>(entity)).IsTrue();
+        await Assert.That(_targetWorld.HasComponent<TestTag>(entity)).IsTrue();
+        var pos = _targetWorld.GetComponent<TestPosition>(entity);
+        await Assert.That(pos.X).IsEqualTo(10);
+    }
+
+    [Test]
+    public async Task CopyFrom_PreservesEntityIdAllocation()
+    {
+        // Arrange - Create and despawn entities to advance the entity ID counter
+        for (int i = 0; i < 10; i++)
+        {
+            var temp = _sourceWorld.Spawn();
+            if (i % 2 == 0)
+                _sourceWorld.Despawn(temp);
+        }
+
+        // Act
+        _targetWorld.CopyFrom(_sourceWorld);
+
+        // Assert - New entities in target should get correct IDs
+        // (continuing from where source left off)
+        var newEntity = _targetWorld.Spawn();
+        // After copy, target should reuse free slots from source
+        await Assert.That(_targetWorld.IsAlive(newEntity)).IsTrue();
+    }
+
+    #endregion
 }
