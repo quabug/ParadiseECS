@@ -575,5 +575,51 @@ public sealed class WorldCloneTests : IDisposable
         await Assert.That(_targetWorld.IsAlive(newEntity)).IsTrue();
     }
 
+    [Test]
+    public async Task CopyChunksFrom_NonEmptyTarget_ThrowsInvalidOperationException()
+    {
+        // Arrange - Create entity in source
+        var sourceEntity = _sourceWorld.Spawn();
+        _sourceWorld.AddComponent(sourceEntity, new TestPosition { X = 1, Y = 2 });
+
+        // Create entity in target with same archetype
+        var targetEntity = _targetWorld.Spawn();
+        _targetWorld.AddComponent(targetEntity, new TestPosition { X = 100, Y = 200 });
+
+        // Get archetypes directly for testing CopyChunksFrom
+        var sourceRegistry = GetArchetypeRegistry(_sourceWorld);
+        var targetRegistry = GetArchetypeRegistry(_targetWorld);
+
+        // Find the archetype with TestPosition component
+        var positionMask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
+        var sourceArchetype = sourceRegistry.GetOrCreate(positionMask);
+        var targetArchetype = targetRegistry.GetOrCreate(positionMask);
+
+        // Act & Assert - Should throw because target archetype is not empty
+        await Assert.That(() => targetArchetype.CopyChunksFrom(sourceArchetype, GetChunkManager(_sourceWorld)))
+            .Throws<InvalidOperationException>();
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private static ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig> GetArchetypeRegistry(
+        World<SmallBitSet<ulong>, DefaultConfig> world)
+    {
+        // Use reflection to access internal _archetypeRegistry field
+        var field = typeof(World<SmallBitSet<ulong>, DefaultConfig>)
+            .GetField("_archetypeRegistry", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig>)field!.GetValue(world)!;
+    }
+
+    private static ChunkManager GetChunkManager(World<SmallBitSet<ulong>, DefaultConfig> world)
+    {
+        // Use reflection to access internal _chunkManager field
+        var field = typeof(World<SmallBitSet<ulong>, DefaultConfig>)
+            .GetField("_chunkManager", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (ChunkManager)field!.GetValue(world)!;
+    }
+
     #endregion
 }

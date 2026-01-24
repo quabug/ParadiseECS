@@ -190,7 +190,6 @@ public sealed class EntityManager : IEntityManager
 
     /// <summary>
     /// Copies all entity state from the source manager to this manager.
-    /// This manager is cleared before copying.
     /// </summary>
     /// <param name="source">The source EntityManager to copy from.</param>
     internal void CopyFrom(EntityManager source)

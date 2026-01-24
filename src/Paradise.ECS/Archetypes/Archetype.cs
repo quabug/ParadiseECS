@@ -231,6 +231,9 @@ public sealed class Archetype<TMask, TConfig> : IArchetype<TMask, TConfig>
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(sourceChunkManager);
 
+        if (EntityCount != 0 || _chunks.Count != 0)
+            throw new InvalidOperationException("Target archetype must be empty before copying chunks.");
+
         int sourceEntityCount = source.EntityCount;
         if (sourceEntityCount == 0)
             return;
