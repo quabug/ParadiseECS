@@ -114,14 +114,14 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Generate `SharedWorldFactory` helper class and `SharedWorld` global using alias
   - Add ThreadAffinity assertions to SharedWorld and SharedTaggedWorld
 
-### In Progress
+- [x] **World Clone** ([#45](https://github.com/quabug/ParadiseECS/pull/45))
+  - `World.CopyFrom()` for cloning world state between shared worlds
+  - `EntityManager.CopyFrom()` for entity location data transfer
+  - `Archetype.CopyChunksFrom()` for chunk-level data copying
+  - `ArchetypeRegistry.CopyFrom()` for archetype state synchronization
+  - Self-copy validation and comprehensive test coverage
 
-- [~] **World Clone & Snapshots** (feature/world-clone)
-  - [x] `World.CopyFrom()` for cloning world state between shared worlds
-  - [x] `EntityManager.CopyFrom()` for entity location data transfer
-  - [x] `Archetype.CopyFrom()` for chunk-level data copying
-  - [x] `ArchetypeRegistry.CopyFrom()` for archetype state synchronization
-  - [ ] Support for game state serialization and networking
+### In Progress
 
 ### Planned
 
@@ -316,7 +316,7 @@ Minor TODOs in codebase:
 
 ### Recent Activity
 
-- **2026-01-24**: Added `World.CopyFrom()` for world cloning (feature/world-clone branch)
+- **2026-01-24**: Merged [#45](https://github.com/quabug/ParadiseECS/pull/45) - Add World.CopyFrom() for cloning world state between shared worlds
 - **2026-01-24**: Merged [#42](https://github.com/quabug/ParadiseECS/pull/42) - Refactor TMask generic parameter and add SharedWorld for multi-world support
 - **2026-01-22**: Merged [#38](https://github.com/quabug/ParadiseECS/pull/38) - Add zero-allocation tag system with source generation
 - **2026-01-19**: Merged [#37](https://github.com/quabug/ParadiseECS/pull/37) - Add [SuppressGlobalUsings] attribute to disable global using alias generation
