@@ -78,7 +78,7 @@ public readonly record struct StaleBitStatistics(
 /// Tags are stored in a per-entity bitmask component, enabling O(1) tag operations
 /// without archetype changes.
 /// </remarks>
-public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : IDisposable
+public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     where TMask : unmanaged, IBitSet<TMask>
     where TConfig : IConfig, new()
     where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
@@ -126,15 +126,6 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : IDispos
     public int EntityCount => _world.EntityCount;
 
     /// <summary>
-    /// Disposes this TaggedWorld.
-    /// The caller is responsible for disposing the ChunkManager, SharedArchetypeMetadata, and ChunkTagRegistry.
-    /// </summary>
-    public void Dispose()
-    {
-        // No-op: caller owns ChunkManager, SharedArchetypeMetadata, and ChunkTagRegistry
-    }
-
-    /// <summary>
     /// Spawns a new entity with the EntityTags component automatically added.
     /// </summary>
     /// <returns>The newly created entity.</returns>
@@ -171,7 +162,6 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : IDispos
     public void Clear()
     {
         _world.Clear();
-        _chunkTagRegistry.Clear();
     }
 
     /// <summary>
@@ -279,6 +269,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : IDispos
     public void AddTag<TTag>(Entity entity) where TTag : ITag
     {
         ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
+        // TODO: use mutable tag mask?
         tags.Mask = tags.Mask.Set(TTag.TagId);
 
         // Update chunk tag mask (OR the tag bit into the chunk's mask)
@@ -302,6 +293,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : IDispos
     public void RemoveTag<TTag>(Entity entity) where TTag : ITag
     {
         ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
+        // TODO: use mutable tag mask?
         tags.Mask = tags.Mask.Clear(TTag.TagId);
         // Chunk mask not recomputed (sticky mask) - may have stale bits
     }

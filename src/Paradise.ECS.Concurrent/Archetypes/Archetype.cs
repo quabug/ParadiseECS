@@ -270,9 +270,9 @@ public sealed class Archetype<TMask, TConfig> : IArchetype<TMask, TConfig>
         int offset = ImmutableArchetypeLayout<TMask, TConfig>.GetEntityIdOffset(indexInChunk);
         return TConfig.EntityIdByteSize switch
         {
-            1 => bytes[offset],
-            2 => System.Runtime.InteropServices.MemoryMarshal.Read<ushort>(bytes.Slice(offset)),
-            4 => System.Runtime.InteropServices.MemoryMarshal.Read<int>(bytes.Slice(offset)),
+            1 => bytes.GetRef<byte>(offset),
+            2 => bytes.GetRef<ushort>(offset),
+            4 => bytes.GetRef<int>(offset),
             _ => ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize)
         };
     }
@@ -285,13 +285,13 @@ public sealed class Archetype<TMask, TConfig> : IArchetype<TMask, TConfig>
         switch (TConfig.EntityIdByteSize)
         {
             case 1:
-                bytes[offset] = (byte)entityId;
+                bytes.GetRef<byte>(offset) = (byte)entityId;
                 break;
             case 2:
-                System.Runtime.InteropServices.MemoryMarshal.Write(bytes.Slice(offset), in System.Runtime.CompilerServices.Unsafe.As<int, ushort>(ref entityId));
+                bytes.GetRef<ushort>(offset) = (ushort)entityId;
                 break;
             case 4:
-                System.Runtime.InteropServices.MemoryMarshal.Write(bytes.Slice(offset), in entityId);
+                bytes.GetRef<int>(offset) = entityId;
                 break;
             default:
                 ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize);

@@ -314,7 +314,6 @@ public sealed class TaggedWorldTests : IDisposable
 
     public void Dispose()
     {
-        _world.Dispose();
         _sharedMetadata.Dispose();
         _chunkManager.Dispose();
         _chunkTagRegistry.Dispose();
