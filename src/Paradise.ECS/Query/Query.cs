@@ -231,7 +231,7 @@ public readonly ref struct WorldChunk<TMask, TConfig>
     /// <returns>True if the component is present.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Has<T>() where T : unmanaged, IComponent
-        => _layout.HasComponent<T>();
+        => _layout.HasComponent(T.TypeId);
 
     /// <summary>
     /// Gets a span over all component data of the specified type in this chunk.
@@ -242,31 +242,11 @@ public readonly ref struct WorldChunk<TMask, TConfig>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> GetSpan<T>() where T : unmanaged, IComponent
     {
-        int baseOffset = _layout.GetBaseOffset<T>();
+        int baseOffset = _layout.GetBaseOffset(T.TypeId);
         if (baseOffset < 0)
             throw new InvalidOperationException($"Chunk does not contain component {typeof(T).Name}.");
 
         return _chunkManager.GetBytes(_handle).GetSpan<T>(baseOffset, _entityCount);
-    }
-
-    /// <summary>
-    /// Tries to get a span over all component data of the specified type in this chunk.
-    /// </summary>
-    /// <typeparam name="T">The component type.</typeparam>
-    /// <param name="span">The resulting span if the component exists.</param>
-    /// <returns>True if the component exists and the span was retrieved.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool TryGetSpan<T>(out Span<T> span) where T : unmanaged, IComponent
-    {
-        int baseOffset = _layout.GetBaseOffset<T>();
-        if (baseOffset < 0)
-        {
-            span = default;
-            return false;
-        }
-
-        span = _chunkManager.GetBytes(_handle).GetSpan<T>(baseOffset, _entityCount);
-        return true;
     }
 
     /// <summary>
@@ -278,7 +258,7 @@ public readonly ref struct WorldChunk<TMask, TConfig>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetRef<T>(int index) where T : unmanaged, IComponent
     {
-        int offset = _layout.GetEntityComponentOffset<T>(index);
+        int offset = _layout.GetBaseOffset(T.TypeId) + index * T.Size;
         return ref _chunkManager.GetBytes(_handle).GetRef<T>(offset);
     }
 }

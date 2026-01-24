@@ -213,7 +213,7 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 - [ ] **Per-World Component IDs**
     - Allow each world to have independent component type registrations
-    - Currently component IDs are global via `IComponentRegistry` generated at compile-time
+    - Currently component IDs are global via `ComponentRegistry` generated at compile-time
     - Enable runtime component registration with world-local ID assignment
     - Support scenarios where different worlds use different component sets
     - Consider trade-offs: global IDs enable world sharing, local IDs enable isolation

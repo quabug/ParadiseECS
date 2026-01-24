@@ -322,17 +322,6 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TConfig>
     }
 
     /// <summary>
-    /// Gets the base offset for a component type's array within the chunk.
-    /// </summary>
-    /// <typeparam name="T">The component type.</typeparam>
-    /// <returns>The base offset, or -1 if the component is not in this archetype.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int GetBaseOffset<T>() where T : unmanaged, IComponent
-    {
-        return GetBaseOffset(T.TypeId);
-    }
-
-    /// <summary>
     /// Checks if this archetype contains the specified component.
     /// </summary>
     /// <param name="componentId">The component ID.</param>
@@ -341,33 +330,6 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TConfig>
     public bool HasComponent(ComponentId componentId)
     {
         return ComponentMask.Get(componentId.Value);
-    }
-
-    /// <summary>
-    /// Checks if this archetype contains the specified component type.
-    /// </summary>
-    /// <typeparam name="T">The component type.</typeparam>
-    /// <returns>True if the component is present.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public bool HasComponent<T>() where T : unmanaged, IComponent
-    {
-        return ComponentMask.Get(T.TypeId.Value);
-    }
-
-    /// <summary>
-    /// Calculates the byte offset for a specific entity and component type.
-    /// </summary>
-    /// <typeparam name="T">The component type.</typeparam>
-    /// <param name="entityIndex">The entity's index within the chunk.</param>
-    /// <returns>The byte offset from chunk start, or -1 if component not present.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int GetEntityComponentOffset<T>(int entityIndex) where T : unmanaged, IComponent
-    {
-        int baseOffset = GetBaseOffset(T.TypeId);
-        if (baseOffset < 0)
-            return -1;
-
-        return baseOffset + entityIndex * T.Size;
     }
 
     /// <summary>

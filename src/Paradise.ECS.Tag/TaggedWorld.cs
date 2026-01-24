@@ -470,7 +470,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : IDispos
         // Get chunk data and compute union of all entity tag masks
         var chunkHandle = archetype.GetChunk(chunkIndex);
         var bytes = _world.ChunkManager.GetBytes(chunkHandle);
-        int baseOffset = archetype.Layout.GetBaseOffset<TEntityTags>();
+        int baseOffset = archetype.Layout.GetBaseOffset(TEntityTags.TypeId);
         int entityTagsSize = _world.TypeInfos[TEntityTags.TypeId.Value].Size;
 
         for (int i = 0; i < entityCountInChunk; i++)

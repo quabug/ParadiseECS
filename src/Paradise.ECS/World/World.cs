@@ -314,12 +314,12 @@ public sealed class World<TMask, TConfig>
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
 
         var layout = archetype.Layout;
-        if (!layout.HasComponent<T>())
+        if (!layout.HasComponent(T.TypeId))
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
-        int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
+        int offset = layout.GetBaseOffset(T.TypeId) + indexInChunk * T.Size;
         return (chunkHandle, offset);
     }
 
@@ -337,7 +337,7 @@ public sealed class World<TMask, TConfig>
 
         var location = _entityManager.GetLocation(entity.Id);
         var archetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
-        return archetype.Layout.HasComponent<T>();
+        return archetype.Layout.HasComponent(T.TypeId);
     }
 
     /// <summary>
@@ -353,7 +353,7 @@ public sealed class World<TMask, TConfig>
         var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if already has component
-        if (sourceArchetype.Layout.HasComponent<T>())
+        if (sourceArchetype.Layout.HasComponent(T.TypeId))
             throw new InvalidOperationException($"Entity {entity} already has component {typeof(T).Name}.");
 
         // Get target archetype using O(1) edge cache
@@ -366,7 +366,7 @@ public sealed class World<TMask, TConfig>
         var updatedLocation = _entityManager.GetLocation(entity.Id);
         var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(updatedLocation.GlobalIndex);
         var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
-        int newOffset = targetArchetype.Layout.GetEntityComponentOffset<T>(newIndexInChunk);
+        int newOffset = targetArchetype.Layout.GetBaseOffset(T.TypeId) + newIndexInChunk * T.Size;
         _chunkManager.GetBytes(newChunkHandle).GetRef<T>(newOffset) = value;
     }
 
@@ -382,7 +382,7 @@ public sealed class World<TMask, TConfig>
         var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if has component
-        if (!sourceArchetype.Layout.HasComponent<T>())
+        if (!sourceArchetype.Layout.HasComponent(T.TypeId))
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
         // Get target archetype using O(1) edge cache (returns empty archetype if removing last component)

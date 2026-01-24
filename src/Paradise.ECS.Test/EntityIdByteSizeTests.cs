@@ -79,7 +79,7 @@ public sealed class EntityIdByteSizeTests
     public async Task ByteConfig_SpawnUpToLimit_Succeeds()
     {
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared.TypeInfos, new ByteEntityIdConfig());
         var world = new World<SmallBitSet<ulong>, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities (IDs 0-255)
@@ -97,7 +97,7 @@ public sealed class EntityIdByteSizeTests
     public async Task ByteConfig_SpawnBeyondLimit_ThrowsInvalidOperationException()
     {
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared.TypeInfos, new ByteEntityIdConfig());
         var world = new World<SmallBitSet<ulong>, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities (IDs 0-255) - this should succeed
@@ -115,7 +115,7 @@ public sealed class EntityIdByteSizeTests
     public async Task ByteConfig_SpawnAfterDespawn_ReusesIdWithinLimit()
     {
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared.TypeInfos, new ByteEntityIdConfig());
         var world = new World<SmallBitSet<ulong>, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities
@@ -144,7 +144,7 @@ public sealed class EntityIdByteSizeTests
     public async Task ShortConfig_SpawnWithinLimit_Succeeds()
     {
         using var chunkManager = ChunkManager.Create(new ShortEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ShortEntityIdConfig>(ComponentRegistry.Shared, new ShortEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ShortEntityIdConfig>(ComponentRegistry.Shared.TypeInfos, new ShortEntityIdConfig());
         var world = new World<SmallBitSet<ulong>, ShortEntityIdConfig>(new ShortEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 1000 entities - well within the 65535 limit
@@ -164,7 +164,7 @@ public sealed class EntityIdByteSizeTests
     public async Task ByteConfig_CreateEntityBeyondLimit_ThrowsInvalidOperationException()
     {
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared.TypeInfos, new ByteEntityIdConfig());
         var world = new World<SmallBitSet<ulong>, ByteEntityIdConfig>(new ByteEntityIdConfig(), sharedMetadata, chunkManager);
 
         // Spawn 256 entities (IDs 0-255)
@@ -297,7 +297,7 @@ public sealed class EntityIdByteSizeTests
         // not sizeof(int). If sizeof(int) is used, writing entity ID at index N
         // would overwrite entity ID at index N+1/N+2/N+3, corrupting data.
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared.TypeInfos, new ByteEntityIdConfig());
         var registry = new ArchetypeRegistry<SmallBitSet<ulong>, ByteEntityIdConfig>(sharedMetadata, chunkManager);
 
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId.Value);
@@ -331,7 +331,7 @@ public sealed class EntityIdByteSizeTests
     {
         // Similar test for 2-byte EntityIdByteSize
         using var chunkManager = ChunkManager.Create(new ShortEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ShortEntityIdConfig>(ComponentRegistry.Shared, new ShortEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ShortEntityIdConfig>(ComponentRegistry.Shared.TypeInfos, new ShortEntityIdConfig());
         var registry = new ArchetypeRegistry<SmallBitSet<ulong>, ShortEntityIdConfig>(sharedMetadata, chunkManager);
 
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId.Value);
@@ -363,7 +363,7 @@ public sealed class EntityIdByteSizeTests
         // Test specifically for the swap-remove copy path using sizeof(int)
         // When entity at middle is removed, last entity's ID should be copied correctly
         using var chunkManager = ChunkManager.Create(new ByteEntityIdConfig());
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared, new ByteEntityIdConfig());
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, ByteEntityIdConfig>(ComponentRegistry.Shared.TypeInfos, new ByteEntityIdConfig());
         var registry = new ArchetypeRegistry<SmallBitSet<ulong>, ByteEntityIdConfig>(sharedMetadata, chunkManager);
 
         var mask = SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId.Value);

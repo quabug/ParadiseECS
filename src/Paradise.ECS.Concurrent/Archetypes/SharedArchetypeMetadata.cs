@@ -22,7 +22,6 @@ public sealed class SharedArchetypeMetadata<TMask, TConfig> : IDisposable
     [ThreadStatic]
     private static List<int>? s_tempMatchedQueries;
 
-    public ImmutableArray<ComponentTypeInfo> TypeInfos { get; }
     private readonly IAllocator _layoutAllocator;
     private readonly ConcurrentDictionary<HashedKey<TMask>, int> _maskToArchetypeId = new();
     private readonly ConcurrentAppendOnlyList<nint/* ArchetypeLayout* */> _layouts = new();
@@ -48,6 +47,8 @@ public sealed class SharedArchetypeMetadata<TMask, TConfig> : IDisposable
 
     private int _disposed;
 
+    public ImmutableArray<ComponentTypeInfo> TypeInfos { get; }
+
     /// <summary>
     /// Gets the number of registered archetypes.
     /// </summary>
@@ -61,11 +62,11 @@ public sealed class SharedArchetypeMetadata<TMask, TConfig> : IDisposable
     /// <summary>
     /// Creates a new shared archetype metadata instance.
     /// </summary>
-    /// <param name="registry">The component registry providing type information.</param>
+    /// <param name="typeInfos">The component type information array.</param>
     /// <param name="config">The configuration instance with runtime settings including the allocator.</param>
-    public SharedArchetypeMetadata(IComponentRegistry registry, TConfig config)
+    public SharedArchetypeMetadata(ImmutableArray<ComponentTypeInfo> typeInfos, TConfig config)
     {
-        TypeInfos = registry?.TypeInfos ?? throw new ArgumentNullException(nameof(registry));
+        TypeInfos = typeInfos;
         _layoutAllocator = config.LayoutAllocator ?? throw new ArgumentNullException(nameof(config), "Config.LayoutAllocator cannot be null");
     }
 

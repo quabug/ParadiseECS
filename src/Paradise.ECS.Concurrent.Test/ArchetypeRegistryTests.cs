@@ -28,7 +28,7 @@ public class ArchetypeRegistryTests : IDisposable
     public ArchetypeRegistryTests()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, s_config);
         _registry = new ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig>(
             _sharedMetadata, ComponentRegistry.Shared.TypeInfos, _chunkManager);
     }
@@ -280,7 +280,7 @@ public class ArchetypeRegistryConcurrencyTests : IDisposable
     public ArchetypeRegistryConcurrencyTests()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, s_config);
         _registry = new ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig>(
             _sharedMetadata, ComponentRegistry.Shared.TypeInfos, _chunkManager);
     }

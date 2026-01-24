@@ -708,7 +708,7 @@ public class ComponentGeneratorRegistryTests
         var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
 
         await Assert.That(registry).IsNotNull();
-        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry");
         await Assert.That(registry).Contains("typeof(global::TestNamespace.Position)");
         await Assert.That(registry).Contains("typeof(global::TestNamespace.Velocity)");
     }
@@ -890,7 +890,7 @@ public class ComponentGeneratorNamespaceTests
 
         await Assert.That(registry).IsNotNull();
         await Assert.That(registry).Contains("namespace MyGame.ECS;");
-        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry");
     }
 
     [Test]

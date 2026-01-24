@@ -38,8 +38,8 @@ public sealed class ImmutableArchetypeLayoutTests
         {
             var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var componentCount = layout.ComponentCount;
-            var hasPosition = layout.HasComponent<TestPosition>();
-            var hasVelocity = layout.HasComponent<TestVelocity>();
+            var hasPosition = layout.HasComponent(TestPosition.TypeId);
+            var hasVelocity = layout.HasComponent(TestVelocity.TypeId);
 
             await Assert.That(componentCount).IsEqualTo(1);
             await Assert.That(hasPosition).IsTrue();
@@ -64,9 +64,9 @@ public sealed class ImmutableArchetypeLayoutTests
         {
             var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
             var componentCount = layout.ComponentCount;
-            var hasPosition = layout.HasComponent<TestPosition>();
-            var hasVelocity = layout.HasComponent<TestVelocity>();
-            var hasHealth = layout.HasComponent<TestHealth>();
+            var hasPosition = layout.HasComponent(TestPosition.TypeId);
+            var hasVelocity = layout.HasComponent(TestVelocity.TypeId);
+            var hasHealth = layout.HasComponent(TestHealth.TypeId);
 
             await Assert.That(componentCount).IsEqualTo(3);
             await Assert.That(hasPosition).IsTrue();
@@ -109,7 +109,7 @@ public sealed class ImmutableArchetypeLayoutTests
         try
         {
             var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
-            var offset = layout.GetBaseOffset<TestPosition>();
+            var offset = layout.GetBaseOffset(TestPosition.TypeId);
 
             await Assert.That(offset).IsGreaterThanOrEqualTo(0);
         }
@@ -128,7 +128,7 @@ public sealed class ImmutableArchetypeLayoutTests
         try
         {
             var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
-            var offset = layout.GetBaseOffset<TestVelocity>();
+            var offset = layout.GetBaseOffset(TestVelocity.TypeId);
 
             await Assert.That(offset).IsEqualTo(-1);
         }
@@ -147,7 +147,8 @@ public sealed class ImmutableArchetypeLayoutTests
         try
         {
             var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
-            var offset = layout.GetEntityComponentOffset<TestPosition>(0);
+            var baseOffset = layout.GetBaseOffset(TestPosition.TypeId);
+            var offset = baseOffset + 0 * TestPosition.Size;
 
             await Assert.That(offset).IsGreaterThanOrEqualTo(0);
         }
@@ -166,8 +167,9 @@ public sealed class ImmutableArchetypeLayoutTests
         try
         {
             var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
-            var offset0 = layout.GetEntityComponentOffset<TestPosition>(0);
-            var offset1 = layout.GetEntityComponentOffset<TestPosition>(1);
+            var baseOffset = layout.GetBaseOffset(TestPosition.TypeId);
+            var offset0 = baseOffset + 0 * TestPosition.Size;
+            var offset1 = baseOffset + 1 * TestPosition.Size;
             var offsetDiff = offset1 - offset0;
 
             // Offsets should differ by component size
@@ -245,9 +247,9 @@ public sealed class ImmutableArchetypeLayoutTests
         try
         {
             var layout = new ImmutableArchetypeLayout<SmallBitSet<ulong>, DefaultConfig>(data);
-            var hasTag = layout.HasComponent<TestTag>();
+            var hasTag = layout.HasComponent(TestTag.TypeId);
             // Tag components have offset 0 (they don't take space)
-            var offset = layout.GetBaseOffset<TestTag>();
+            var offset = layout.GetBaseOffset(TestTag.TypeId);
 
             await Assert.That(hasTag).IsTrue();
             await Assert.That(offset).IsEqualTo(0);

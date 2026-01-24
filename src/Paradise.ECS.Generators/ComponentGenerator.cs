@@ -400,7 +400,7 @@ public class ComponentGenerator : IIncrementalGenerator
         sb.AppendLine();
         sb.AppendLine($"namespace {rootNamespace};");
         sb.AppendLine();
-        sb.AppendLine("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+        sb.AppendLine("public sealed class ComponentRegistry");
         sb.AppendLine("{");
         sb.AppendLine("    private static global::System.Collections.Frozen.FrozenDictionary<global::System.Type, global::Paradise.ECS.ComponentId>? s_typeToId;");
         sb.AppendLine("    private static global::System.Collections.Frozen.FrozenDictionary<global::System.Guid, global::Paradise.ECS.ComponentId>? s_guidToId;");
@@ -477,7 +477,7 @@ public class ComponentGenerator : IIncrementalGenerator
         sb.AppendLine("    public static global::System.Collections.Frozen.FrozenDictionary<global::System.Guid, global::Paradise.ECS.ComponentId> GuidToIdStatic => s_guidToId!;");
         sb.AppendLine("    public static global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ComponentTypeInfo> TypeInfosStatic => s_typeInfos;");
         sb.AppendLine();
-        sb.AppendLine("    // Instance members implementing IComponentRegistry");
+        sb.AppendLine("    // Instance members");
         sb.AppendLine("    public global::System.Collections.Frozen.FrozenDictionary<global::System.Type, global::Paradise.ECS.ComponentId> TypeToId => TypeToIdStatic;");
         sb.AppendLine("    public global::System.Collections.Frozen.FrozenDictionary<global::System.Guid, global::Paradise.ECS.ComponentId> GuidToId => GuidToIdStatic;");
         sb.AppendLine("    public global::System.Collections.Immutable.ImmutableArray<global::Paradise.ECS.ComponentTypeInfo> TypeInfos => TypeInfosStatic;");

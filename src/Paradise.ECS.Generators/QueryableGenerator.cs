@@ -452,7 +452,7 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             sb.AppendLine($"{indent}        get");
             sb.AppendLine($"{indent}        {{");
-            sb.AppendLine($"{indent}            int offset = _layout.GetEntityComponentOffset<global::{comp.ComponentFullName}>(_indexInChunk);");
+            sb.AppendLine($"{indent}            int offset = _layout.GetBaseOffset(global::{comp.ComponentFullName}.TypeId) + _indexInChunk * global::{comp.ComponentFullName}.Size;");
             sb.AppendLine($"{indent}            return ref _chunkManager.GetBytes(_chunk).GetRef<global::{comp.ComponentFullName}>(offset);");
             sb.AppendLine($"{indent}        }}");
             sb.AppendLine($"{indent}    }}");
@@ -467,7 +467,7 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine($"{indent}    public bool Has{opt.PropertyName}");
             sb.AppendLine($"{indent}    {{");
             sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-            sb.AppendLine($"{indent}        get => _layout.HasComponent<global::{opt.ComponentFullName}>();");
+            sb.AppendLine($"{indent}        get => _layout.HasComponent(global::{opt.ComponentFullName}.TypeId);");
             sb.AppendLine($"{indent}    }}");
 
             sb.AppendLine();
@@ -478,9 +478,10 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             sb.AppendLine($"{indent}    public {refType} global::{opt.ComponentFullName} Get{opt.PropertyName}()");
             sb.AppendLine($"{indent}    {{");
-            sb.AppendLine($"{indent}        int offset = _layout.GetEntityComponentOffset<global::{opt.ComponentFullName}>(_indexInChunk);");
-            sb.AppendLine($"{indent}        if (offset < 0)");
+            sb.AppendLine($"{indent}        int baseOffset = _layout.GetBaseOffset(global::{opt.ComponentFullName}.TypeId);");
+            sb.AppendLine($"{indent}        if (baseOffset < 0)");
             sb.AppendLine($"{indent}            throw new global::System.InvalidOperationException(\"Optional component {opt.ComponentTypeName} is not present. Check Has{opt.PropertyName} before calling Get{opt.PropertyName}().\");");
+            sb.AppendLine($"{indent}        int offset = baseOffset + _indexInChunk * global::{opt.ComponentFullName}.Size;");
             sb.AppendLine($"{indent}        return ref _chunkManager.GetBytes(_chunk).GetRef<global::{opt.ComponentFullName}>(offset);");
             sb.AppendLine($"{indent}    }}");
         }
@@ -671,7 +672,7 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             sb.AppendLine($"{indent}        get");
             sb.AppendLine($"{indent}        {{");
-            sb.AppendLine($"{indent}            int baseOffset = _layout.GetBaseOffset<global::{comp.ComponentFullName}>();");
+            sb.AppendLine($"{indent}            int baseOffset = _layout.GetBaseOffset(global::{comp.ComponentFullName}.TypeId);");
             sb.AppendLine($"{indent}            return _chunkManager.GetBytes(_chunk).GetSpan<global::{comp.ComponentFullName}>(baseOffset, _entityCount);");
             sb.AppendLine($"{indent}        }}");
             sb.AppendLine($"{indent}    }}");
@@ -686,7 +687,7 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine($"{indent}    public bool Has{opt.PropertyName}");
             sb.AppendLine($"{indent}    {{");
             sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-            sb.AppendLine($"{indent}        get => _layout.HasComponent<global::{opt.ComponentFullName}>();");
+            sb.AppendLine($"{indent}        get => _layout.HasComponent(global::{opt.ComponentFullName}.TypeId);");
             sb.AppendLine($"{indent}    }}");
 
             sb.AppendLine();
@@ -698,7 +699,7 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             sb.AppendLine($"{indent}    public global::System.{optSpanType}<global::{opt.ComponentFullName}> {spanMethodName}()");
             sb.AppendLine($"{indent}    {{");
-            sb.AppendLine($"{indent}        int baseOffset = _layout.GetBaseOffset<global::{opt.ComponentFullName}>();");
+            sb.AppendLine($"{indent}        int baseOffset = _layout.GetBaseOffset(global::{opt.ComponentFullName}.TypeId);");
             sb.AppendLine($"{indent}        if (baseOffset < 0)");
             sb.AppendLine($"{indent}            throw new global::System.InvalidOperationException(\"Optional component {opt.ComponentTypeName} is not present. Check Has{opt.PropertyName} before calling {spanMethodName}().\");");
             sb.AppendLine($"{indent}        return _chunkManager.GetBytes(_chunk).GetSpan<global::{opt.ComponentFullName}>(baseOffset, _entityCount);");

@@ -10,10 +10,7 @@ namespace Paradise.ECS;
 /// <param name="All">Components that must all be present (AND constraint).</param>
 /// <param name="None">Components that must not be present (NOT constraint).</param>
 /// <param name="Any">At least one of these components must be present (OR constraint). If empty, this constraint is ignored.</param>
-public readonly record struct ImmutableQueryDescription<TMask>(
-    TMask All,
-    TMask None,
-    TMask Any)
+public readonly record struct ImmutableQueryDescription<TMask>(TMask All, TMask None, TMask Any)
     where TMask : unmanaged, IBitSet<TMask>
 {
     /// <summary>

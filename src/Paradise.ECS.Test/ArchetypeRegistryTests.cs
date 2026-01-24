@@ -7,7 +7,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata = new(ComponentRegistry.Shared, s_config);
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata = new(ComponentRegistry.Shared.TypeInfos, s_config);
     private readonly ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig> _registry;
 
     public ArchetypeRegistryTests()
@@ -44,7 +44,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
         var archetype = _registry.GetOrCreate(hashedKey);
 
         await Assert.That(archetype).IsNotNull();
-        await Assert.That(archetype.Layout.HasComponent<TestPosition>()).IsTrue();
+        await Assert.That(archetype.Layout.HasComponent(TestPosition.TypeId)).IsTrue();
     }
 
     [Test]
@@ -111,7 +111,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
 
         var targetArchetype = _registry.GetOrCreateWithAdd(sourceArchetype, TestPosition.TypeId);
 
-        await Assert.That(targetArchetype.Layout.HasComponent<TestPosition>()).IsTrue();
+        await Assert.That(targetArchetype.Layout.HasComponent(TestPosition.TypeId)).IsTrue();
     }
 
     [Test]
@@ -123,8 +123,8 @@ public sealed class ArchetypeRegistryTests : IDisposable
 
         var targetArchetype = _registry.GetOrCreateWithAdd(sourceArchetype, TestPosition.TypeId);
 
-        await Assert.That(targetArchetype.Layout.HasComponent<TestPosition>()).IsTrue();
-        await Assert.That(targetArchetype.Layout.HasComponent<TestVelocity>()).IsTrue();
+        await Assert.That(targetArchetype.Layout.HasComponent(TestPosition.TypeId)).IsTrue();
+        await Assert.That(targetArchetype.Layout.HasComponent(TestVelocity.TypeId)).IsTrue();
     }
 
     [Test]
@@ -156,7 +156,7 @@ public sealed class ArchetypeRegistryTests : IDisposable
 
         var targetArchetype = _registry.GetOrCreateWithRemove(sourceArchetype, TestPosition.TypeId);
 
-        await Assert.That(targetArchetype.Layout.HasComponent<TestPosition>()).IsFalse();
+        await Assert.That(targetArchetype.Layout.HasComponent(TestPosition.TypeId)).IsFalse();
     }
 
     [Test]
@@ -170,8 +170,8 @@ public sealed class ArchetypeRegistryTests : IDisposable
 
         var targetArchetype = _registry.GetOrCreateWithRemove(sourceArchetype, TestPosition.TypeId);
 
-        await Assert.That(targetArchetype.Layout.HasComponent<TestPosition>()).IsFalse();
-        await Assert.That(targetArchetype.Layout.HasComponent<TestVelocity>()).IsTrue();
+        await Assert.That(targetArchetype.Layout.HasComponent(TestPosition.TypeId)).IsFalse();
+        await Assert.That(targetArchetype.Layout.HasComponent(TestVelocity.TypeId)).IsTrue();
     }
 
     [Test]

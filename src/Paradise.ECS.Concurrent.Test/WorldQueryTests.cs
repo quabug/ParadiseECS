@@ -7,7 +7,7 @@ public sealed class WorldQueryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata = new(ComponentRegistry.Shared, s_config);
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata = new(ComponentRegistry.Shared.TypeInfos, s_config);
     private readonly World<SmallBitSet<ulong>, DefaultConfig> _world;
 
     public WorldQueryTests()
@@ -346,7 +346,7 @@ public sealed class WorldQueryTests : IDisposable
 
                 for (int i = 0; i < entitiesInChunk; i++)
                 {
-                    int offset = layout.GetEntityComponentOffset<TestPosition>(i);
+                    int offset = layout.GetBaseOffset(TestPosition.TypeId) + i * TestPosition.Size;
                     var position = System.Runtime.InteropServices.MemoryMarshal.Read<TestPosition>(bytes.Slice(offset));
                     sumX += position.X;
                 }

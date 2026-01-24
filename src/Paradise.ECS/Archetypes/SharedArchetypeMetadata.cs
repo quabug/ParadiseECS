@@ -47,11 +47,11 @@ public sealed class SharedArchetypeMetadata<TMask, TConfig> : IDisposable
     /// <summary>
     /// Creates a new shared archetype metadata instance.
     /// </summary>
-    /// <param name="registry">The component registry providing type information.</param>
+    /// <param name="typeInfos">The component type information array.</param>
     /// <param name="config">The configuration instance with runtime settings including the allocators.</param>
-    public SharedArchetypeMetadata(IComponentRegistry registry, TConfig config)
+    public SharedArchetypeMetadata(ImmutableArray<ComponentTypeInfo> typeInfos, TConfig config)
     {
-        TypeInfos = registry?.TypeInfos ?? throw new ArgumentNullException(nameof(registry));
+        TypeInfos = typeInfos;
         _layoutAllocator = config.LayoutAllocator ?? throw new ArgumentNullException(nameof(config), "Config.LayoutAllocator cannot be null");
     }
 

@@ -103,7 +103,7 @@ public readonly struct WithTag<TTag, TInnerBuilder, TEntityTags, TTagMask> : ICo
         // OR this tag bit into the EntityTags mask
         // Since chunk memory is zeroed on allocation, the first WithTag ORs into zeros,
         // and subsequent WithTag builders OR into the accumulated value.
-        int offset = layout.GetEntityComponentOffset<TEntityTags>(indexInChunk);
+        int offset = layout.GetBaseOffset(TEntityTags.TypeId) + indexInChunk * TEntityTags.Size;
         ref var entityTags = ref chunkManager.GetBytes(chunkHandle).GetRef<TEntityTags>(offset);
         entityTags.Mask = entityTags.Mask.Set(TTag.TagId);
     }

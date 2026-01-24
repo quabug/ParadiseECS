@@ -7,7 +7,7 @@ public sealed class WorldEntityTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata = new(ComponentRegistry.Shared, s_config);
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata = new(ComponentRegistry.Shared.TypeInfos, s_config);
     private readonly World<SmallBitSet<ulong>, DefaultConfig> _world;
 
     public WorldEntityTests()
@@ -130,7 +130,7 @@ public sealed class WorldEntityTests : IDisposable
         // Create world with small capacity
         var config = new DefaultConfig { DefaultEntityCapacity = 4 };
         using var chunkManager = ChunkManager.Create(config);
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var world = new World<SmallBitSet<ulong>, DefaultConfig>(
             config,
             sharedMetadata,

@@ -105,7 +105,7 @@ public class DefaultConfigAttributeTests
         await Assert.That(registry).IsNotNull();
         // ComponentRegistry should be generated in the default Paradise.ECS namespace
         await Assert.That(registry).Contains("namespace Paradise.ECS;");
-        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry");
         await Assert.That(registry).Contains("public static ComponentRegistry Shared { get; } = new();");
     }
 
@@ -267,7 +267,7 @@ public class DefaultConfigAttributeTests
         await Assert.That(registry).IsNotNull();
         // ComponentRegistry should be generated in the custom namespace
         await Assert.That(registry).Contains("namespace MyGame.ECS;");
-        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry");
         await Assert.That(registry).Contains("public static ComponentRegistry Shared { get; } = new();");
     }
 }

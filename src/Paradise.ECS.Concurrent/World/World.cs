@@ -344,12 +344,12 @@ public sealed class World<TMask, TConfig> : IDisposable
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
 
         var layout = archetype.Layout;
-        if (!layout.HasComponent<T>())
+        if (!layout.HasComponent(T.TypeId))
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
-        int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
+        int offset = layout.GetBaseOffset(T.TypeId) + indexInChunk * T.Size;
         return _chunkManager.GetBytes(chunkHandle).GetRef<T>(offset);
     }
 
@@ -370,12 +370,12 @@ public sealed class World<TMask, TConfig> : IDisposable
             ?? throw new InvalidOperationException($"Entity {entity} has no archetype.");
 
         var layout = archetype.Layout;
-        if (!layout.HasComponent<T>())
+        if (!layout.HasComponent(T.TypeId))
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
         var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(location.GlobalIndex);
         var chunkHandle = archetype.GetChunk(chunkIndex);
-        int offset = layout.GetEntityComponentOffset<T>(indexInChunk);
+        int offset = layout.GetBaseOffset(T.TypeId) + indexInChunk * T.Size;
         System.Runtime.InteropServices.MemoryMarshal.Write(_chunkManager.GetBytes(chunkHandle).Slice(offset), in value);
     }
 
@@ -400,7 +400,7 @@ public sealed class World<TMask, TConfig> : IDisposable
             return false;
 
         var archetype = _archetypeRegistry.GetById(location.ArchetypeId);
-        return archetype?.Layout.HasComponent<T>() ?? false;
+        return archetype?.Layout.HasComponent(T.TypeId) ?? false;
     }
 
     /// <summary>
@@ -431,7 +431,7 @@ public sealed class World<TMask, TConfig> : IDisposable
             // Write component value
             var (chunkIndex, indexInChunk) = archetype.GetChunkLocation(globalIndex);
             var chunkHandle = archetype.GetChunk(chunkIndex);
-            int offset = archetype.Layout.GetEntityComponentOffset<T>(indexInChunk);
+            int offset = archetype.Layout.GetBaseOffset(T.TypeId) + indexInChunk * T.Size;
             System.Runtime.InteropServices.MemoryMarshal.Write(_chunkManager.GetBytes(chunkHandle).Slice(offset), in value);
             return;
         }
@@ -439,7 +439,7 @@ public sealed class World<TMask, TConfig> : IDisposable
         var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if already has component
-        if (sourceArchetype.Layout.HasComponent<T>())
+        if (sourceArchetype.Layout.HasComponent(T.TypeId))
             throw new InvalidOperationException($"Entity {entity} already has component {typeof(T).Name}.");
 
         // Get target archetype using O(1) edge cache
@@ -451,7 +451,7 @@ public sealed class World<TMask, TConfig> : IDisposable
         // Write the new component value
         var (newChunkIndex, newIndexInChunk) = targetArchetype.GetChunkLocation(newGlobalIndex);
         var newChunkHandle = targetArchetype.GetChunk(newChunkIndex);
-        int newOffset = targetArchetype.Layout.GetEntityComponentOffset<T>(newIndexInChunk);
+        int newOffset = targetArchetype.Layout.GetBaseOffset(T.TypeId) + newIndexInChunk * T.Size;
         System.Runtime.InteropServices.MemoryMarshal.Write(_chunkManager.GetBytes(newChunkHandle).Slice(newOffset), in value);
     }
 
@@ -476,7 +476,7 @@ public sealed class World<TMask, TConfig> : IDisposable
         var sourceArchetype = _archetypeRegistry.GetById(location.ArchetypeId)!;
 
         // Check if has component
-        if (!sourceArchetype.Layout.HasComponent<T>())
+        if (!sourceArchetype.Layout.HasComponent(T.TypeId))
             throw new InvalidOperationException($"Entity {entity} does not have component {typeof(T).Name}.");
 
         // Get target archetype using O(1) edge cache

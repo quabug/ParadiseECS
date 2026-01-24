@@ -131,7 +131,7 @@ The ECS uses a custom memory management system optimized for cache-friendly iter
 IIncrementalGenerator that processes `[Component]` attributes:
 1. Finds all structs with `[Component]` attribute
 2. Assigns TypeIds based on alphabetical ordering of fully qualified names
-3. Generates IComponentRegistry implementation with `TypeInfos` array
+3. Generates ComponentRegistry class with `TypeInfos` array
 4. Validates components don't exceed `IConfig.MaxComponentTypeId` (2,047)
 
 **Configuration** (priority order):

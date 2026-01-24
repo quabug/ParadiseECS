@@ -243,7 +243,7 @@ public sealed class ArchetypeStoreTests : IDisposable
 
         // Extract values before await (ref struct can't cross await boundary)
         int componentCount = layout.ComponentCount;
-        bool hasPosition = layout.HasComponent<TestPosition>();
+        bool hasPosition = layout.HasComponent(TestPosition.TypeId);
 
         await Assert.That(componentCount).IsEqualTo(1);
         await Assert.That(hasPosition).IsTrue();

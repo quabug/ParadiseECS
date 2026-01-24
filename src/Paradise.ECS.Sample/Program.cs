@@ -10,7 +10,7 @@ Console.WriteLine();
 // Create the dependencies for TaggedWorld
 var config = new GameConfig();
 using var chunkManager = ChunkManager.Create(config);
-using var sharedMetadata = new SharedArchetypeMetadata(ComponentRegistry.Shared, config);
+using var sharedMetadata = new SharedArchetypeMetadata(ComponentRegistry.Shared.TypeInfos, config);
 using var chunkTagRegistry = new ChunkTagRegistry<SmallBitSet<uint>>(config.ChunkAllocator, GameConfig.MaxMetaBlocks, GameConfig.ChunkSize);
 
 // Create the world using the generated World alias

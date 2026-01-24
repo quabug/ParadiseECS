@@ -22,7 +22,7 @@ public sealed class StressTests : IDisposable
     private void CreateWorld()
     {
         _chunkManager = ChunkManager.Create(s_config);
-        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        _sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, s_config);
         _world = new World<SmallBitSet<ulong>, DefaultConfig>(
             s_config,
             _sharedMetadata,

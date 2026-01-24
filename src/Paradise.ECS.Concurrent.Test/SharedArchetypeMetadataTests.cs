@@ -8,7 +8,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     public SharedArchetypeMetadataTests()
     {
         // Create a fresh instance for isolated testing
-        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, s_config);
     }
 
     public void Dispose()
@@ -223,7 +223,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task Dispose_PreventsNewOperations()
     {
-        var localMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        var localMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, s_config);
         localMetadata.Dispose();
 
         var mask = (HashedKey<SmallBitSet<ulong>>)SmallBitSet<ulong>.Empty.Set(TestPosition.TypeId);
@@ -234,7 +234,7 @@ public class SharedArchetypeMetadataTests : IDisposable
     [Test]
     public async Task Dispose_MultipleTimes_DoesNotThrow()
     {
-        using var localMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        using var localMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, s_config);
 
         await Assert.That(() =>
         {
@@ -253,7 +253,7 @@ public class SharedArchetypeMetadataConcurrencyTests : IDisposable
 
     public SharedArchetypeMetadataConcurrencyTests()
     {
-        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, s_config);
+        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, s_config);
     }
 
     public void Dispose()

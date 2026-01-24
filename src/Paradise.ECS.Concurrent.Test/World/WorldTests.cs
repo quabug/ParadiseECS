@@ -10,7 +10,7 @@ public sealed class WorldTests
     {
         var config = new DefaultConfig();
         using var chunkManager = ChunkManager.Create(config);
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var world = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager);
 
         await Assert.That(world).IsNotNull();
@@ -22,7 +22,7 @@ public sealed class WorldTests
     {
         var config = new DefaultConfig { DefaultEntityCapacity = 512 };
         using var chunkManager = ChunkManager.Create(config);
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var world = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager);
 
         await Assert.That(world).IsNotNull();
@@ -34,7 +34,7 @@ public sealed class WorldTests
     {
         var config = new DefaultConfig();
         using var chunkManager = ChunkManager.Create(config);
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var world = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager);
 
         await Assert.That(world).IsNotNull();
@@ -45,7 +45,7 @@ public sealed class WorldTests
     public async Task Constructor_NullChunkManager_Throws()
     {
         var config = new DefaultConfig();
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
 
         await Assert.That(() => new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, null!))
             .ThrowsExactly<ArgumentNullException>();
@@ -57,7 +57,7 @@ public sealed class WorldTests
         // With hybrid config design, invalid capacities throw rather than using defaults
         var config0 = new DefaultConfig { DefaultEntityCapacity = 0 };
         using var chunkManager1 = ChunkManager.Create(config0);
-        using var sharedMetadata1 = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config0);
+        using var sharedMetadata1 = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config0);
         await Assert.That(() =>
         {
             using var world = new World<SmallBitSet<ulong>, DefaultConfig>(config0, sharedMetadata1, chunkManager1);
@@ -65,7 +65,7 @@ public sealed class WorldTests
 
         var configNeg = new DefaultConfig { DefaultEntityCapacity = -1 };
         using var chunkManager2 = ChunkManager.Create(configNeg);
-        using var sharedMetadata2 = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, configNeg);
+        using var sharedMetadata2 = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, configNeg);
         await Assert.That(() =>
         {
             using var world = new World<SmallBitSet<ulong>, DefaultConfig>(configNeg, sharedMetadata2, chunkManager2);
@@ -77,7 +77,7 @@ public sealed class WorldTests
     {
         var config = new DefaultConfig();
         using var chunkManager = ChunkManager.Create(config);
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var world = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager);
 
         await Assert.That(() =>
@@ -92,7 +92,7 @@ public sealed class WorldTests
     {
         var config = new DefaultConfig();
         using var chunkManager = ChunkManager.Create(config);
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         var world = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager);
         world.Dispose();
 
@@ -104,7 +104,7 @@ public sealed class WorldTests
     {
         var config = new DefaultConfig();
         using var chunkManager = ChunkManager.Create(config);
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         var world = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager);
 
         world.Dispose();
@@ -124,7 +124,7 @@ public sealed class WorldSharedMetadataTests
     public async Task Constructor_WithSharedMetadata_UsesProvidedMetadata()
     {
         var config = new DefaultConfig();
-        using var customMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var customMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var chunkManager = ChunkManager.Create(config);
         using var world = new World<SmallBitSet<ulong>, DefaultConfig>(config, customMetadata, chunkManager);
 
@@ -145,7 +145,7 @@ public sealed class WorldSharedMetadataTests
     public async Task MultipleWorlds_SameSharedMetadata_ShareMetadata()
     {
         var config = new DefaultConfig();
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var chunkManager1 = ChunkManager.Create(config);
         using var chunkManager2 = ChunkManager.Create(config);
         using var world1 = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager1);
@@ -159,7 +159,7 @@ public sealed class WorldSharedMetadataTests
     {
         // Use isolated metadata to avoid interference from other tests
         var config = new DefaultConfig();
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var chunkManager1 = ChunkManager.Create(config);
         using var chunkManager2 = ChunkManager.Create(config);
         using var world1 = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager1);
@@ -187,8 +187,8 @@ public sealed class WorldSharedMetadataTests
     public async Task MultipleWorlds_IsolatedMetadata_HaveIndependentArchetypeIds()
     {
         var config = new DefaultConfig();
-        using var metadata1 = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
-        using var metadata2 = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var metadata1 = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
+        using var metadata2 = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var chunkManager1 = ChunkManager.Create(config);
         using var chunkManager2 = ChunkManager.Create(config);
         using var world1 = new World<SmallBitSet<ulong>, DefaultConfig>(config, metadata1, chunkManager1);
@@ -218,7 +218,7 @@ public sealed class WorldSharedMetadataTests
     public async Task Dispose_DoesNotDisposeSharedMetadata()
     {
         var config = new DefaultConfig();
-        using var metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var chunkManager = ChunkManager.Create(config);
 
         var world = new World<SmallBitSet<ulong>, DefaultConfig>(config, metadata, chunkManager);
@@ -234,7 +234,7 @@ public sealed class WorldSharedMetadataTests
     public async Task SharedMetadata_GraphEdges_SharedAcrossWorlds()
     {
         var config = new DefaultConfig();
-        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, config);
+        using var sharedMetadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, config);
         using var chunkManager1 = ChunkManager.Create(config);
         using var chunkManager2 = ChunkManager.Create(config);
         using var world1 = new World<SmallBitSet<ulong>, DefaultConfig>(config, sharedMetadata, chunkManager1);

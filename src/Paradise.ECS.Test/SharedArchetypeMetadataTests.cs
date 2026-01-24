@@ -9,7 +9,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
 
     public SharedArchetypeMetadataTests()
     {
-        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared, new DefaultConfig());
+        _metadata = new SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig>(ComponentRegistry.Shared.TypeInfos, new DefaultConfig());
     }
 
     public void Dispose()
@@ -102,7 +102,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
         var id = _metadata.GetOrCreateArchetypeId(hashedKey, matchedQueries);
 
         var layout = _metadata.GetLayout(id);
-        var hasPosition = layout.HasComponent<TestPosition>();
+        var hasPosition = layout.HasComponent(TestPosition.TypeId);
 
         await Assert.That(hasPosition).IsTrue();
     }
@@ -121,7 +121,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
 
         var targetId = _metadata.GetOrCreateArchetypeIdWithAdd(sourceId, TestPosition.TypeId, matchedQueries);
         var layout = _metadata.GetLayout(targetId);
-        var hasPosition = layout.HasComponent<TestPosition>();
+        var hasPosition = layout.HasComponent(TestPosition.TypeId);
 
         await Assert.That(hasPosition).IsTrue();
     }
@@ -156,7 +156,7 @@ public sealed class SharedArchetypeMetadataTests : IDisposable
 
         var targetId = _metadata.GetOrCreateArchetypeIdWithRemove(sourceId, TestPosition.TypeId, matchedQueries);
         var layout = _metadata.GetLayout(targetId);
-        var hasPosition = layout.HasComponent<TestPosition>();
+        var hasPosition = layout.HasComponent(TestPosition.TypeId);
 
         await Assert.That(hasPosition).IsFalse();
     }
