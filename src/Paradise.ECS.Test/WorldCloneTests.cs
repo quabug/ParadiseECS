@@ -1,7 +1,7 @@
 namespace Paradise.ECS.Test;
 
 /// <summary>
-/// Tests for World.CloneTo() functionality.
+/// Tests for World.CopyFrom() functionality.
 /// </summary>
 public sealed class WorldCloneTests : IDisposable
 {
@@ -425,7 +425,7 @@ public sealed class WorldCloneTests : IDisposable
     }
 
     [Test]
-    public async Task CopyFrom_CanCloneToMultipleTargets()
+    public async Task CopyFrom_CanCopyToMultipleTargets()
     {
         // Arrange
         var entity = _sourceWorld.Spawn();
