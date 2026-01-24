@@ -572,10 +572,14 @@ public sealed class World<TMask, TConfig>
     /// </summary>
     /// <param name="source">The source world to copy from.</param>
     /// <exception cref="ArgumentNullException">Thrown if source is null.</exception>
-    /// <exception cref="InvalidOperationException">Thrown if worlds don't share the same SharedArchetypeMetadata.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if worlds don't share the same SharedArchetypeMetadata, or if source is the same as this world.</exception>
     public void CopyFrom(World<TMask, TConfig> source)
     {
         ArgumentNullException.ThrowIfNull(source);
+
+        // Validate not self-copy (would clear then copy from empty)
+        if (ReferenceEquals(this, source))
+            throw new InvalidOperationException("Cannot copy a world to itself.");
 
         // Validate same shared metadata
         if (source._archetypeRegistry.SharedMetadata != _archetypeRegistry.SharedMetadata)

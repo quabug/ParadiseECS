@@ -249,6 +249,18 @@ public sealed class WorldCloneTests : IDisposable
         await Assert.That(() => _targetWorld.CopyFrom(otherWorld)).Throws<InvalidOperationException>();
     }
 
+    [Test]
+    public async Task CopyFrom_ThrowsOnSelfCopy()
+    {
+        // Arrange - Create some entities so self-copy would be destructive
+        _sourceWorld.Spawn();
+        _sourceWorld.Spawn();
+        _sourceWorld.Spawn();
+
+        // Act & Assert - Copying a world to itself should throw
+        await Assert.That(() => _sourceWorld.CopyFrom(_sourceWorld)).Throws<InvalidOperationException>();
+    }
+
     #endregion
 
     #region Multi-Chunk Tests
