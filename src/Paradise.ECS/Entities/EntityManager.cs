@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Paradise.ECS;
 
@@ -11,7 +12,7 @@ namespace Paradise.ECS;
 public sealed class EntityManager : IEntityManager
 {
     private readonly List<ulong> _packedLocations; // Uses packed EntityLocation format for memory efficiency
-    private readonly Stack<int> _freeSlots = new();
+    private readonly List<int> _freeSlots = new();
     private int _nextEntityId; // Next fresh entity ID to allocate
     private int _aliveCount; // Number of currently alive entities
 
@@ -52,8 +53,8 @@ public sealed class EntityManager : IEntityManager
     public int PeekNextId()
     {
         // If there's a free slot, that ID will be reused
-        if (_freeSlots.TryPeek(out int id))
-            return id;
+        if (_freeSlots.Count > 0)
+            return _freeSlots[^1];
 
         // Otherwise, a new ID will be allocated
         return _nextEntityId;
@@ -66,9 +67,12 @@ public sealed class EntityManager : IEntityManager
     /// <returns>A valid entity handle.</returns>
     public Entity Create()
     {
-        if (_freeSlots.TryPop(out int id))
+        int id;
+        if (_freeSlots.Count > 0)
         {
             // Reuse a freed entity slot - version was already incremented on destroy
+            id = _freeSlots[^1];
+            _freeSlots.RemoveAt(_freeSlots.Count - 1);
             uint version = EntityLocation.FromPacked(_packedLocations[id]).Version;
             _packedLocations[id] = new EntityLocation(version, -1, -1).Packed;
             _aliveCount++;
@@ -113,7 +117,7 @@ public sealed class EntityManager : IEntityManager
         _packedLocations[entity.Id] = new EntityLocation(location.Version + 1, -1, -1).Packed;
 
         // Add to free list
-        _freeSlots.Push(entity.Id);
+        _freeSlots.Add(entity.Id);
         _aliveCount--;
     }
 
@@ -182,5 +186,27 @@ public sealed class EntityManager : IEntityManager
         _packedLocations.Clear();
         _nextEntityId = 0;
         _aliveCount = 0;
+    }
+
+    /// <summary>
+    /// Copies all entity state from the source manager to this manager.
+    /// This manager is cleared before copying.
+    /// </summary>
+    /// <param name="source">The source EntityManager to copy from.</param>
+    internal void CopyFrom(EntityManager source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        // Copy packed locations (direct memory copy)
+        CollectionsMarshal.SetCount(_packedLocations, source._packedLocations.Count);
+        CollectionsMarshal.AsSpan(source._packedLocations).CopyTo(CollectionsMarshal.AsSpan(_packedLocations));
+
+        // Copy free slots (direct memory copy)
+        CollectionsMarshal.SetCount(_freeSlots, source._freeSlots.Count);
+        CollectionsMarshal.AsSpan(source._freeSlots).CopyTo(CollectionsMarshal.AsSpan(_freeSlots));
+
+        // Copy counters
+        _nextEntityId = source._nextEntityId;
+        _aliveCount = source._aliveCount;
     }
 }

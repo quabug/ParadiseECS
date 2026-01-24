@@ -220,6 +220,40 @@ public sealed class Archetype<TMask, TConfig> : IArchetype<TMask, TConfig>
     }
 
     /// <summary>
+    /// Copies all chunk data from the source archetype to this archetype.
+    /// This archetype must be empty before calling.
+    /// Both archetypes must have the same layout (shared metadata ensures this).
+    /// </summary>
+    /// <param name="source">The source archetype to copy from.</param>
+    /// <param name="sourceChunkManager">The chunk manager for the source archetype (may be the same as this archetype's manager).</param>
+    internal void CopyChunksFrom(Archetype<TMask, TConfig> source, ChunkManager sourceChunkManager)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(sourceChunkManager);
+
+        int sourceEntityCount = source.EntityCount;
+        if (sourceEntityCount == 0)
+            return;
+
+        // Allocate required chunks and copy data
+        int entitiesPerChunk = Layout.EntitiesPerChunk;
+        int requiredChunks = (sourceEntityCount + entitiesPerChunk - 1) / entitiesPerChunk;
+
+        for (int i = 0; i < requiredChunks; i++)
+        {
+            var chunk = _chunkManager.Allocate();
+            _chunks.Add(chunk);
+
+            // Copy chunk data byte-for-byte
+            var srcBytes = sourceChunkManager.GetBytes(source.GetChunk(i));
+            var dstBytes = _chunkManager.GetBytes(chunk);
+            srcBytes.CopyTo(dstBytes);
+        }
+
+        EntityCount = sourceEntityCount;
+    }
+
+    /// <summary>
     /// Frees trailing empty chunks.
     /// </summary>
     private void TrimEmptyChunks()

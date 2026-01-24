@@ -116,13 +116,13 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 ### In Progress
 
-### Planned
-
-- [ ] **World Clone & Snapshots**
+- [~] **World Clone & Snapshots** (feature/readonly-world)
   - World cloning for snapshot/rollback scenarios
   - Copy-on-write semantics for efficient cloning
   - Support for game state serialization and networking
   - Integration with ReadOnlyWorld for snapshot queries
+
+### Planned
 
 - [ ] **System Scheduling**
     - System base class/interface

@@ -562,8 +562,36 @@ public sealed class World<TMask, TConfig>
         _entityManager.Clear();
 
         // Re-create the empty archetype for componentless entities
-        _emptyArchetype = _archetypeRegistry.GetOrCreate(
-            (HashedKey<TMask>)TMask.Empty);
+        _emptyArchetype = _archetypeRegistry.GetOrCreate((HashedKey<TMask>)TMask.Empty);
+    }
+
+    /// <summary>
+    /// Copies all entity and component data from the source world to this world.
+    /// This world is cleared before copying. Both worlds must share the same
+    /// SharedArchetypeMetadata (created via the same SharedWorld).
+    /// </summary>
+    /// <param name="source">The source world to copy from.</param>
+    /// <exception cref="ArgumentNullException">Thrown if source is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown if worlds don't share the same SharedArchetypeMetadata.</exception>
+    public void CopyFrom(World<TMask, TConfig> source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        // Validate same shared metadata
+        if (source._archetypeRegistry.SharedMetadata != _archetypeRegistry.SharedMetadata)
+            throw new InvalidOperationException("Worlds must share the same SharedArchetypeMetadata.");
+
+        // Clear this world
+        Clear();
+
+        // Copy entity manager state
+        _entityManager.CopyFrom(source._entityManager);
+
+        // Copy archetype data (chunks)
+        _archetypeRegistry.CopyFrom(source._archetypeRegistry);
+
+        // Restore empty archetype reference (GetOrCreate returns existing if already created)
+        _emptyArchetype = _archetypeRegistry.GetOrCreate((HashedKey<TMask>)TMask.Empty);
     }
 }
 
