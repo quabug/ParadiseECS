@@ -5,6 +5,7 @@ namespace Paradise.ECS;
 /// <summary>
 /// Manages shared resources (ChunkManager, SharedArchetypeMetadata) that can be used across multiple worlds.
 /// Disposing this instance will dispose all owned resources.
+/// This type is not thread-safe; all operations must be called from the same thread.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
@@ -16,6 +17,7 @@ public sealed class SharedWorld<TMask, TConfig> : IDisposable
     private readonly TConfig _config;
     private readonly ChunkManager _chunkManager;
     private readonly SharedArchetypeMetadata<TMask, TConfig> _sharedMetadata;
+    private ThreadAffinity _threadAffinity;
     private bool _disposed;
 
     /// <summary>
@@ -61,6 +63,7 @@ public sealed class SharedWorld<TMask, TConfig> : IDisposable
     /// <returns>A new World instance.</returns>
     public World<TMask, TConfig> CreateWorld()
     {
+        _threadAffinity.Assert();
         ThrowHelper.ThrowIfDisposed(_disposed, this);
         var world = new World<TMask, TConfig>(_config, _sharedMetadata, _chunkManager);
         _worlds.Add(world);
@@ -72,6 +75,7 @@ public sealed class SharedWorld<TMask, TConfig> : IDisposable
     /// </summary>
     public void Dispose()
     {
+        _threadAffinity.Assert();
         if (_disposed)
             return;
 

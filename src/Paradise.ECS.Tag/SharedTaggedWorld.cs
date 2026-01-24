@@ -21,6 +21,7 @@ public sealed class SharedTaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : I
     private readonly ChunkManager _chunkManager;
     private readonly SharedArchetypeMetadata<TMask, TConfig> _sharedMetadata;
     private readonly ChunkTagRegistry<TTagMask> _chunkTagRegistry;
+    private ThreadAffinity _threadAffinity;
     private bool _disposed;
 
     /// <summary>
@@ -75,6 +76,7 @@ public sealed class SharedTaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : I
     /// <returns>A new TaggedWorld instance.</returns>
     public TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> CreateWorld()
     {
+        _threadAffinity.Assert();
         ThrowHelper.ThrowIfDisposed(_disposed, this);
         var world = new TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>(
             _config,
@@ -90,6 +92,7 @@ public sealed class SharedTaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : I
     /// </summary>
     public void Dispose()
     {
+        _threadAffinity.Assert();
         if (_disposed)
             return;
 
