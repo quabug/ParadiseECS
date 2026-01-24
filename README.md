@@ -130,15 +130,18 @@ The source generator:
 ```csharp
 using Paradise.ECS;
 
-// Create shared resources (can be reused across multiple worlds)
-using var sharedMetadata = new SharedArchetypeMetadata();
-using var chunkManager = DefaultChunkManager.Create();
+// Create a SharedWorld that manages all resources (recommended)
+using var sharedWorld = SharedWorldFactory.Create();
+var world = sharedWorld.CreateWorld();
 
-// Create the world using the generated World alias
-var world = new World(sharedMetadata, chunkManager);
+// Or create multiple worlds sharing the same resources
+var world1 = sharedWorld.CreateWorld();
+var world2 = sharedWorld.CreateWorld();
+// world1 and world2 share ChunkManager and archetype metadata
+// but have independent entities and components
 ```
 
-> **Note**: The source generator creates type aliases (`World`, `ComponentMask`, etc.) based on your component count. For manual configuration, use the full generic types like `World<Bit256, ComponentRegistry, DefaultConfig>`.
+> **Note**: The source generator creates type aliases (`World`, `SharedWorld`, `ComponentMask`, etc.) based on your component count and whether tags are enabled. `SharedWorldFactory` handles all resource setup automatically.
 
 #### Using Tags with TaggedWorld
 
@@ -150,11 +153,18 @@ To use the tag system, add a reference to `Paradise.ECS.Tag` in your project:
 </ItemGroup>
 ```
 
-When you reference `Paradise.ECS.Tag`, the source generator automatically generates an `EntityTags` component and a `World` alias that wraps `TaggedWorld`:
+When you reference `Paradise.ECS.Tag`, the source generator automatically:
+- Generates an `EntityTags` component to store per-entity tag bitmasks
+- Aliases `World` to `TaggedWorld` (adds tag operations)
+- Aliases `SharedWorld` to `SharedTaggedWorld` (includes ChunkTagRegistry)
 
 ```csharp
-// World is automatically an alias for TaggedWorld when tags are enabled
-using var world = new World();
+// SharedWorldFactory.Create() returns SharedTaggedWorld when tags are enabled
+using var sharedWorld = SharedWorldFactory.Create();
+var world = sharedWorld.CreateWorld();
+
+// world automatically has tag operations available
+world.AddTag<IsActive>(entity);
 ```
 
 ### Spawn Entities
@@ -699,8 +709,8 @@ Processes structs marked with `[Component]` and `[Tag]`, and generates:
 | `{TagName}.g.cs` | Partial struct implementing `ITag` with `TagId`, `Guid` |
 | `ComponentRegistry.g.cs` | Type-to-ID and GUID-to-ID mappings with module initializer |
 | `TagRegistry.g.cs` | Tag-to-ID mappings, `EntityTags` component, `TagMask` type |
-| `ComponentAliases.g.cs` | Global using aliases for `World`, `Query`, `ComponentMask`, etc. |
-| `DefaultChunkManager.g.cs` | Factory class for creating ChunkManager with default config |
+| `ComponentAliases.g.cs` | Global using aliases for `World`, `SharedWorld`, `Query`, `ComponentMask`, etc. |
+| `SharedWorldFactory.g.cs` | Factory class for creating SharedWorld with project's ComponentRegistry |
 
 When `Paradise.ECS.Tag` is referenced, the generator also creates:
 - **Auto-generated `EntityTags` component** implementing `IEntityTags<TagMask>` to store per-entity tag bitmask
@@ -787,8 +797,9 @@ You can then define your own local aliases or use fully qualified types.
 Paradise.ECS uses compile-time configuration via the `IConfig` interface:
 
 ```csharp
-// Use default configuration
-var world = new World(sharedMetadata, chunkManager);
+// Use default configuration (DefaultConfig)
+using var sharedWorld = SharedWorldFactory.Create();
+var world = sharedWorld.CreateWorld();
 
 // Or define custom configuration and mark it as default
 [DefaultConfig]  // Marks this as the default config for World alias generation
@@ -808,6 +819,10 @@ public readonly struct SmallConfig : IConfig
     public IAllocator MetadataAllocator => NativeMemoryAllocator.Shared;
     public IAllocator LayoutAllocator => NativeMemoryAllocator.Shared;
 }
+
+// Use custom config with SharedWorldFactory
+using var sharedWorld = SharedWorldFactory.Create(new SmallConfig());
+var world = sharedWorld.CreateWorld();
 ```
 
 ### Component Configuration
@@ -867,18 +882,22 @@ dotnet run --project src/Paradise.ECS.Benchmarks/Paradise.ECS.Benchmarks.csproj 
 
 ### Multi-World Scenarios
 
-Share archetype metadata across multiple worlds for memory efficiency:
+Use `SharedWorld` to share resources across multiple worlds for memory efficiency:
 
 ```csharp
-using var sharedMetadata = new SharedArchetypeMetadata();
-using var chunkManager = DefaultChunkManager.Create();
+// SharedWorld owns ChunkManager and SharedArchetypeMetadata
+using var sharedWorld = SharedWorldFactory.Create();
 
-// Multiple worlds share the same metadata and chunk manager
-var gameWorld = new World(sharedMetadata, chunkManager);
-var uiWorld = new World(sharedMetadata, chunkManager);
-var physicsWorld = new World(sharedMetadata, chunkManager);
+// Create multiple worlds that share resources
+var gameWorld = sharedWorld.CreateWorld();
+var uiWorld = sharedWorld.CreateWorld();
+var physicsWorld = sharedWorld.CreateWorld();
 
-// Each world has independent entities but shares type information
+// Each world has independent entities but shares:
+// - ChunkManager (memory allocation)
+// - Archetype metadata (type layouts, graph edges)
+// - Query cache
+
 var player = EntityBuilder.Create()
     .Add(new Position { X = 0, Y = 0, Z = 0 })
     .Build(gameWorld);
@@ -886,6 +905,26 @@ var player = EntityBuilder.Create()
 var button = EntityBuilder.Create()
     .Add(new Position { X = 100, Y = 50, Z = 0 })
     .Build(uiWorld);
+
+// Entity from gameWorld is NOT alive in uiWorld
+gameWorld.IsAlive(player);  // true
+uiWorld.IsAlive(player);    // false
+
+// Disposing SharedWorld clears all created worlds
+```
+
+For tagged worlds, `SharedTaggedWorld` additionally shares the `ChunkTagRegistry`:
+
+```csharp
+// When Paradise.ECS.Tag is referenced, SharedWorldFactory returns SharedTaggedWorld
+using var sharedWorld = SharedWorldFactory.Create();
+
+var world1 = sharedWorld.CreateWorld();
+var world2 = sharedWorld.CreateWorld();
+
+// Both worlds share ChunkTagRegistry for tag mask tracking
+world1.AddTag<IsActive>(entity1);
+world2.AddTag<IsEnemy>(entity2);
 ```
 
 ### Custom Memory Allocators
