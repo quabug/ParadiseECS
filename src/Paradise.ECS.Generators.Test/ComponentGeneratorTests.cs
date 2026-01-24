@@ -708,13 +708,13 @@ public class ComponentGeneratorRegistryTests
         var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
 
         await Assert.That(registry).IsNotNull();
-        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry");
         await Assert.That(registry).Contains("typeof(global::TestNamespace.Position)");
         await Assert.That(registry).Contains("typeof(global::TestNamespace.Velocity)");
     }
 
     [Test]
-    public async Task ComponentRegistry_GeneratesGetIdMethod()
+    public async Task ComponentRegistry_GeneratesTypeToIdDictionary()
     {
         const string source = """
             using Paradise.ECS;
@@ -728,12 +728,12 @@ public class ComponentGeneratorRegistryTests
         var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
 
         await Assert.That(registry).IsNotNull();
-        await Assert.That(registry).Contains("public static global::Paradise.ECS.ComponentId GetId(global::System.Type type)");
-        await Assert.That(registry).Contains("public static bool TryGetId(global::System.Type type, out global::Paradise.ECS.ComponentId id)");
+        await Assert.That(registry).Contains("public static global::System.Collections.Frozen.FrozenDictionary<global::System.Type, global::Paradise.ECS.ComponentId> TypeToIdStatic");
+        await Assert.That(registry).Contains("public global::System.Collections.Frozen.FrozenDictionary<global::System.Type, global::Paradise.ECS.ComponentId> TypeToId");
     }
 
     [Test]
-    public async Task ComponentRegistry_GeneratesGuidLookupMethods()
+    public async Task ComponentRegistry_GeneratesGuidToIdDictionary()
     {
         const string source = """
             using Paradise.ECS;
@@ -747,8 +747,8 @@ public class ComponentGeneratorRegistryTests
         var registry = GeneratorTestHelper.GetGeneratedSource(source, "ComponentRegistry.g.cs");
 
         await Assert.That(registry).IsNotNull();
-        await Assert.That(registry).Contains("public static global::Paradise.ECS.ComponentId GetId(global::System.Guid guid)");
-        await Assert.That(registry).Contains("public static bool TryGetId(global::System.Guid guid, out global::Paradise.ECS.ComponentId id)");
+        await Assert.That(registry).Contains("public static global::System.Collections.Frozen.FrozenDictionary<global::System.Guid, global::Paradise.ECS.ComponentId> GuidToIdStatic");
+        await Assert.That(registry).Contains("public global::System.Collections.Frozen.FrozenDictionary<global::System.Guid, global::Paradise.ECS.ComponentId> GuidToId");
     }
 
 }
@@ -890,7 +890,7 @@ public class ComponentGeneratorNamespaceTests
 
         await Assert.That(registry).IsNotNull();
         await Assert.That(registry).Contains("namespace MyGame.ECS;");
-        await Assert.That(registry).Contains("public sealed class ComponentRegistry : global::Paradise.ECS.IComponentRegistry");
+        await Assert.That(registry).Contains("public sealed class ComponentRegistry");
     }
 
     [Test]

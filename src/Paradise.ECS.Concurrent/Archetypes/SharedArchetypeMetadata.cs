@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
 namespace Paradise.ECS.Concurrent;
@@ -9,11 +10,9 @@ namespace Paradise.ECS.Concurrent;
 /// Thread-safe for concurrent access from multiple worlds.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
-public sealed class SharedArchetypeMetadata<TMask, TRegistry, TConfig> : IDisposable
+public sealed class SharedArchetypeMetadata<TMask, TConfig> : IDisposable
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
     /// <summary>
@@ -23,7 +22,6 @@ public sealed class SharedArchetypeMetadata<TMask, TRegistry, TConfig> : IDispos
     [ThreadStatic]
     private static List<int>? s_tempMatchedQueries;
 
-    private readonly IAllocator _metadataAllocator;
     private readonly IAllocator _layoutAllocator;
     private readonly ConcurrentDictionary<HashedKey<TMask>, int> _maskToArchetypeId = new();
     private readonly ConcurrentAppendOnlyList<nint/* ArchetypeLayout* */> _layouts = new();
@@ -49,6 +47,8 @@ public sealed class SharedArchetypeMetadata<TMask, TRegistry, TConfig> : IDispos
 
     private int _disposed;
 
+    public ImmutableArray<ComponentTypeInfo> TypeInfos { get; }
+
     /// <summary>
     /// Gets the number of registered archetypes.
     /// </summary>
@@ -62,19 +62,12 @@ public sealed class SharedArchetypeMetadata<TMask, TRegistry, TConfig> : IDispos
     /// <summary>
     /// Creates a new shared archetype metadata instance.
     /// </summary>
+    /// <param name="typeInfos">The component type information array.</param>
     /// <param name="config">The configuration instance with runtime settings including the allocator.</param>
-    public SharedArchetypeMetadata(TConfig config)
+    public SharedArchetypeMetadata(ImmutableArray<ComponentTypeInfo> typeInfos, TConfig config)
     {
-        _metadataAllocator = config.MetadataAllocator ?? throw new ArgumentNullException(nameof(config), "Config.MetadataAllocator cannot be null");
+        TypeInfos = typeInfos;
         _layoutAllocator = config.LayoutAllocator ?? throw new ArgumentNullException(nameof(config), "Config.LayoutAllocator cannot be null");
-    }
-
-    /// <summary>
-    /// Creates a new shared archetype metadata instance using default configuration.
-    /// Uses <c>new TConfig()</c> for configuration with default property values.
-    /// </summary>
-    public SharedArchetypeMetadata() : this(new TConfig())
-    {
     }
 
     /// <summary>
@@ -122,7 +115,7 @@ public sealed class SharedArchetypeMetadata<TMask, TRegistry, TConfig> : IDispos
             return existingId;
         }
 
-        var layoutData = ImmutableArchetypeLayout<TMask, TRegistry, TConfig>.Create(_layoutAllocator, mask);
+        var layoutData = ImmutableArchetypeLayout<TMask, TConfig>.Create(_layoutAllocator, TypeInfos, mask);
         int newId = _layouts.Add(layoutData);
         ThrowHelper.ThrowIfArchetypeIdExceedsLimit(newId);
         _maskToArchetypeId[mask] = newId;
@@ -203,10 +196,10 @@ public sealed class SharedArchetypeMetadata<TMask, TRegistry, TConfig> : IDispos
     /// <returns>The layout for this archetype.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if the archetype ID is invalid.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ImmutableArchetypeLayout<TMask, TRegistry, TConfig> GetLayout(int archetypeId)
+    public ImmutableArchetypeLayout<TMask, TConfig> GetLayout(int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
-        return new ImmutableArchetypeLayout<TMask, TRegistry, TConfig>(_layouts[archetypeId]);
+        return new ImmutableArchetypeLayout<TMask, TConfig>(_layouts[archetypeId]);
     }
 
     /// <summary>
@@ -340,7 +333,7 @@ public sealed class SharedArchetypeMetadata<TMask, TRegistry, TConfig> : IDispos
         int archetypeCount = _layouts.Count;
         for (int i = 0; i < archetypeCount; i++)
         {
-            var layout = new ImmutableArchetypeLayout<TMask, TRegistry, TConfig>(_layouts[i]);
+            var layout = new ImmutableArchetypeLayout<TMask, TConfig>(_layouts[i]);
             if (description.Value.Matches(layout.ComponentMask))
             {
                 queryData.MatchedArchetypeIds.Add(i);
@@ -403,7 +396,7 @@ public sealed class SharedArchetypeMetadata<TMask, TRegistry, TConfig> : IDispos
         // Free all layouts
         for (int i = 0; i < _layouts.Count; i++)
         {
-            ImmutableArchetypeLayout<TMask, TRegistry, TConfig>.Free(_layoutAllocator, _layouts[i]);
+            ImmutableArchetypeLayout<TMask, TConfig>.Free(_layoutAllocator, _layouts[i]);
         }
     }
 }

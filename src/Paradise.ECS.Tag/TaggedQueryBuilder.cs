@@ -85,20 +85,18 @@ public readonly ref struct TaggedQueryBuilder<TMask, TTagMask>
     /// Builds a TaggedWorldQuery from this builder for a TaggedWorld.
     /// The resulting query filters entities by both component constraints and tag constraints.
     /// </summary>
-    /// <typeparam name="TRegistry">The component registry type.</typeparam>
     /// <typeparam name="TConfig">The world configuration type.</typeparam>
     /// <typeparam name="TEntityTags">The EntityTags component type.</typeparam>
     /// <param name="taggedWorld">The tagged world to query.</param>
     /// <returns>A query that iterates entities matching both component and tag constraints.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public TaggedWorldQuery<TMask, TRegistry, TConfig, TEntityTags, TTagMask> Build<TRegistry, TConfig, TEntityTags>(
-        TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> taggedWorld)
-        where TRegistry : IComponentRegistry
+    public TaggedWorldQuery<TMask, TConfig, TEntityTags, TTagMask> Build<TConfig, TEntityTags>(
+        TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld)
         where TConfig : IConfig, new()
         where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
     {
         var query = _queryBuilder.Build(taggedWorld.World);
-        return new TaggedWorldQuery<TMask, TRegistry, TConfig, TEntityTags, TTagMask>(
+        return new TaggedWorldQuery<TMask, TConfig, TEntityTags, TTagMask>(
             taggedWorld,
             query.Query,
             _requiredTags);

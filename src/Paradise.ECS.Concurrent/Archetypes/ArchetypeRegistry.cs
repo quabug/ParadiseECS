@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Paradise.ECS.Concurrent;
@@ -8,12 +9,10 @@ namespace Paradise.ECS.Concurrent;
 /// Uses shared metadata for archetype IDs, layouts, and graph edges.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type that determines chunk size and limits.</typeparam>
-public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
-    : IArchetypeRegistry<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>, IDisposable
+public sealed class ArchetypeRegistry<TMask, TConfig>
+    : IArchetypeRegistry<TMask, TConfig, Archetype<TMask, TConfig>>, IDisposable
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
     /// <summary>
@@ -24,9 +23,10 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     [ThreadStatic]
     private static List<int>? s_tempMatchedQueries;
 
-    private readonly SharedArchetypeMetadata<TMask, TRegistry, TConfig> _sharedMetadata;
-    private readonly ConcurrentAppendOnlyList<Archetype<TMask, TRegistry, TConfig>?> _archetypes = new();
-    private readonly ConcurrentAppendOnlyList<List<Archetype<TMask, TRegistry, TConfig>>?> _queryCache = new();
+    private readonly SharedArchetypeMetadata<TMask, TConfig> _sharedMetadata;
+    private readonly ImmutableArray<ComponentTypeInfo> _typeInfos;
+    private readonly ConcurrentAppendOnlyList<Archetype<TMask, TConfig>?> _archetypes = new();
+    private readonly ConcurrentAppendOnlyList<List<Archetype<TMask, TConfig>>?> _queryCache = new();
     private readonly Lock _lock = new();
     private readonly ChunkManager _chunkManager;
     private readonly OperationGuard _operationGuard = new();
@@ -36,12 +36,16 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     /// Creates a new archetype registry using the specified shared metadata.
     /// </summary>
     /// <param name="sharedMetadata">The shared metadata to use.</param>
+    /// <param name="typeInfos">The component type information array.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public ArchetypeRegistry(SharedArchetypeMetadata<TMask, TRegistry, TConfig> sharedMetadata, ChunkManager chunkManager)
+    public ArchetypeRegistry(SharedArchetypeMetadata<TMask, TConfig> sharedMetadata, ImmutableArray<ComponentTypeInfo> typeInfos, ChunkManager chunkManager)
     {
         ArgumentNullException.ThrowIfNull(sharedMetadata);
+        if (typeInfos.IsDefault)
+            throw new ArgumentNullException(nameof(typeInfos));
         ArgumentNullException.ThrowIfNull(chunkManager);
         _sharedMetadata = sharedMetadata;
+        _typeInfos = typeInfos;
         _chunkManager = chunkManager;
     }
 
@@ -51,7 +55,7 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     /// </summary>
     /// <param name="description">The query description defining matching criteria.</param>
     /// <returns>The query for this description.</returns>
-    public Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TMask>> description)
+    public Query<TMask, TConfig, Archetype<TMask, TConfig>> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TMask>> description)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = _operationGuard.EnterScope();
@@ -62,7 +66,7 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
         // Fast path: query already exists in this world
         if ((uint)queryId < (uint)_queryCache.Count && _queryCache[queryId] is { } existingList)
         {
-            return new Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>(existingList);
+            return new Query<TMask, TConfig, Archetype<TMask, TConfig>>(existingList);
         }
 
         using var lockScope = _lock.EnterScope();
@@ -78,13 +82,13 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
         ref var slot = ref _queryCache.GetRef(queryId);
         if (slot is not null)
         {
-            return new Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>(slot);
+            return new Query<TMask, TConfig, Archetype<TMask, TConfig>>(slot);
         }
 
         // Get matched archetype IDs from shared metadata and add only locally existing archetypes
         var matchedIds = _sharedMetadata.GetMatchedArchetypeIds(queryId);
         int matchedCount = matchedIds.Count;
-        var archetypes = new List<Archetype<TMask, TRegistry, TConfig>>(matchedCount);
+        var archetypes = new List<Archetype<TMask, TConfig>>(matchedCount);
 
         int localArchetypeCount = _archetypes.Count;
         for (int i = 0; i < matchedCount; i++)
@@ -100,7 +104,7 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
         }
 
         slot = archetypes;
-        return new Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>(archetypes);
+        return new Query<TMask, TConfig, Archetype<TMask, TConfig>>(archetypes);
     }
 
     /// <summary>
@@ -108,7 +112,7 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>
     /// <returns>The archetype store for this mask.</returns>
-    public Archetype<TMask, TRegistry, TConfig> GetOrCreate(HashedKey<TMask> mask)
+    public Archetype<TMask, TConfig> GetOrCreate(HashedKey<TMask> mask)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = _operationGuard.EnterScope();
@@ -129,7 +133,7 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     /// </summary>
     /// <param name="archetype">The newly created archetype.</param>
     /// <param name="matchedQueries">The list of matching query IDs from shared metadata.</param>
-    private void NotifyQueries(Archetype<TMask, TRegistry, TConfig> archetype, List<int> matchedQueries)
+    private void NotifyQueries(Archetype<TMask, TConfig> archetype, List<int> matchedQueries)
     {
         int localQueryCount = _queryCache.Count;
         int matchedCount = matchedQueries.Count;
@@ -151,7 +155,7 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     /// </summary>
     /// <param name="archetypeId">The archetype ID.</param>
     /// <returns>The archetype store, or null if not found in this world.</returns>
-    public Archetype<TMask, TRegistry, TConfig>? GetById(int archetypeId)
+    public Archetype<TMask, TConfig>? GetById(int archetypeId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = _operationGuard.EnterScope();
@@ -165,7 +169,7 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     /// <param name="mask">The component mask.</param>
     /// <param name="store">The archetype store if found.</param>
     /// <returns>True if found in this world.</returns>
-    public bool TryGet(HashedKey<TMask> mask, out Archetype<TMask, TRegistry, TConfig>? store)
+    public bool TryGet(HashedKey<TMask> mask, out Archetype<TMask, TConfig>? store)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
         using var _ = _operationGuard.EnterScope();
@@ -189,8 +193,8 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to add.</param>
     /// <returns>The target archetype with the component added.</returns>
-    public Archetype<TMask, TRegistry, TConfig> GetOrCreateWithAdd(
-        Archetype<TMask, TRegistry, TConfig> source,
+    public Archetype<TMask, TConfig> GetOrCreateWithAdd(
+        Archetype<TMask, TConfig> source,
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
@@ -214,8 +218,8 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     /// <param name="source">The source archetype.</param>
     /// <param name="componentId">The component to remove.</param>
     /// <returns>The target archetype with the component removed.</returns>
-    public Archetype<TMask, TRegistry, TConfig> GetOrCreateWithRemove(
-        Archetype<TMask, TRegistry, TConfig> source,
+    public Archetype<TMask, TConfig> GetOrCreateWithRemove(
+        Archetype<TMask, TConfig> source,
         ComponentId componentId)
     {
         ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
@@ -238,7 +242,7 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
     /// <param name="archetypeId">The global archetype ID.</param>
     /// <param name="matchedQueries">The list of matching query IDs from shared metadata.</param>
     /// <returns>The archetype instance for this world.</returns>
-    private Archetype<TMask, TRegistry, TConfig> GetOrCreateById(int archetypeId, List<int> matchedQueries)
+    private Archetype<TMask, TConfig> GetOrCreateById(int archetypeId, List<int> matchedQueries)
     {
         // Fast path: archetype already exists (lock-free read)
         if ((uint)archetypeId < (uint)_archetypes.Count &&
@@ -264,7 +268,7 @@ public sealed class ArchetypeRegistry<TMask, TRegistry, TConfig>
 
         // Create new archetype instance for this world
         var layoutData = _sharedMetadata.GetLayoutData(archetypeId);
-        var archetype = new Archetype<TMask, TRegistry, TConfig>(archetypeId, layoutData, _chunkManager);
+        var archetype = new Archetype<TMask, TConfig>(archetypeId, layoutData, _typeInfos, _chunkManager);
 
         slot = archetype;
 

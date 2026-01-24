@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 
 namespace Paradise.ECS;
@@ -8,15 +9,14 @@ namespace Paradise.ECS;
 /// Single-threaded version without concurrent access support.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public sealed class Archetype<TMask, TRegistry, TConfig> : IArchetype<TMask, TRegistry, TConfig>
+public sealed class Archetype<TMask, TConfig> : IArchetype<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
 {
     private readonly nint _layoutData;
     private readonly ChunkManager _chunkManager;
+    private readonly ImmutableArray<ComponentTypeInfo> _typeInfos;
     private readonly List<ChunkHandle> _chunks = new();
 
     /// <summary>
@@ -31,7 +31,7 @@ public sealed class Archetype<TMask, TRegistry, TConfig> : IArchetype<TMask, TRe
     /// <summary>
     /// Gets the layout describing component offsets within this archetype.
     /// </summary>
-    public ImmutableArchetypeLayout<TMask, TRegistry, TConfig> Layout
+    public ImmutableArchetypeLayout<TMask, TConfig> Layout
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => new(_layoutData);
@@ -63,13 +63,17 @@ public sealed class Archetype<TMask, TRegistry, TConfig> : IArchetype<TMask, TRe
     /// <param name="id">The unique archetype ID.</param>
     /// <param name="layoutData">The layout data pointer (as nint) for this archetype.</param>
     /// <param name="chunkManager">The chunk manager for memory allocation.</param>
-    public Archetype(int id, nint layoutData, ChunkManager chunkManager)
+    /// <param name="typeInfos">The component type information array.</param>
+    public Archetype(int id, nint layoutData, ChunkManager chunkManager, ImmutableArray<ComponentTypeInfo> typeInfos)
     {
         ArgumentNullException.ThrowIfNull(chunkManager);
+        if (typeInfos.IsDefault)
+            throw new ArgumentNullException(nameof(typeInfos));
 
         Id = id;
         _layoutData = layoutData;
         _chunkManager = chunkManager;
+        _typeInfos = typeInfos;
     }
 
     /// <summary>
@@ -139,8 +143,8 @@ public sealed class Archetype<TMask, TRegistry, TConfig> : IArchetype<TMask, TRe
         var dstBytes = _chunkManager.GetBytes(dstChunkHandle);
 
         // Copy entity ID
-        int srcEntityIdOffset = ImmutableArchetypeLayout<TMask, TRegistry, TConfig>.GetEntityIdOffset(srcIndexInChunk);
-        int dstEntityIdOffset = ImmutableArchetypeLayout<TMask, TRegistry, TConfig>.GetEntityIdOffset(dstIndexInChunk);
+        int srcEntityIdOffset = ImmutableArchetypeLayout<TMask, TConfig>.GetEntityIdOffset(srcIndexInChunk);
+        int dstEntityIdOffset = ImmutableArchetypeLayout<TMask, TConfig>.GetEntityIdOffset(dstIndexInChunk);
         var srcEntityIdData = srcBytes.GetBytesAt(srcEntityIdOffset, TConfig.EntityIdByteSize);
         var dstEntityIdData = dstBytes.GetBytesAt(dstEntityIdOffset, TConfig.EntityIdByteSize);
         srcEntityIdData.CopyTo(dstEntityIdData);
@@ -155,7 +159,7 @@ public sealed class Archetype<TMask, TRegistry, TConfig> : IArchetype<TMask, TRe
             if (baseOffset < 0)
                 continue; // Component not in this archetype
 
-            int size = TRegistry.TypeInfos[id].Size;
+            int size = _typeInfos[id].Size;
             if (size == 0)
                 continue; // Skip tag components
 
@@ -241,7 +245,7 @@ public sealed class Archetype<TMask, TRegistry, TConfig> : IArchetype<TMask, TRe
     public int GetEntityId(ChunkHandle chunkHandle, int indexInChunk)
     {
         var bytes = _chunkManager.GetBytes(chunkHandle);
-        int offset = ImmutableArchetypeLayout<TMask, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
+        int offset = ImmutableArchetypeLayout<TMask, TConfig>.GetEntityIdOffset(indexInChunk);
         return TConfig.EntityIdByteSize switch
         {
             1 => bytes.GetRef<byte>(offset),
@@ -255,7 +259,7 @@ public sealed class Archetype<TMask, TRegistry, TConfig> : IArchetype<TMask, TRe
     private void SetEntityId(ChunkHandle chunkHandle, int indexInChunk, int entityId)
     {
         var bytes = _chunkManager.GetBytes(chunkHandle);
-        int offset = ImmutableArchetypeLayout<TMask, TRegistry, TConfig>.GetEntityIdOffset(indexInChunk);
+        int offset = ImmutableArchetypeLayout<TMask, TConfig>.GetEntityIdOffset(indexInChunk);
         switch (TConfig.EntityIdByteSize)
         {
             case 1:

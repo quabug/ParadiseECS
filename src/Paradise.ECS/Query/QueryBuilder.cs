@@ -106,17 +106,15 @@ public readonly ref struct QueryBuilder<TMask> where TMask : unmanaged, IBitSet<
     /// <summary>
     /// Builds a query from this description.
     /// </summary>
-    /// <typeparam name="TRegistry">The component registry type.</typeparam>
     /// <typeparam name="TConfig">The world configuration type.</typeparam>
     /// <typeparam name="TArchetype">The concrete archetype type.</typeparam>
     /// <param name="archetypeRegistry">The archetype registry to query.</param>
     /// <returns>A cached query that matches archetypes based on this description.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query<TMask, TRegistry, TConfig, TArchetype> Build<TRegistry, TConfig, TArchetype>(
-        IArchetypeRegistry<TMask, TRegistry, TConfig, TArchetype> archetypeRegistry)
-        where TRegistry : IComponentRegistry
+    public Query<TMask, TConfig, TArchetype> Build<TConfig, TArchetype>(
+        IArchetypeRegistry<TMask, TConfig, TArchetype> archetypeRegistry)
         where TConfig : IConfig, new()
-        where TArchetype : class, IArchetype<TMask, TRegistry, TConfig>
+        where TArchetype : class, IArchetype<TMask, TConfig>
         => archetypeRegistry.GetOrCreateQuery((HashedKey<ImmutableQueryDescription<TMask>>)_description);
 
     /// <summary>

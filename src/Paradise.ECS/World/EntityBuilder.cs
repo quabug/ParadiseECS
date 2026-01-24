@@ -20,20 +20,18 @@ public interface IComponentsBuilder
     /// Writes component data to the entity's chunk location.
     /// </summary>
     /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-    /// <typeparam name="TRegistry">The component registry type.</typeparam>
     /// <typeparam name="TConfig">The world configuration type.</typeparam>
     /// <typeparam name="TChunkManager">The chunk manager type.</typeparam>
     /// <param name="chunkManager">The chunk manager for memory access.</param>
     /// <param name="layout">The archetype layout with component offsets.</param>
     /// <param name="chunkHandle">The chunk where data should be written.</param>
     /// <param name="indexInChunk">The entity's index within the chunk.</param>
-    void WriteComponents<TMask, TRegistry, TConfig, TChunkManager>(
+    void WriteComponents<TMask, TConfig, TChunkManager>(
         TChunkManager chunkManager,
-        ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,
+        ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
         where TMask : unmanaged, IBitSet<TMask>
-        where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TChunkManager : IChunkManager;
 }
@@ -61,13 +59,12 @@ public readonly struct EntityBuilder : IComponentsBuilder
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void WriteComponents<TMask, TRegistry, TConfig, TChunkManager>(
+    public void WriteComponents<TMask, TConfig, TChunkManager>(
         TChunkManager chunkManager,
-        ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,
+        ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
         where TMask : unmanaged, IBitSet<TMask>
-        where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TChunkManager : IChunkManager
     {
@@ -118,13 +115,12 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void WriteComponents<TMask, TRegistry, TConfig, TChunkManager>(
+    public void WriteComponents<TMask, TConfig, TChunkManager>(
         TChunkManager chunkManager,
-        ImmutableArchetypeLayout<TMask, TRegistry, TConfig> layout,
+        ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunkHandle,
         int indexInChunk)
         where TMask : unmanaged, IBitSet<TMask>
-        where TRegistry : IComponentRegistry
         where TConfig : IConfig, new()
         where TChunkManager : IChunkManager
     {
@@ -138,7 +134,7 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
             return;
 
         // Write this component
-        int offset = layout.GetEntityComponentOffset<TComponent>(indexInChunk);
+        int offset = layout.GetBaseOffset(TComponent.TypeId) + indexInChunk * TComponent.Size;
         chunkManager.GetBytes(chunkHandle).GetRef<TComponent>(offset) = Value;
     }
 }

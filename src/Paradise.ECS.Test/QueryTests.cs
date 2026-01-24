@@ -7,12 +7,12 @@ public sealed class QueryTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
-    private readonly ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _registry;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata = new(ComponentRegistry.Shared.TypeInfos, s_config);
+    private readonly ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig> _registry;
 
     public QueryTests()
     {
-        _registry = new ArchetypeRegistry<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(_sharedMetadata, _chunkManager);
+        _registry = new ArchetypeRegistry<SmallBitSet<ulong>, DefaultConfig>(_sharedMetadata, _chunkManager);
     }
 
     public void Dispose()

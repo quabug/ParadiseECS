@@ -5,14 +5,12 @@ namespace Paradise.ECS;
 /// Manages unique archetypes and provides lookup by component mask.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type that provides component type information.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 /// <typeparam name="TArchetype">The concrete archetype type.</typeparam>
-public interface IArchetypeRegistry<TMask, TRegistry, TConfig, TArchetype>
+public interface IArchetypeRegistry<TMask, TConfig, TArchetype>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
-    where TArchetype : class, IArchetype<TMask, TRegistry, TConfig>
+    where TArchetype : class, IArchetype<TMask, TConfig>
 {
     /// <summary>
     /// Gets or creates an archetype for the given component mask.
@@ -52,5 +50,5 @@ public interface IArchetypeRegistry<TMask, TRegistry, TConfig, TArchetype>
     /// </summary>
     /// <param name="description">The query description defining matching criteria.</param>
     /// <returns>The query for this description.</returns>
-    Query<TMask, TRegistry, TConfig, TArchetype> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TMask>> description);
+    Query<TMask, TConfig, TArchetype> GetOrCreateQuery(HashedKey<ImmutableQueryDescription<TMask>> description);
 }

@@ -7,12 +7,12 @@ public sealed class WorldComponentTests : IDisposable
 {
     private static readonly DefaultConfig s_config = new();
     private readonly ChunkManager _chunkManager = ChunkManager.Create(s_config);
-    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _sharedMetadata = new(s_config);
-    private readonly World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig> _world;
+    private readonly SharedArchetypeMetadata<SmallBitSet<ulong>, DefaultConfig> _sharedMetadata = new(ComponentRegistry.Shared.TypeInfos, s_config);
+    private readonly World<SmallBitSet<ulong>, DefaultConfig> _world;
 
     public WorldComponentTests()
     {
-        _world = new World<SmallBitSet<ulong>, ComponentRegistry, DefaultConfig>(
+        _world = new World<SmallBitSet<ulong>, DefaultConfig>(
             s_config,
             _sharedMetadata,
             _chunkManager);

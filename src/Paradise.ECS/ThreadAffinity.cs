@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
-namespace Paradise.ECS.Concurrent;
+namespace Paradise.ECS;
 
 /// <summary>
 /// A debug-only utility for asserting single-thread access to non-thread-safe types.

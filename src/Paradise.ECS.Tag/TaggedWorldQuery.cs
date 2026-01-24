@@ -6,19 +6,17 @@ namespace Paradise.ECS;
 /// A query that filters entities by both component constraints and tag constraints.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-/// <typeparam name="TRegistry">The component registry type.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
 /// <typeparam name="TEntityTags">The EntityTags component type.</typeparam>
 /// <typeparam name="TTagMask">The tag mask type.</typeparam>
-public readonly struct TaggedWorldQuery<TMask, TRegistry, TConfig, TEntityTags, TTagMask>
+public readonly struct TaggedWorldQuery<TMask, TConfig, TEntityTags, TTagMask>
     where TMask : unmanaged, IBitSet<TMask>
-    where TRegistry : IComponentRegistry
     where TConfig : IConfig, new()
     where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
     where TTagMask : unmanaged, IBitSet<TTagMask>
 {
-    private readonly TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> _taggedWorld;
-    private readonly Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> _query;
+    private readonly TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> _taggedWorld;
+    private readonly Query<TMask, TConfig, Archetype<TMask, TConfig>> _query;
     private readonly TTagMask _requiredTags;
 
     /// <summary>
@@ -26,8 +24,8 @@ public readonly struct TaggedWorldQuery<TMask, TRegistry, TConfig, TEntityTags, 
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal TaggedWorldQuery(
-        TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> taggedWorld,
-        Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> query,
+        TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld,
+        Query<TMask, TConfig, Archetype<TMask, TConfig>> query,
         TTagMask requiredTags)
     {
         _taggedWorld = taggedWorld;
@@ -38,7 +36,7 @@ public readonly struct TaggedWorldQuery<TMask, TRegistry, TConfig, TEntityTags, 
     /// <summary>
     /// Gets the underlying component query.
     /// </summary>
-    public Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> Query
+    public Query<TMask, TConfig, Archetype<TMask, TConfig>> Query
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => _query;
@@ -64,14 +62,14 @@ public readonly struct TaggedWorldQuery<TMask, TRegistry, TConfig, TEntityTags, 
     /// </summary>
     public ref struct Enumerator
     {
-        private readonly TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> _taggedWorld;
+        private readonly TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> _taggedWorld;
         private readonly TTagMask _requiredTags;
-        private Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>>.EntityIdEnumerator _inner;
+        private Query<TMask, TConfig, Archetype<TMask, TConfig>>.EntityIdEnumerator _inner;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal Enumerator(
-            TaggedWorld<TMask, TRegistry, TConfig, TEntityTags, TTagMask> taggedWorld,
-            Query<TMask, TRegistry, TConfig, Archetype<TMask, TRegistry, TConfig>> query,
+            TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld,
+            Query<TMask, TConfig, Archetype<TMask, TConfig>> query,
             TTagMask requiredTags)
         {
             _taggedWorld = taggedWorld;
@@ -82,7 +80,7 @@ public readonly struct TaggedWorldQuery<TMask, TRegistry, TConfig, TEntityTags, 
         /// <summary>
         /// Gets the current WorldEntity.
         /// </summary>
-        public WorldEntity<TMask, TRegistry, TConfig> Current
+        public WorldEntity<TMask, TConfig> Current
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => new(_taggedWorld.World, _taggedWorld.World.GetEntity(_inner.Current));
