@@ -43,6 +43,11 @@ public sealed class ArchetypeRegistry<TMask, TConfig>
     internal IReadOnlyList<Archetype<TMask, TConfig>?> Archetypes => _archetypes;
 
     /// <summary>
+    /// Gets the shared metadata used by this registry.
+    /// </summary>
+    internal SharedArchetypeMetadata<TMask, TConfig> SharedMetadata => _sharedMetadata;
+
+    /// <summary>
     /// Gets or creates an archetype for the given component mask.
     /// </summary>
     /// <param name="mask">The component mask defining the archetype.</param>
@@ -173,6 +178,47 @@ public sealed class ArchetypeRegistry<TMask, TConfig>
         _archetypes.Clear();
         _queryCache.Clear();
         _tempMatchedQueries.Clear();
+    }
+
+    /// <summary>
+    /// Copies all archetype data (chunks and entity counts) from the source registry to this registry.
+    /// Both registries must share the same SharedArchetypeMetadata.
+    /// This registry should be cleared before calling this method.
+    /// </summary>
+    /// <param name="source">The source registry to copy from.</param>
+    internal void CopyFrom(ArchetypeRegistry<TMask, TConfig> source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        CopyFrom(source, source._chunkManager);
+    }
+
+    /// <summary>
+    /// Copies all archetype data (chunks and entity counts) from the source registry to this registry
+    /// using the specified chunk manager for reading source data.
+    /// Both registries must share the same SharedArchetypeMetadata.
+    /// This registry should be cleared before calling this method.
+    /// </summary>
+    /// <param name="source">The source registry to copy from.</param>
+    /// <param name="sourceChunkManager">The chunk manager to use for reading source chunk data.</param>
+    internal void CopyFrom(ArchetypeRegistry<TMask, TConfig> source, ChunkManager sourceChunkManager)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(sourceChunkManager);
+
+        // Iterate through all archetypes and copy their chunk data
+        for (int i = 0; i < source._archetypes.Count; i++)
+        {
+            var sourceArchetype = source._archetypes[i];
+            if (sourceArchetype == null)
+                continue;
+
+            // Get or create archetype in this registry (uses shared metadata so IDs match)
+            // TODO: Use HashedKey<TMask> as type of ComponentMask to avoid cast (#44)
+            var targetArchetype = GetOrCreate((HashedKey<TMask>)sourceArchetype.Layout.ComponentMask);
+
+            // Copy chunk data from source to this archetype
+            targetArchetype.CopyChunksFrom(sourceArchetype, sourceChunkManager);
+        }
     }
 
     /// <summary>
