@@ -1,6 +1,6 @@
 # Paradise.ECS Roadmap
 
-> Last updated: 2026-01-23
+> Last updated: 2026-01-24
 
 ## Vision
 
@@ -104,10 +104,17 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - Tag-specific APIs: `AddTag<T>()`, `RemoveTag<T>()`, `HasTag<T>()`, `GetTags()`
   - `ComputeStaleBitStatistics()` and `RebuildChunkMasks()` for maintenance
 
-### In Progress
+- [x] **Refactor Generic Parameters** ([#42](https://github.com/quabug/ParadiseECS/pull/42))
+  - Rename generic parameter from `TBits` to `TMask : IBitSet<TMask>` for clarity
+  - Remove `IComponentRegistry` interface - use `ImmutableArray<ComponentTypeInfo>` directly
+  - Remove `Bit64` type, use `SmallBitSet` for small masks
+  - Add `ForEach` API to `IBitSet` for optimized bit iteration
+  - Add `SharedWorld<TMask, TConfig>` for sharing resources across multiple World instances
+  - Add `SharedTaggedWorld` for tagged world variant with shared ChunkTagRegistry
+  - Generate `SharedWorldFactory` helper class and `SharedWorld` global using alias
+  - Add ThreadAffinity assertions to SharedWorld and SharedTaggedWorld
 
-- [~] **Refactor Generic Parameters** (feature/refactor-generic-parameters)
-  - Refactor generic type parameters across the codebase for improved API clarity and consistency
+### In Progress
 
 ### Planned
 
@@ -300,6 +307,7 @@ Minor TODOs in codebase:
 
 ### Recent Activity
 
+- **2026-01-24**: Merged [#42](https://github.com/quabug/ParadiseECS/pull/42) - Refactor TMask generic parameter and add SharedWorld for multi-world support
 - **2026-01-22**: Merged [#38](https://github.com/quabug/ParadiseECS/pull/38) - Add zero-allocation tag system with source generation
 - **2026-01-19**: Merged [#37](https://github.com/quabug/ParadiseECS/pull/37) - Add [SuppressGlobalUsings] attribute to disable global using alias generation
 - **2026-01-19**: Merged [#35](https://github.com/quabug/ParadiseECS/pull/35) - Add QueryableGenerator for compile-time query type registration
