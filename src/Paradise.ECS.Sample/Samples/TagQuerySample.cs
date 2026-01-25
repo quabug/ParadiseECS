@@ -16,7 +16,7 @@ public static class TagQuerySample
         var allEntitiesQuery = QueryBuilder
             .Create()
             .With<EntityTags>()
-            .Build(world.World.ArchetypeRegistry);
+            .Build(world.ArchetypeRegistry);
 
         // Define required tag masks
         var activeTagMask = TagMask.Empty.Set(IsActive.TagId);
@@ -61,7 +61,7 @@ public static class TagQuerySample
             .Create()
             .With<Position>()
             .With<Velocity>()
-            .Build(world);
+            .Build(world.ArchetypeRegistry);
 
         Console.WriteLine($"  Active entities with Position and Velocity:");
         int activeMovableCount = 0;

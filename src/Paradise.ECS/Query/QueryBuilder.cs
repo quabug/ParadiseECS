@@ -121,15 +121,4 @@ public readonly ref struct QueryBuilder<TMask> where TMask : unmanaged, IBitSet<
     /// Implicit conversion to immutable query description.
     /// </summary>
     public static implicit operator ImmutableQueryDescription<TMask>(QueryBuilder<TMask> builder) => builder._description;
-
-    /// <summary>
-    /// Builds a query from this description using the specified world.
-    /// </summary>
-    /// <typeparam name="TConfig">The world configuration type.</typeparam>
-    /// <param name="world">The world to query.</param>
-    /// <returns>A cached query that matches archetypes based on this description.</returns>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Query<TMask, TConfig, Archetype<TMask, TConfig>> Build<TConfig>(World<TMask, TConfig> world)
-        where TConfig : IConfig, new()
-        => world.ArchetypeRegistry.GetOrCreateQuery((HashedKey<ImmutableQueryDescription<TMask>>)_description);
 }

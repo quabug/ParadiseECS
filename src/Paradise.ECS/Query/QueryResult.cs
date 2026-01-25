@@ -7,15 +7,17 @@ namespace Paradise.ECS;
 /// This struct is reused across all queryable types, reducing generated code.
 /// </summary>
 /// <typeparam name="TData">The data type providing component access, must implement IQueryData.</typeparam>
+/// <typeparam name="TArchetype">The archetype type implementing IArchetype.</typeparam>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public readonly ref struct QueryResult<TData, TMask, TConfig>
+public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
     where TData : IQueryData<TData, TMask, TConfig>, allows ref struct
+    where TArchetype : IArchetype<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
     where TConfig : IConfig, new()
 {
     private readonly ChunkManager _chunkManager;
-    private readonly Query<TMask, TConfig, Archetype<TMask, TConfig>> _query;
+    private readonly Query<TMask, TConfig, TArchetype> _query;
 
     /// <summary>
     /// Creates a new query result.
@@ -23,7 +25,7 @@ public readonly ref struct QueryResult<TData, TMask, TConfig>
     /// <param name="chunkManager">The chunk manager for memory access.</param>
     /// <param name="query">The underlying query.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public QueryResult(ChunkManager chunkManager, Query<TMask, TConfig, Archetype<TMask, TConfig>> query)
+    public QueryResult(ChunkManager chunkManager, Query<TMask, TConfig, TArchetype> query)
     {
         _chunkManager = chunkManager;
         _query = query;
@@ -59,14 +61,14 @@ public readonly ref struct QueryResult<TData, TMask, TConfig>
     public ref struct Enumerator
     {
         private readonly ChunkManager _chunkManager;
-        private Query<TMask, TConfig, Archetype<TMask, TConfig>>.ChunkEnumerator _chunkEnumerator;
+        private Query<TMask, TConfig, TArchetype>.ChunkEnumerator _chunkEnumerator;
         private ImmutableArchetypeLayout<TMask, TConfig> _currentLayout;
         private ChunkHandle _currentChunk;
         private int _indexInChunk;
         private int _entitiesInChunk;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Enumerator(ChunkManager chunkManager, Query<TMask, TConfig, Archetype<TMask, TConfig>> query)
+        internal Enumerator(ChunkManager chunkManager, Query<TMask, TConfig, TArchetype> query)
         {
             _chunkManager = chunkManager;
             _chunkEnumerator = query.Chunks.GetEnumerator();
@@ -111,15 +113,17 @@ public readonly ref struct QueryResult<TData, TMask, TConfig>
 /// This struct is reused across all queryable types, reducing generated code.
 /// </summary>
 /// <typeparam name="TChunkData">The chunk data type providing span access, must implement IQueryChunkData.</typeparam>
+/// <typeparam name="TArchetype">The archetype type implementing IArchetype.</typeparam>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public readonly ref struct ChunkQueryResult<TChunkData, TMask, TConfig>
+public readonly ref struct ChunkQueryResult<TChunkData, TArchetype, TMask, TConfig>
     where TChunkData : IQueryChunkData<TChunkData, TMask, TConfig>, allows ref struct
+    where TArchetype : IArchetype<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
     where TConfig : IConfig, new()
 {
     private readonly ChunkManager _chunkManager;
-    private readonly Query<TMask, TConfig, Archetype<TMask, TConfig>> _query;
+    private readonly Query<TMask, TConfig, TArchetype> _query;
 
     /// <summary>
     /// Creates a new chunk query result.
@@ -127,7 +131,7 @@ public readonly ref struct ChunkQueryResult<TChunkData, TMask, TConfig>
     /// <param name="chunkManager">The chunk manager for memory access.</param>
     /// <param name="query">The underlying query.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ChunkQueryResult(ChunkManager chunkManager, Query<TMask, TConfig, Archetype<TMask, TConfig>> query)
+    public ChunkQueryResult(ChunkManager chunkManager, Query<TMask, TConfig, TArchetype> query)
     {
         _chunkManager = chunkManager;
         _query = query;
@@ -163,10 +167,10 @@ public readonly ref struct ChunkQueryResult<TChunkData, TMask, TConfig>
     public ref struct Enumerator
     {
         private readonly ChunkManager _chunkManager;
-        private Query<TMask, TConfig, Archetype<TMask, TConfig>>.ChunkEnumerator _chunkEnumerator;
+        private Query<TMask, TConfig, TArchetype>.ChunkEnumerator _chunkEnumerator;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Enumerator(ChunkManager chunkManager, Query<TMask, TConfig, Archetype<TMask, TConfig>> query)
+        internal Enumerator(ChunkManager chunkManager, Query<TMask, TConfig, TArchetype> query)
         {
             _chunkManager = chunkManager;
             _chunkEnumerator = query.Chunks.GetEnumerator();
