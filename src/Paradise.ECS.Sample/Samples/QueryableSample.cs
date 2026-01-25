@@ -19,7 +19,7 @@ public static class QueryableSample
         // =========================================================================
         Console.WriteLine("  Entity-level iteration (Movable.Query):");
 
-        var movableQuery = world.Query(Movable._);
+        var movableQuery = world.Query(default(Movable));
         Console.WriteLine($"    Movable entity count: {movableQuery.EntityCount}");
         // Note: Player was overwritten in EntityOverwriteSample and lost Velocity,
         // so only 4 enemies match (1 enemy was despawned in EntityLifecycleSample)
@@ -40,7 +40,7 @@ public static class QueryableSample
         // =========================================================================
         Console.WriteLine("  Optional component access (Damageable.Query):");
 
-        var damageableQuery = world.Query(Damageable._);
+        var damageableQuery = world.Query(default(Damageable));
         Console.WriteLine($"    Damageable entity count: {damageableQuery.EntityCount}");
 
         foreach (var data in damageableQuery)
@@ -66,7 +66,7 @@ public static class QueryableSample
         // =========================================================================
         Console.WriteLine("  Chunk-level iteration (Movable.ChunkQuery):");
 
-        var chunkQuery = world.ChunkQuery(Movable._);
+        var chunkQuery = world.ChunkQuery(default(Movable));
         Console.WriteLine($"    Total entities across chunks: {chunkQuery.EntityCount}");
 
         int chunkIndex = 0;

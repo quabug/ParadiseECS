@@ -358,19 +358,11 @@ public class QueryableGenerator : IIncrementalGenerator
             indent += "    ";
         }
 
-        // Generate the selector marker struct
-        sb.AppendLine($"{indent}/// <summary>Marker struct for {queryable.TypeName} query selection. Use with world.Query({queryable.TypeName}._).</summary>");
-        sb.AppendLine($"{indent}public readonly struct {queryable.TypeName}Selector {{ }}");
-        sb.AppendLine();
-
         // Generate the partial ref struct with QueryableId and Query/ChunkQuery static methods
         sb.AppendLine($"{indent}partial struct {queryable.TypeName}");
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{indent}    /// <summary>The unique queryable type ID.</summary>");
         sb.AppendLine($"{indent}    public static int QueryableId => {typeId};");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    /// <summary>Selector for use with world.Query({queryable.TypeName}._) and world.ChunkQuery({queryable.TypeName}._).</summary>");
-        sb.AppendLine($"{indent}    public static {queryable.TypeName}Selector _ => default;");
         sb.AppendLine();
 
         // Generate static Query method
@@ -386,11 +378,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}        where TWorld : global::Paradise.ECS.IWorld<TMask, TConfig>");
         sb.AppendLine($"{indent}        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}        where TConfig : global::Paradise.ECS.IConfig, new()");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[QueryableId];");
-        sb.AppendLine($"{indent}        var query = world.ArchetypeRegistry.GetOrCreateQuery(hashedDescription);");
-        sb.AppendLine($"{indent}        return new global::Paradise.ECS.QueryResult<Data<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig>(world.ChunkManager, query);");
-        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine($"{indent}        => global::Paradise.ECS.QueryHelpers.CreateQueryResult<Data<TMask, TConfig>, TMask, TConfig>(world, global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[QueryableId]);");
         sb.AppendLine();
 
         // Generate static ChunkQuery method
@@ -406,11 +394,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}        where TWorld : global::Paradise.ECS.IWorld<TMask, TConfig>");
         sb.AppendLine($"{indent}        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}        where TConfig : global::Paradise.ECS.IConfig, new()");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[QueryableId];");
-        sb.AppendLine($"{indent}        var query = world.ArchetypeRegistry.GetOrCreateQuery(hashedDescription);");
-        sb.AppendLine($"{indent}        return new global::Paradise.ECS.ChunkQueryResult<ChunkData<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig>(world.ChunkManager, query);");
-        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine($"{indent}        => global::Paradise.ECS.QueryHelpers.CreateChunkQueryResult<ChunkData<TMask, TConfig>, TMask, TConfig>(world, global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[QueryableId]);");
         sb.AppendLine();
 
         // Generate nested Data<TMask, TConfig> struct implementing IQueryData
@@ -434,9 +418,45 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine("}");
         }
 
+        // Generate extension methods in Paradise.ECS namespace
+        sb.AppendLine();
+        GenerateQueryableExtensionMethods(sb, queryable);
+
         // Generate filename
         var filename = "Queryable_" + queryable.FullyQualifiedName.Replace(".", "_").Replace("+", "_") + ".g.cs";
         context.AddSource(filename, sb.ToString());
+    }
+
+    private static void GenerateQueryableExtensionMethods(StringBuilder sb, QueryableInfo queryable)
+    {
+        var queryableName = queryable.TypeName;
+        var fullyQualifiedName = "global::" + queryable.FullyQualifiedName.Replace("+", ".");
+
+        sb.AppendLine("namespace Paradise.ECS");
+        sb.AppendLine("{");
+        sb.AppendLine($"    /// <summary>Extension methods for querying {queryableName} entities.</summary>");
+        sb.AppendLine($"    public static class {queryable.HelperStructPrefix}QueryableExtensions");
+        sb.AppendLine("    {");
+
+        // Generate Query extension method
+        sb.AppendLine($"        /// <summary>Queries for {queryableName} entities using entity-level iteration.</summary>");
+        sb.AppendLine($"        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"        public static global::Paradise.ECS.QueryResult<{fullyQualifiedName}.Data<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig> Query<TMask, TConfig>(");
+        sb.AppendLine($"            this global::Paradise.ECS.IWorld<TMask, TConfig> world, {fullyQualifiedName} selector)");
+        sb.AppendLine($"            where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask> where TConfig : global::Paradise.ECS.IConfig, new()");
+        sb.AppendLine($"            => global::Paradise.ECS.QueryHelpers.CreateQueryResult<{fullyQualifiedName}.Data<TMask, TConfig>, TMask, TConfig>(world, global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[{fullyQualifiedName}.QueryableId]);");
+        sb.AppendLine();
+
+        // Generate ChunkQuery extension method
+        sb.AppendLine($"        /// <summary>Queries for {queryableName} entities using chunk-level iteration.</summary>");
+        sb.AppendLine($"        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"        public static global::Paradise.ECS.ChunkQueryResult<{fullyQualifiedName}.ChunkData<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig> ChunkQuery<TMask, TConfig>(");
+        sb.AppendLine($"            this global::Paradise.ECS.IWorld<TMask, TConfig> world, {fullyQualifiedName} selector)");
+        sb.AppendLine($"            where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask> where TConfig : global::Paradise.ECS.IConfig, new()");
+        sb.AppendLine($"            => global::Paradise.ECS.QueryHelpers.CreateChunkQueryResult<{fullyQualifiedName}.ChunkData<TMask, TConfig>, TMask, TConfig>(world, global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[{fullyQualifiedName}.QueryableId]);");
+
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
     }
 
     private static void GenerateNestedDataStruct(StringBuilder sb, QueryableInfo queryable, string indent)
@@ -711,7 +731,6 @@ public class QueryableGenerator : IIncrementalGenerator
         // Generate type alias and module initializer in separate files
         GenerateQueryableAliases(context, componentCount, suppressGlobalUsings);
         GenerateModuleInitializer(context, queryables);
-        GenerateQueryableExtensions(context, queryables);
     }
 
     private static void GenerateQueryableAliases(SourceProductionContext context, int componentCount, bool suppressGlobalUsings)
@@ -764,78 +783,6 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine("}");
 
         context.AddSource("QueryableRegistryInitializer.g.cs", sb.ToString());
-    }
-
-    private static void GenerateQueryableExtensions(
-        SourceProductionContext context,
-        List<(QueryableInfo Info, int TypeId)> queryables)
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("// <auto-generated/>");
-        sb.AppendLine("#nullable enable");
-        sb.AppendLine();
-        sb.AppendLine("namespace Paradise.ECS;");
-        sb.AppendLine();
-        sb.AppendLine("/// <summary>");
-        sb.AppendLine("/// Extension methods for querying entities using generated queryable types.");
-        sb.AppendLine("/// These methods provide type inference for TMask and TConfig from the world.");
-        sb.AppendLine("/// </summary>");
-        sb.AppendLine("public static class QueryableExtensions");
-        sb.AppendLine("{");
-
-        foreach (var (info, _) in queryables)
-        {
-            var queryableName = info.TypeName;
-            var fullyQualifiedName = "global::" + info.FullyQualifiedName.Replace("+", ".");
-            // Selector type is in the same namespace as the queryable
-            var selectorFullName = info.Namespace != null
-                ? $"global::{info.Namespace}.{queryableName}Selector"
-                : $"global::{queryableName}Selector";
-
-            // Generate Query extension method
-            sb.AppendLine($"    /// <summary>Queries for {queryableName} entities using entity-level iteration.</summary>");
-            sb.AppendLine($"    /// <typeparam name=\"TMask\">The component mask type (inferred from world).</typeparam>");
-            sb.AppendLine($"    /// <typeparam name=\"TConfig\">The world configuration type (inferred from world).</typeparam>");
-            sb.AppendLine($"    /// <param name=\"world\">The world to query.</param>");
-            sb.AppendLine($"    /// <param name=\"selector\">The queryable selector (use {queryableName}._).</param>");
-            sb.AppendLine($"    /// <returns>A query result that iterates over {queryableName}.Data instances.</returns>");
-            sb.AppendLine($"    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-            sb.AppendLine($"    public static global::Paradise.ECS.QueryResult<{fullyQualifiedName}.Data<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig> Query<TMask, TConfig>(");
-            sb.AppendLine($"        this global::Paradise.ECS.IWorld<TMask, TConfig> world,");
-            sb.AppendLine($"        {selectorFullName} selector)");
-            sb.AppendLine($"        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
-            sb.AppendLine($"        where TConfig : global::Paradise.ECS.IConfig, new()");
-            sb.AppendLine($"    {{");
-            sb.AppendLine($"        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[{fullyQualifiedName}.QueryableId];");
-            sb.AppendLine($"        var query = world.ArchetypeRegistry.GetOrCreateQuery(hashedDescription);");
-            sb.AppendLine($"        return new global::Paradise.ECS.QueryResult<{fullyQualifiedName}.Data<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig>(world.ChunkManager, query);");
-            sb.AppendLine($"    }}");
-            sb.AppendLine();
-
-            // Generate ChunkQuery extension method
-            sb.AppendLine($"    /// <summary>Queries for {queryableName} entities using chunk-level iteration for batch processing.</summary>");
-            sb.AppendLine($"    /// <typeparam name=\"TMask\">The component mask type (inferred from world).</typeparam>");
-            sb.AppendLine($"    /// <typeparam name=\"TConfig\">The world configuration type (inferred from world).</typeparam>");
-            sb.AppendLine($"    /// <param name=\"world\">The world to query.</param>");
-            sb.AppendLine($"    /// <param name=\"selector\">The queryable selector (use {queryableName}._).</param>");
-            sb.AppendLine($"    /// <returns>A chunk query result that iterates over {queryableName}.ChunkData instances.</returns>");
-            sb.AppendLine($"    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-            sb.AppendLine($"    public static global::Paradise.ECS.ChunkQueryResult<{fullyQualifiedName}.ChunkData<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig> ChunkQuery<TMask, TConfig>(");
-            sb.AppendLine($"        this global::Paradise.ECS.IWorld<TMask, TConfig> world,");
-            sb.AppendLine($"        {selectorFullName} selector)");
-            sb.AppendLine($"        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
-            sb.AppendLine($"        where TConfig : global::Paradise.ECS.IConfig, new()");
-            sb.AppendLine($"    {{");
-            sb.AppendLine($"        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[{fullyQualifiedName}.QueryableId];");
-            sb.AppendLine($"        var query = world.ArchetypeRegistry.GetOrCreateQuery(hashedDescription);");
-            sb.AppendLine($"        return new global::Paradise.ECS.ChunkQueryResult<{fullyQualifiedName}.ChunkData<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig>(world.ChunkManager, query);");
-            sb.AppendLine($"    }}");
-            sb.AppendLine();
-        }
-
-        sb.AppendLine("}");
-
-        context.AddSource("QueryableExtensions.g.cs", sb.ToString());
     }
 
     private static void GenerateMask(StringBuilder sb, ImmutableArray<string> components)
