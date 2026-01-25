@@ -268,7 +268,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddTag<TTag>(Entity entity) where TTag : ITag
     {
-        ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
+        ref var tags = ref _world.GetComponent<TEntityTags>(entity);
         // TODO: use mutable tag mask?
         tags.Mask = tags.Mask.Set(TTag.TagId);
 
@@ -292,7 +292,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RemoveTag<TTag>(Entity entity) where TTag : ITag
     {
-        ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
+        ref var tags = ref _world.GetComponent<TEntityTags>(entity);
         // TODO: use mutable tag mask?
         tags.Mask = tags.Mask.Clear(TTag.TagId);
         // Chunk mask not recomputed (sticky mask) - may have stale bits
@@ -307,7 +307,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasTag<TTag>(Entity entity) where TTag : ITag
     {
-        ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
+        ref var tags = ref _world.GetComponent<TEntityTags>(entity);
         return tags.Mask.Get(TTag.TagId);
     }
 
@@ -333,7 +333,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     /// </remarks>
     public void SetTags(Entity entity, TTagMask tags)
     {
-        ref var entityTags = ref _world.GetComponentRef<TEntityTags>(entity);
+        ref var entityTags = ref _world.GetComponent<TEntityTags>(entity);
         var oldMask = entityTags.Mask;
         entityTags.Mask = tags;
 
@@ -349,25 +349,11 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     }
 
     /// <summary>
-    /// Gets a component value from an entity.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
-        => _world.GetComponent<T>(entity);
-
-    /// <summary>
     /// Gets a reference to a component on an entity.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetComponentRef<T>(Entity entity) where T : unmanaged, IComponent
-        => ref _world.GetComponentRef<T>(entity);
-
-    /// <summary>
-    /// Sets a component value on an entity.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
-        => _world.SetComponent(entity, value);
+    public ref T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
+        => ref _world.GetComponent<T>(entity);
 
     /// <summary>
     /// Checks if an entity has a component.

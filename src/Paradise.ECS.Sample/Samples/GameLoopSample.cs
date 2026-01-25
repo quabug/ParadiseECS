@@ -18,7 +18,7 @@ public static class GameLoopSample
             foreach (var entityId in movableQuery)
             {
                 var entity = world.World.GetEntity(entityId);
-                ref var pos = ref world.GetComponentRef<Position>(entity);
+                ref var pos = ref world.GetComponent<Position>(entity);
                 var vel = world.GetComponent<Velocity>(entity);
                 pos = new Position(pos.X + vel.X, pos.Y + vel.Y);
                 movedEntities++;

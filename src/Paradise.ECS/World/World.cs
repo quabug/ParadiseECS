@@ -258,20 +258,6 @@ public sealed class World<TMask, TConfig>
     }
 
     /// <summary>
-    /// Gets a component value from an entity.
-    /// </summary>
-    /// <typeparam name="T">The component type.</typeparam>
-    /// <param name="entity">The entity.</param>
-    /// <returns>The component value.</returns>
-    /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
-    {
-        var (handle, offset) = GetComponentLocation<T>(entity);
-        return _chunkManager.GetBytes(handle).GetRef<T>(offset);
-    }
-
-    /// <summary>
     /// Gets a reference to a component on an entity.
     /// </summary>
     /// <typeparam name="T">The component type.</typeparam>
@@ -279,24 +265,10 @@ public sealed class World<TMask, TConfig>
     /// <returns>A reference to the component.</returns>
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetComponentRef<T>(Entity entity) where T : unmanaged, IComponent
+    public ref T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         var (handle, offset) = GetComponentLocation<T>(entity);
         return ref _chunkManager.GetBytes(handle).GetRef<T>(offset);
-    }
-
-    /// <summary>
-    /// Sets a component value on an entity.
-    /// </summary>
-    /// <typeparam name="T">The component type.</typeparam>
-    /// <param name="entity">The entity.</param>
-    /// <param name="value">The component value.</param>
-    /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
-    {
-        var (handle, offset) = GetComponentLocation<T>(entity);
-        _chunkManager.GetBytes(handle).GetRef<T>(offset) = value;
     }
 
     /// <summary>

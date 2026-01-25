@@ -599,7 +599,7 @@ public sealed class TaggedWorldTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestHealth { Current = 100, Max = 100 });
 
-        _world.SetComponent(entity, new TestHealth { Current = 50, Max = 100 });
+        _world.GetComponent<TestHealth>(entity) = new TestHealth { Current = 50, Max = 100 };
 
         var health = _world.GetComponent<TestHealth>(entity);
         await Assert.That(health.Current).IsEqualTo(50);
@@ -611,7 +611,7 @@ public sealed class TaggedWorldTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestHealth { Current = 100, Max = 100 });
 
-        ref var health = ref _world.GetComponentRef<TestHealth>(entity);
+        ref var health = ref _world.GetComponent<TestHealth>(entity);
         health.Current = 75;
 
         var updated = _world.GetComponent<TestHealth>(entity);
