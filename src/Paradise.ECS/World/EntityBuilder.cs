@@ -140,7 +140,55 @@ public readonly struct WithComponent<TComponent, TInnerBuilder> : IComponentsBui
 }
 
 /// <summary>
-/// Extension providing fluent Add methods for component builders.
+/// Builder that wraps an inner builder and ensures a component type exists with default value.
+/// Created by calling the Ensure extension method on a builder.
+/// Unlike WithComponent, this doesn't store a value - it relies on zero-initialized chunk memory.
+/// </summary>
+/// <typeparam name="TComponent">The component type to ensure.</typeparam>
+/// <typeparam name="TInnerBuilder">The wrapped builder type.</typeparam>
+public readonly struct EnsureComponent<TComponent, TInnerBuilder> : IComponentsBuilder
+    where TComponent : unmanaged, IComponent
+    where TInnerBuilder : unmanaged, IComponentsBuilder
+{
+    /// <summary>
+    /// The inner builder that this wraps.
+    /// </summary>
+    public TInnerBuilder InnerBuilder
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        init;
+    }
+
+    /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void CollectTypes<TMask>(ref TMask mask)
+        where TMask : unmanaged, IBitSet<TMask>
+    {
+        InnerBuilder.CollectTypes(ref mask);
+        mask = mask.Set(TComponent.TypeId);
+    }
+
+    /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void WriteComponents<TMask, TConfig, TChunkManager>(
+        TChunkManager chunkManager,
+        ImmutableArchetypeLayout<TMask, TConfig> layout,
+        ChunkHandle chunkHandle,
+        int indexInChunk)
+        where TMask : unmanaged, IBitSet<TMask>
+        where TConfig : IConfig, new()
+        where TChunkManager : IChunkManager
+    {
+        // Write inner components first
+        InnerBuilder.WriteComponents(chunkManager, layout, chunkHandle, indexInChunk);
+        // No write needed - chunk memory is zero-initialized, so component has default value
+    }
+}
+
+/// <summary>
+/// Extension providing fluent Add and Ensure methods for component builders.
 /// </summary>
 public static class ComponentsBuilderExtensions
 {
@@ -160,6 +208,22 @@ public static class ComponentsBuilderExtensions
             return new WithComponent<TComponent, TBuilder>
             {
                 Value = value,
+                InnerBuilder = builder
+            };
+        }
+
+        /// <summary>
+        /// Ensures a component type exists on the entity with its default (zero-initialized) value.
+        /// Use this for components where you don't need to specify an initial value.
+        /// </summary>
+        /// <typeparam name="TComponent">The component type to ensure.</typeparam>
+        /// <returns>A new builder with the component type added.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public EnsureComponent<TComponent, TBuilder> Ensure<TComponent>()
+            where TComponent : unmanaged, IComponent
+        {
+            return new EnsureComponent<TComponent, TBuilder>
+            {
                 InnerBuilder = builder
             };
         }

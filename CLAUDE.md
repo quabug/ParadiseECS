@@ -156,6 +156,7 @@ IIncrementalGenerator that processes `[Component]` attributes:
 - **Sealed by Default**: Seal classes unless inheritance is explicitly needed
 - **File-scoped Namespaces**: Always use `namespace Paradise.ECS;` style
 - **Allman Braces**: Opening braces on new line, 4-space indentation
+- **No Regions**: Do not use `#region`/`#endregion` directives
 - **TUnit Framework**: Tests use TUnit (AOT-compatible), not xUnit/NUnit
 
 ### XML Documentation

@@ -16,11 +16,12 @@ public static class EntityOverwriteSample
         Console.WriteLine($"  Player has Velocity: {world.HasComponent<Velocity>(playerEntity)}");
         Debug.Assert(world.HasComponent<Velocity>(playerEntity));
 
-        EntityBuilder.Create()
-            .Add(new Position(0, 0))
-            .Add(new Health(200))
-            .AddTag(default(PlayerTag), world)
-            .Overwrite(playerEntity, world);
+        world.OverwriteEntity(playerEntity,
+            EntityBuilder.Create()
+                .Add(new Position(0, 0))
+                .Add(new Health(200))
+                .AddTag(default(PlayerTag))
+        );
 
         Console.WriteLine($"  Player after overwrite - Position: {world.GetComponent<Position>(playerEntity)}");
         Console.WriteLine($"  Player has Velocity: {world.HasComponent<Velocity>(playerEntity)}");

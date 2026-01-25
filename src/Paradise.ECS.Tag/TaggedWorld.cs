@@ -78,7 +78,7 @@ public readonly record struct StaleBitStatistics(
 /// Tags are stored in a per-entity bitmask component, enabling O(1) tag operations
 /// without archetype changes.
 /// </remarks>
-public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
+public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : IWorld<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
     where TConfig : IConfig, new()
     where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
@@ -116,6 +116,11 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     public ArchetypeRegistry<TMask, TConfig> ArchetypeRegistry => _world.ArchetypeRegistry;
 
     /// <summary>
+    /// Gets the chunk manager for memory allocation and chunk access.
+    /// </summary>
+    public ChunkManager ChunkManager => _world.ChunkManager;
+
+    /// <summary>
     /// Gets the chunk tag registry for per-chunk tag filtering.
     /// </summary>
     public ChunkTagRegistry<TTagMask> ChunkTagRegistry => _chunkTagRegistry;
@@ -132,7 +137,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     public Entity Spawn()
     {
         var entity = _world.Spawn();
-        _world.AddComponent<TEntityTags>(entity, default);
+        _world.AddComponent<TEntityTags>(entity);
         return entity;
     }
 
@@ -375,6 +380,27 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RemoveComponent<T>(Entity entity) where T : unmanaged, IComponent
         => _world.RemoveComponent<T>(entity);
+
+    /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Entity CreateEntity<TBuilder>(TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
+    {
+        var wrappedBuilder = new EnsureComponent<TEntityTags, TBuilder> { InnerBuilder = builder };
+        return _world.CreateEntity(wrappedBuilder);
+    }
+
+    /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Entity OverwriteEntity<TBuilder>(Entity entity, TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
+    {
+        var wrappedBuilder = new EnsureComponent<TEntityTags, TBuilder> { InnerBuilder = builder };
+        return _world.OverwriteEntity(entity, wrappedBuilder);
+    }
+
+    /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Entity AddComponents<TBuilder>(Entity entity, TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
+        => _world.AddComponents(entity, builder);
 
     /// <summary>
     /// Gets the chunk handle for an entity.

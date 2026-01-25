@@ -20,14 +20,16 @@ public static class EntityCreationSample
         Debug.Assert(world.IsAlive(emptyEntity));
 
         // Create player entity with components and tags using builder
-        var playerEntity = EntityBuilder.Create()
-            .Add(new Position(100, 200))
-            .Add(new Velocity(5, 0))
-            .Add(new Health(100))
-            .Add(new Name("Hero"))
-            .AddTag(default(PlayerTag), world)
-            .AddTag(default(IsActive), world)
-            .Build(world);
+        var playerEntity = world.CreateEntity(
+            EntityBuilder.Create()
+                .Add(new Position(100, 200))
+                .Add(new Velocity(5, 0))
+                .Add(new Health(100))
+                .Add(new Name("Hero"))
+                .AddTag(default(PlayerTag))
+                .AddTag(default(IsActive))
+        );
+
         Console.WriteLine($"  Created player entity: {playerEntity}");
         Console.WriteLine($"  Entity count: {world.EntityCount}");
         Debug.Assert(world.EntityCount == 2);
@@ -37,13 +39,14 @@ public static class EntityCreationSample
         var enemies = new Entity[5];
         for (int i = 0; i < enemies.Length; i++)
         {
-            enemies[i] = EntityBuilder.Create()
-                .Add(new Position(i * 50, 300))
-                .Add(new Velocity(-2, 0))
-                .Add(new Health(50))
-                .AddTag(default(EnemyTag), world)
-                .AddTag(default(IsActive))
-                .Build(world);
+            enemies[i] = world.CreateEntity(
+                EntityBuilder.Create()
+                    .Add(new Position(i * 50, 300))
+                    .Add(new Velocity(-2, 0))
+                    .Add(new Health(50))
+                    .AddTag(default(EnemyTag))
+                    .AddTag(default(IsActive))
+            );
         }
         Console.WriteLine($"  Created {enemies.Length} enemy entities");
         Console.WriteLine($"  Entity count: {world.EntityCount}");

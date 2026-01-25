@@ -175,7 +175,7 @@ public sealed class EntityIdByteSizeTests
 
         // Creating entity with builder should also throw
         var builder = EntityBuilder.Create().Add(new TestPosition());
-        await Assert.That(() => builder.Build(world))
+        await Assert.That(() => world.CreateEntity(builder))
             .Throws<InvalidOperationException>()
             .WithMessageContaining("Entity ID 256 exceeds maximum of 255", StringComparison.Ordinal);
     }

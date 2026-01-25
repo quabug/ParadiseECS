@@ -10,7 +10,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public sealed class World<TMask, TConfig>
+public sealed class World<TMask, TConfig> : IWorld<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
     where TConfig : IConfig, new()
 {
@@ -74,14 +74,9 @@ public sealed class World<TMask, TConfig>
         return entity;
     }
 
-    /// <summary>
-    /// Creates a new entity using the provided builder.
-    /// </summary>
-    /// <typeparam name="TBuilder">The builder type.</typeparam>
-    /// <param name="builder">The component builder with initial components.</param>
-    /// <returns>The created entity handle.</returns>
-    internal Entity CreateEntity<TBuilder>(TBuilder builder)
-        where TBuilder : IComponentsBuilder
+    /// <inheritdoc/>
+    public Entity CreateEntity<TBuilder>(TBuilder builder)
+        where TBuilder : unmanaged, IComponentsBuilder
     {
         // Collect component mask
         var mask = TMask.Empty;
@@ -98,16 +93,9 @@ public sealed class World<TMask, TConfig>
         return entity;
     }
 
-    /// <summary>
-    /// Overwrites all components on an existing entity with the builder's components.
-    /// Any existing components are discarded. The entity must already exist in this world.
-    /// </summary>
-    /// <typeparam name="TBuilder">The builder type.</typeparam>
-    /// <param name="entity">The existing entity handle.</param>
-    /// <param name="builder">The component builder with components to set.</param>
-    /// <returns>The entity handle.</returns>
-    internal Entity OverwriteEntity<TBuilder>(Entity entity, TBuilder builder)
-        where TBuilder : IComponentsBuilder
+    /// <inheritdoc/>
+    public Entity OverwriteEntity<TBuilder>(Entity entity, TBuilder builder)
+        where TBuilder : unmanaged, IComponentsBuilder
     {
         var location = GetValidatedLocation(entity);
 
@@ -127,16 +115,9 @@ public sealed class World<TMask, TConfig>
         return entity;
     }
 
-    /// <summary>
-    /// Adds multiple components to an existing entity using the provided builder.
-    /// Existing components are preserved. This is a structural change that moves the entity.
-    /// </summary>
-    /// <typeparam name="TBuilder">The builder type.</typeparam>
-    /// <param name="entity">The existing entity handle.</param>
-    /// <param name="builder">The component builder with components to add or update.</param>
-    /// <returns>The entity handle.</returns>
-    internal Entity AddComponents<TBuilder>(Entity entity, TBuilder builder)
-        where TBuilder : IComponentsBuilder
+    /// <inheritdoc/>
+    public Entity AddComponents<TBuilder>(Entity entity, TBuilder builder)
+        where TBuilder : unmanaged, IComponentsBuilder
     {
         var location = GetValidatedLocation(entity);
 
@@ -570,61 +551,3 @@ public sealed class World<TMask, TConfig>
         _emptyArchetype = _archetypeRegistry.GetOrCreate((HashedKey<TMask>)TMask.Empty);
     }
 }
-
-public static class ComponentsBuilderWorldExtensions
-{
-    extension<TBuilder>(TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
-    {
-        /// <summary>
-        /// Builds the entity in the specified world.
-        /// </summary>
-        /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="world">The world to create the entity in.</param>
-        /// <returns>The created entity.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity Build<TMask, TConfig>(World<TMask, TConfig> world)
-            where TMask : unmanaged, IBitSet<TMask>
-            where TConfig : IConfig, new()
-        {
-            return world.CreateEntity(builder);
-        }
-
-        /// <summary>
-        /// Overwrites all components on an existing entity with the builder's components.
-        /// Any existing components are discarded. The entity must already exist and be alive.
-        /// Used for deserialization or network synchronization.
-        /// </summary>
-        /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="entity">The existing entity handle.</param>
-        /// <param name="world">The world containing the entity.</param>
-        /// <returns>The entity.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity Overwrite<TMask, TConfig>(Entity entity, World<TMask, TConfig> world)
-            where TMask : unmanaged, IBitSet<TMask>
-            where TConfig : IConfig, new()
-        {
-            return world.OverwriteEntity(entity, builder);
-        }
-
-        /// <summary>
-        /// Adds the builder's components to an existing entity, preserving its current components.
-        /// This is a structural change that moves the entity to a new archetype.
-        /// </summary>
-        /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="entity">The existing entity handle.</param>
-        /// <param name="world">The world containing the entity.</param>
-        /// <returns>The entity.</returns>
-        /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity AddTo<TMask, TConfig>(Entity entity, World<TMask, TConfig> world)
-            where TMask : unmanaged, IBitSet<TMask>
-            where TConfig : IConfig, new()
-        {
-            return world.AddComponents(entity, builder);
-        }
-    }
-}
-
