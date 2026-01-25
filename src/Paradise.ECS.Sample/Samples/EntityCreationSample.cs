@@ -42,7 +42,7 @@ public static class EntityCreationSample
                 .Add(new Velocity(-2, 0))
                 .Add(new Health(50))
                 .AddTag(default(EnemyTag), world)
-                .AddTag(default(IsActive), world)
+                .AddTag(default(IsActive))
                 .Build(world);
         }
         Console.WriteLine($"  Created {enemies.Length} enemy entities");

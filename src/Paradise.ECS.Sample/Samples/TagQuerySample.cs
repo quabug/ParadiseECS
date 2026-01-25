@@ -61,7 +61,7 @@ public static class TagQuerySample
             .Create()
             .With<Position>()
             .With<Velocity>()
-            .Build(world.World.ArchetypeRegistry);
+            .Build(world);
 
         Console.WriteLine($"  Active entities with Position and Velocity:");
         int activeMovableCount = 0;
