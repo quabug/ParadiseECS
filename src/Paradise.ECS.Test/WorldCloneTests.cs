@@ -320,8 +320,8 @@ public sealed class WorldCloneTests : IDisposable
         _targetWorld.CopyFrom(_sourceWorld);
 
         // Assert - Query should work on cloned world
-        var posQuery = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestPosition>().Build(_targetWorld);
-        var velQuery = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestVelocity>().Build(_targetWorld);
+        var posQuery = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestPosition>().Build(_targetWorld.ArchetypeRegistry);
+        var velQuery = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestVelocity>().Build(_targetWorld.ArchetypeRegistry);
 
         int posCount = 0;
         foreach (var _ in posQuery)

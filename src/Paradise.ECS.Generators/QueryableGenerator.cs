@@ -358,23 +358,53 @@ public class QueryableGenerator : IIncrementalGenerator
             indent += "    ";
         }
 
-        // Generate the partial ref struct with QueryableId and Query property
+        // Generate the partial ref struct with QueryableId and Query/ChunkQuery static methods
         sb.AppendLine($"{indent}partial struct {queryable.TypeName}");
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{indent}    /// <summary>The unique queryable type ID.</summary>");
         sb.AppendLine($"{indent}    public static int QueryableId => {typeId};");
         sb.AppendLine();
-        sb.AppendLine($"{indent}    /// <summary>Gets the query builder for this queryable type.</summary>");
-        sb.AppendLine($"{indent}    public static {queryable.HelperStructPrefix}QueryBuilder Query => default;");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    /// <summary>Gets the chunk query builder for batch component access.</summary>");
-        sb.AppendLine($"{indent}    public static {queryable.HelperStructPrefix}ChunkQueryBuilder ChunkQuery => default;");
+
+        // Generate static Query method
+        sb.AppendLine($"{indent}    /// <summary>Builds a query that iterates over {queryable.TypeName}.Data instances.</summary>");
+        sb.AppendLine($"{indent}    /// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
+        sb.AppendLine($"{indent}    /// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
+        sb.AppendLine($"{indent}    /// <param name=\"world\">The world to query.</param>");
+        sb.AppendLine($"{indent}    /// <returns>A query result that iterates over {queryable.TypeName}.Data instances.</returns>");
+        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}    public static global::Paradise.ECS.QueryResult<Data<TMask, TConfig>, TMask, TConfig> Query<TMask, TConfig>(");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TConfig> world)");
+        sb.AppendLine($"{indent}        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
+        sb.AppendLine($"{indent}        where TConfig : global::Paradise.ECS.IConfig, new()");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[QueryableId];");
+        sb.AppendLine($"{indent}        var query = world.ArchetypeRegistry.GetOrCreateQuery(hashedDescription);");
+        sb.AppendLine($"{indent}        return new global::Paradise.ECS.QueryResult<Data<TMask, TConfig>, TMask, TConfig>(world.ChunkManager, query);");
+        sb.AppendLine($"{indent}    }}");
         sb.AppendLine();
 
-        // Generate nested Data<TMask, TConfig> struct
+        // Generate static ChunkQuery method
+        sb.AppendLine($"{indent}    /// <summary>Builds a chunk query that iterates over {queryable.TypeName}.ChunkData instances for batch processing.</summary>");
+        sb.AppendLine($"{indent}    /// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
+        sb.AppendLine($"{indent}    /// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
+        sb.AppendLine($"{indent}    /// <param name=\"world\">The world to query.</param>");
+        sb.AppendLine($"{indent}    /// <returns>A chunk query result that iterates over {queryable.TypeName}.ChunkData instances.</returns>");
+        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}    public static global::Paradise.ECS.ChunkQueryResult<ChunkData<TMask, TConfig>, TMask, TConfig> ChunkQuery<TMask, TConfig>(");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TConfig> world)");
+        sb.AppendLine($"{indent}        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
+        sb.AppendLine($"{indent}        where TConfig : global::Paradise.ECS.IConfig, new()");
+        sb.AppendLine($"{indent}    {{");
+        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[QueryableId];");
+        sb.AppendLine($"{indent}        var query = world.ArchetypeRegistry.GetOrCreateQuery(hashedDescription);");
+        sb.AppendLine($"{indent}        return new global::Paradise.ECS.ChunkQueryResult<ChunkData<TMask, TConfig>, TMask, TConfig>(world.ChunkManager, query);");
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine();
+
+        // Generate nested Data<TMask, TConfig> struct implementing IQueryData
         GenerateNestedDataStruct(sb, queryable, indent + "    ");
 
-        // Generate nested ChunkData<TMask, TConfig> struct
+        // Generate nested ChunkData<TMask, TConfig> struct implementing IQueryChunkData
         GenerateNestedChunkDataStruct(sb, queryable, indent + "    ");
 
         sb.AppendLine($"{indent}}}");
@@ -385,14 +415,6 @@ public class QueryableGenerator : IIncrementalGenerator
             indent = baseIndent + new string(' ', i * 4);
             sb.AppendLine($"{indent}}}");
         }
-
-        // Generate QueryBuilder and Query structs at namespace level (inside the same namespace block)
-        GenerateQueryBuilderStruct(sb, queryable, baseIndent);
-        GenerateTypedQueryStruct(sb, queryable, baseIndent);
-
-        // Generate ChunkQueryBuilder and ChunkQuery structs
-        GenerateChunkQueryBuilderStruct(sb, queryable, baseIndent);
-        GenerateTypedChunkQueryStruct(sb, queryable, baseIndent);
 
         // Close namespace
         if (hasNamespace)
@@ -413,6 +435,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
         sb.AppendLine($"{indent}public readonly ref struct Data<TMask, TConfig>");
+        sb.AppendLine($"{indent}    : global::Paradise.ECS.IQueryData<Data<TMask, TConfig>, TMask, TConfig>");
         sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
         sb.AppendLine($"{indent}{{");
@@ -422,6 +445,17 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> _layout;");
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkHandle _chunk;");
         sb.AppendLine($"{indent}    private readonly int _indexInChunk;");
+        sb.AppendLine();
+
+        // Generate static Create method (required by IQueryData)
+        sb.AppendLine($"{indent}    /// <summary>Creates a new Data instance. Required by IQueryData interface.</summary>");
+        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}    public static Data<TMask, TConfig> Create(");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkManager chunkManager,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> layout,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkHandle chunk,");
+        sb.AppendLine($"{indent}        int indexInChunk)");
+        sb.AppendLine($"{indent}        => new(chunkManager, layout, chunk, indexInChunk);");
         sb.AppendLine();
 
         // Generate internal constructor
@@ -489,130 +523,6 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}}}");
     }
 
-    private static void GenerateQueryBuilderStruct(StringBuilder sb, QueryableInfo queryable, string indent)
-    {
-        var prefix = queryable.HelperStructPrefix;
-        sb.AppendLine();
-        sb.AppendLine($"{indent}/// <summary>");
-        sb.AppendLine($"{indent}/// Query builder for {queryable.TypeName}. Builds a typed query that returns {queryable.TypeName}.Data instances.");
-        sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}public readonly struct {prefix}QueryBuilder");
-        sb.AppendLine($"{indent}{{");
-        sb.AppendLine($"{indent}    /// <summary>Builds a typed query for the specified world.</summary>");
-        sb.AppendLine($"{indent}    /// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
-        sb.AppendLine($"{indent}    /// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}    /// <param name=\"world\">The world to query.</param>");
-        sb.AppendLine($"{indent}    /// <returns>A typed query that iterates over {queryable.TypeName}.Data instances.</returns>");
-        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    public {prefix}Query<TMask, TConfig> Build<TMask, TConfig>(");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TConfig> world)");
-        sb.AppendLine($"{indent}        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
-        sb.AppendLine($"{indent}        where TConfig : global::Paradise.ECS.IConfig, new()");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[{queryable.TypeName}.QueryableId];");
-        sb.AppendLine($"{indent}        var query = world.ArchetypeRegistry.GetOrCreateQuery(hashedDescription);");
-        sb.AppendLine($"{indent}        return new {prefix}Query<TMask, TConfig>(world, query);");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine($"{indent}}}");
-    }
-
-    private static void GenerateTypedQueryStruct(StringBuilder sb, QueryableInfo queryable, string indent)
-    {
-        var prefix = queryable.HelperStructPrefix;
-        sb.AppendLine();
-        var dataType = $"{queryable.TypeName}.Data<TMask, TConfig>";
-
-        sb.AppendLine($"{indent}/// <summary>");
-        sb.AppendLine($"{indent}/// Typed query that returns {queryable.TypeName}.Data instances during iteration.");
-        sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
-        sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly struct {prefix}Query<TMask, TConfig>");
-        sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
-        sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
-        sb.AppendLine($"{indent}{{");
-        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Query<TMask, TConfig, global::Paradise.ECS.Archetype<TMask, TConfig>> _query;");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    internal {prefix}Query(");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TConfig> world,");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.Query<TMask, TConfig, global::Paradise.ECS.Archetype<TMask, TConfig>> query)");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        _chunkManager = world.ChunkManager;");
-        sb.AppendLine($"{indent}        _query = query;");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    /// <summary>Gets the total number of entities matching this query.</summary>");
-        sb.AppendLine($"{indent}    public int EntityCount");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}        get => _query.EntityCount;");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    /// <summary>Gets whether this query has any matching entities.</summary>");
-        sb.AppendLine($"{indent}    public bool IsEmpty");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}        get => _query.IsEmpty;");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    /// <summary>Returns an enumerator that iterates through all entities in the matching archetypes.</summary>");
-        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    public Enumerator GetEnumerator() => new Enumerator(_chunkManager, _query);");
-        sb.AppendLine();
-
-        // Generate nested Enumerator struct
-        sb.AppendLine($"{indent}    /// <summary>Enumerator for iterating over {queryable.TypeName}.Data instances.</summary>");
-        sb.AppendLine($"{indent}    public ref struct Enumerator");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}        private global::Paradise.ECS.Query<TMask, TConfig, global::Paradise.ECS.Archetype<TMask, TConfig>>.ChunkEnumerator _chunkEnumerator;");
-        sb.AppendLine($"{indent}        private global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> _currentLayout;");
-        sb.AppendLine($"{indent}        private global::Paradise.ECS.ChunkHandle _currentChunk;");
-        sb.AppendLine($"{indent}        private int _indexInChunk;");
-        sb.AppendLine($"{indent}        private int _entitiesInChunk;");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}        internal Enumerator(");
-        sb.AppendLine($"{indent}            global::Paradise.ECS.ChunkManager chunkManager,");
-        sb.AppendLine($"{indent}            global::Paradise.ECS.Query<TMask, TConfig, global::Paradise.ECS.Archetype<TMask, TConfig>> query)");
-        sb.AppendLine($"{indent}        {{");
-        sb.AppendLine($"{indent}            _chunkManager = chunkManager;");
-        sb.AppendLine($"{indent}            _chunkEnumerator = query.Chunks.GetEnumerator();");
-        sb.AppendLine($"{indent}            _currentLayout = default;");
-        sb.AppendLine($"{indent}            _currentChunk = default;");
-        sb.AppendLine($"{indent}            _indexInChunk = -1;");
-        sb.AppendLine($"{indent}            _entitiesInChunk = 0;");
-        sb.AppendLine($"{indent}        }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}        /// <summary>Gets the current {queryable.TypeName}.Data.</summary>");
-        sb.AppendLine($"{indent}        public {dataType} Current");
-        sb.AppendLine($"{indent}        {{");
-        sb.AppendLine($"{indent}            [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}            get => new {dataType}(_chunkManager, _currentLayout, _currentChunk, _indexInChunk);");
-        sb.AppendLine($"{indent}        }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}        /// <summary>Advances to the next entity.</summary>");
-        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}        public bool MoveNext()");
-        sb.AppendLine($"{indent}        {{");
-        sb.AppendLine($"{indent}            _indexInChunk++;");
-        sb.AppendLine($"{indent}            while (_indexInChunk >= _entitiesInChunk)");
-        sb.AppendLine($"{indent}            {{");
-        sb.AppendLine($"{indent}                if (!_chunkEnumerator.MoveNext()) return false;");
-        sb.AppendLine($"{indent}                var info = _chunkEnumerator.Current;");
-        sb.AppendLine($"{indent}                _currentLayout = info.Archetype.Layout;");
-        sb.AppendLine($"{indent}                _currentChunk = info.Handle;");
-        sb.AppendLine($"{indent}                _entitiesInChunk = info.EntityCount;");
-        sb.AppendLine($"{indent}                _indexInChunk = 0;");
-        sb.AppendLine($"{indent}            }}");
-        sb.AppendLine($"{indent}            return true;");
-        sb.AppendLine($"{indent}        }}");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine($"{indent}}}");
-    }
-
     private static void GenerateNestedChunkDataStruct(StringBuilder sb, QueryableInfo queryable, string indent)
     {
         sb.AppendLine();
@@ -622,6 +532,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
         sb.AppendLine($"{indent}public readonly ref struct ChunkData<TMask, TConfig>");
+        sb.AppendLine($"{indent}    : global::Paradise.ECS.IQueryChunkData<ChunkData<TMask, TConfig>, TMask, TConfig>");
         sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
         sb.AppendLine($"{indent}{{");
@@ -631,6 +542,17 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> _layout;");
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkHandle _chunk;");
         sb.AppendLine($"{indent}    private readonly int _entityCount;");
+        sb.AppendLine();
+
+        // Generate static Create method (required by IQueryChunkData)
+        sb.AppendLine($"{indent}    /// <summary>Creates a new ChunkData instance. Required by IQueryChunkData interface.</summary>");
+        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        sb.AppendLine($"{indent}    public static ChunkData<TMask, TConfig> Create(");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkManager chunkManager,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> layout,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkHandle chunk,");
+        sb.AppendLine($"{indent}        int entityCount)");
+        sb.AppendLine($"{indent}        => new(chunkManager, layout, chunk, entityCount);");
         sb.AppendLine();
 
         // Generate internal constructor
@@ -706,113 +628,6 @@ public class QueryableGenerator : IIncrementalGenerator
             sb.AppendLine($"{indent}    }}");
         }
 
-        sb.AppendLine($"{indent}}}");
-    }
-
-    private static void GenerateChunkQueryBuilderStruct(StringBuilder sb, QueryableInfo queryable, string indent)
-    {
-        var prefix = queryable.HelperStructPrefix;
-        sb.AppendLine();
-        sb.AppendLine($"{indent}/// <summary>");
-        sb.AppendLine($"{indent}/// Chunk query builder for {queryable.TypeName}. Builds a typed chunk query for batch component access.");
-        sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}public readonly struct {prefix}ChunkQueryBuilder");
-        sb.AppendLine($"{indent}{{");
-        sb.AppendLine($"{indent}    /// <summary>Builds a typed chunk query for the specified world.</summary>");
-        sb.AppendLine($"{indent}    /// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
-        sb.AppendLine($"{indent}    /// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}    /// <param name=\"world\">The world to query.</param>");
-        sb.AppendLine($"{indent}    /// <returns>A typed chunk query that iterates over {queryable.TypeName}.ChunkData instances.</returns>");
-        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    public {prefix}ChunkQuery<TMask, TConfig> Build<TMask, TConfig>(");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TConfig> world)");
-        sb.AppendLine($"{indent}        where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
-        sb.AppendLine($"{indent}        where TConfig : global::Paradise.ECS.IConfig, new()");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        var hashedDescription = global::Paradise.ECS.QueryableRegistry<TMask>.Descriptions[{queryable.TypeName}.QueryableId];");
-        sb.AppendLine($"{indent}        var query = world.ArchetypeRegistry.GetOrCreateQuery(hashedDescription);");
-        sb.AppendLine($"{indent}        return new {prefix}ChunkQuery<TMask, TConfig>(world, query);");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine($"{indent}}}");
-    }
-
-    private static void GenerateTypedChunkQueryStruct(StringBuilder sb, QueryableInfo queryable, string indent)
-    {
-        var prefix = queryable.HelperStructPrefix;
-        sb.AppendLine();
-        var chunkDataType = $"{queryable.TypeName}.ChunkData<TMask, TConfig>";
-
-        sb.AppendLine($"{indent}/// <summary>");
-        sb.AppendLine($"{indent}/// Typed chunk query that returns {queryable.TypeName}.ChunkData instances for batch processing.");
-        sb.AppendLine($"{indent}/// </summary>");
-        sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
-        sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly struct {prefix}ChunkQuery<TMask, TConfig>");
-        sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
-        sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
-        sb.AppendLine($"{indent}{{");
-        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Query<TMask, TConfig, global::Paradise.ECS.Archetype<TMask, TConfig>> _query;");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    internal {prefix}ChunkQuery(");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.World<TMask, TConfig> world,");
-        sb.AppendLine($"{indent}        global::Paradise.ECS.Query<TMask, TConfig, global::Paradise.ECS.Archetype<TMask, TConfig>> query)");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        _chunkManager = world.ChunkManager;");
-        sb.AppendLine($"{indent}        _query = query;");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    /// <summary>Gets the total number of entities matching this query.</summary>");
-        sb.AppendLine($"{indent}    public int EntityCount");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}        get => _query.EntityCount;");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    /// <summary>Gets whether this query has any matching entities.</summary>");
-        sb.AppendLine($"{indent}    public bool IsEmpty");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}        get => _query.IsEmpty;");
-        sb.AppendLine($"{indent}    }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}    /// <summary>Returns an enumerator that iterates through all chunks in the matching archetypes.</summary>");
-        sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}    public Enumerator GetEnumerator() => new Enumerator(_chunkManager, _query);");
-        sb.AppendLine();
-
-        // Generate nested Enumerator struct
-        sb.AppendLine($"{indent}    /// <summary>Enumerator for iterating over {queryable.TypeName}.ChunkData instances.</summary>");
-        sb.AppendLine($"{indent}    public ref struct Enumerator");
-        sb.AppendLine($"{indent}    {{");
-        sb.AppendLine($"{indent}        private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
-        sb.AppendLine($"{indent}        private global::Paradise.ECS.Query<TMask, TConfig, global::Paradise.ECS.Archetype<TMask, TConfig>>.ChunkEnumerator _chunkEnumerator;");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}        internal Enumerator(");
-        sb.AppendLine($"{indent}            global::Paradise.ECS.ChunkManager chunkManager,");
-        sb.AppendLine($"{indent}            global::Paradise.ECS.Query<TMask, TConfig, global::Paradise.ECS.Archetype<TMask, TConfig>> query)");
-        sb.AppendLine($"{indent}        {{");
-        sb.AppendLine($"{indent}            _chunkManager = chunkManager;");
-        sb.AppendLine($"{indent}            _chunkEnumerator = query.Chunks.GetEnumerator();");
-        sb.AppendLine($"{indent}        }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}        /// <summary>Gets the current {queryable.TypeName}.ChunkData.</summary>");
-        sb.AppendLine($"{indent}        public {chunkDataType} Current");
-        sb.AppendLine($"{indent}        {{");
-        sb.AppendLine($"{indent}            [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}            get");
-        sb.AppendLine($"{indent}            {{");
-        sb.AppendLine($"{indent}                var info = _chunkEnumerator.Current;");
-        sb.AppendLine($"{indent}                return new {chunkDataType}(_chunkManager, info.Archetype.Layout, info.Handle, info.EntityCount);");
-        sb.AppendLine($"{indent}            }}");
-        sb.AppendLine($"{indent}        }}");
-        sb.AppendLine();
-        sb.AppendLine($"{indent}        /// <summary>Advances to the next chunk.</summary>");
-        sb.AppendLine($"{indent}        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        sb.AppendLine($"{indent}        public bool MoveNext() => _chunkEnumerator.MoveNext();");
-        sb.AppendLine($"{indent}    }}");
         sb.AppendLine($"{indent}}}");
     }
 

@@ -391,22 +391,6 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
         => _world.RemoveComponent<T>(entity);
 
     /// <summary>
-    /// Creates a new query builder bound to this world.
-    /// Use this for building tag-filtered queries with a clean API.
-    /// </summary>
-    /// <returns>A query builder bound to this world's type parameters.</returns>
-    /// <example>
-    /// <code>
-    /// // Clean API - only specify the tag type
-    /// var query = world.Query().WithTag&lt;EnemyTag&gt;().With&lt;Position&gt;().Build();
-    /// foreach (var entity in query) { ... }
-    /// </code>
-    /// </example>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public TaggedWorldQueryBuilder<TMask, TConfig, TEntityTags, TTagMask> Query()
-        => new(this);
-
-    /// <summary>
     /// Gets the chunk handle for an entity.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -474,41 +458,3 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
         return mask;
     }
 }
-
-/// <summary>
-/// Extension methods for building queries in a TaggedWorld.
-/// </summary>
-public static class QueryBuilderTaggedWorldExtensions
-{
-    extension<TMask>(QueryBuilder<TMask> builder) where TMask : unmanaged, IBitSet<TMask>
-    {
-        /// <summary>
-        /// Builds a WorldQuery from this description for a TaggedWorld.
-        /// Delegates to the underlying World.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public WorldQuery<TMask, TConfig> Build<TConfig, TEntityTags, TTagMask>(
-            TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld)
-            where TConfig : IConfig, new()
-            where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
-            where TTagMask : unmanaged, IBitSet<TTagMask>
-        {
-            return builder.Build(taggedWorld.World);
-        }
-
-        /// <summary>
-        /// Builds a WorldChunkQuery from this description for a TaggedWorld.
-        /// Delegates to the underlying World.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public WorldChunkQuery<TMask, TConfig> BuildChunk<TConfig, TEntityTags, TTagMask>(
-            TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld)
-            where TConfig : IConfig, new()
-            where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
-            where TTagMask : unmanaged, IBitSet<TTagMask>
-        {
-            return builder.BuildChunk(taggedWorld.World);
-        }
-    }
-}
-

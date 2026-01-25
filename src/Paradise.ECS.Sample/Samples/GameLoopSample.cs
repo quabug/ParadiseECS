@@ -5,7 +5,7 @@ namespace Paradise.ECS.Sample.Samples;
 /// </summary>
 public static class GameLoopSample
 {
-    public static void Run(World world, WorldQuery<SmallBitSet<uint>, GameConfig> movableQuery)
+    public static void Run(World world, Query<SmallBitSet<uint>, GameConfig, Archetype<SmallBitSet<uint>, GameConfig>> movableQuery)
     {
         Console.WriteLine("8. Game Loop Simulation (5 frames)");
         Console.WriteLine("----------------------------");
@@ -15,14 +15,15 @@ public static class GameLoopSample
             Console.WriteLine($"  Frame {frame + 1}:");
 
             int movedEntities = 0;
-            foreach (var entity in movableQuery)
+            foreach (var entityId in movableQuery)
             {
-                ref var pos = ref entity.Get<Position>();
-                var vel = entity.Get<Velocity>();
+                var entity = world.World.GetEntity(entityId);
+                ref var pos = ref world.GetComponentRef<Position>(entity);
+                var vel = world.GetComponent<Velocity>(entity);
                 pos = new Position(pos.X + vel.X, pos.Y + vel.Y);
                 movedEntities++;
 
-                if (world.HasTag<PlayerTag>(entity.Entity))
+                if (world.HasTag<PlayerTag>(entity))
                 {
                     Console.WriteLine($"    Player moved to {pos}");
                 }

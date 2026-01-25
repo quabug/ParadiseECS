@@ -7,7 +7,7 @@ namespace Paradise.ECS.Sample.Samples;
 /// </summary>
 public static class ComponentQuerySample
 {
-    public static WorldQuery<SmallBitSet<uint>, GameConfig> Run(World world)
+    public static Query<SmallBitSet<uint>, GameConfig, Archetype<SmallBitSet<uint>, GameConfig>> Run(World world)
     {
         Console.WriteLine("6. Component-based Query");
         Console.WriteLine("----------------------------");
@@ -17,15 +17,16 @@ public static class ComponentQuerySample
             .Create()
             .With<Position>()
             .With<Velocity>()
-            .Build(world);
+            .Build(world.World.ArchetypeRegistry);
 
         Console.WriteLine($"  Movable query entity count: {movableQuery.EntityCount}");
         Debug.Assert(movableQuery.EntityCount == 5); // player + 4 enemies (1 despawned)
 
-        foreach (var entity in movableQuery)
+        foreach (var entityId in movableQuery)
         {
-            var pos = entity.Get<Position>();
-            Console.WriteLine($"    Entity {entity.Entity.Id}: Position={pos}");
+            var entity = world.World.GetEntity(entityId);
+            var pos = world.GetComponent<Position>(entity);
+            Console.WriteLine($"    Entity {entity.Id}: Position={pos}");
         }
         Console.WriteLine();
 

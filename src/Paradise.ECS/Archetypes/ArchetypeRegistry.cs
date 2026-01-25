@@ -7,8 +7,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public sealed class ArchetypeRegistry<TMask, TConfig>
-    : IArchetypeRegistry<TMask, TConfig, Archetype<TMask, TConfig>>
+public sealed class ArchetypeRegistry<TMask, TConfig> : IArchetypeRegistry<TMask, TConfig, Archetype<TMask, TConfig>>
     where TMask : unmanaged, IBitSet<TMask>
     where TConfig : IConfig, new()
 {

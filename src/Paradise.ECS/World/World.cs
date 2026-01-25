@@ -427,7 +427,7 @@ public sealed class World<TMask, TConfig>
     /// <param name="entityId">The entity ID.</param>
     /// <returns>The Entity handle with current version.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Entity GetEntity(int entityId)
+    public Entity GetEntity(int entityId)
     {
         var location = _entityManager.GetLocation(entityId);
         return new Entity(entityId, location.Version);
@@ -656,40 +656,3 @@ public static class ComponentsBuilderWorldExtensions
     }
 }
 
-public static class QueryBuilderWorldExtensions
-{
-    extension<TMask>(QueryBuilder<TMask> builder) where TMask : unmanaged, IBitSet<TMask>
-    {
-        /// <summary>
-        /// Builds a WorldQuery from this description, enabling WorldEntity enumeration.
-        /// </summary>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="world">The world to query.</param>
-        /// <returns>A WorldQuery that iterates over WorldEntity handles.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public WorldQuery<TMask, TConfig> Build<TConfig>(
-            World<TMask, TConfig> world)
-            where TConfig : IConfig, new()
-        {
-            var query = world.ArchetypeRegistry.GetOrCreateQuery(
-                (HashedKey<ImmutableQueryDescription<TMask>>)builder.Description);
-            return new WorldQuery<TMask, TConfig>(world, query);
-        }
-
-        /// <summary>
-        /// Builds a WorldChunkQuery from this description, enabling chunk-level iteration with batch component access.
-        /// </summary>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="world">The world to query.</param>
-        /// <returns>A WorldChunkQuery that iterates over WorldChunk instances.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public WorldChunkQuery<TMask, TConfig> BuildChunk<TConfig>(
-            World<TMask, TConfig> world)
-            where TConfig : IConfig, new()
-        {
-            var query = world.ArchetypeRegistry.GetOrCreateQuery(
-                (HashedKey<ImmutableQueryDescription<TMask>>)builder.Description);
-            return new WorldChunkQuery<TMask, TConfig>(world, query);
-        }
-    }
-}

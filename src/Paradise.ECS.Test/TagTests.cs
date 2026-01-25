@@ -630,7 +630,7 @@ public sealed class TaggedWorldTests : IDisposable
     }
 
     [Test]
-    public async Task TaggedQueryBuilder_WithTag_FiltersEntities()
+    public async Task ManualTagFilter_WithTag_FiltersEntities()
     {
         var e1 = _world.Spawn();
         var e2 = _world.Spawn();
@@ -642,13 +642,18 @@ public sealed class TaggedWorldTests : IDisposable
         // e3 has no tags
 
         var query = QueryBuilder<SmallBitSet<uint>>.Create()
-            .WithTag<SmallBitSet<uint>, TestIsActive, TagMask>()
-            .Build(_world);
+            .With<EntityTags>()
+            .Build(_world.World.ArchetypeRegistry);
 
+        var requiredTags = TagMask.Empty.Set(TestIsActive.TagId);
         var matchedEntities = new List<Entity>();
-        foreach (var entity in query)
+        foreach (var entityId in query)
         {
-            matchedEntities.Add(entity);
+            var entity = _world.World.GetEntity(entityId);
+            if (_world.GetTags(entity).ContainsAll(requiredTags))
+            {
+                matchedEntities.Add(entity);
+            }
         }
 
         await Assert.That(matchedEntities).Contains(e1);
@@ -658,7 +663,7 @@ public sealed class TaggedWorldTests : IDisposable
     }
 
     [Test]
-    public async Task TaggedQueryBuilder_MultipleTags_FiltersCorrectly()
+    public async Task ManualTagFilter_MultipleTags_FiltersCorrectly()
     {
         var e1 = _world.Spawn();
         var e2 = _world.Spawn();
@@ -671,14 +676,20 @@ public sealed class TaggedWorldTests : IDisposable
 
         // Query for entities with BOTH TestIsActive AND TestIsEnemy
         var query = QueryBuilder<SmallBitSet<uint>>.Create()
-            .WithTag<SmallBitSet<uint>, TestIsActive, TagMask>()
-            .WithTag<TestIsEnemy>()
-            .Build(_world);
+            .With<EntityTags>()
+            .Build(_world.World.ArchetypeRegistry);
 
+        var requiredTags = TagMask.Empty
+            .Set(TestIsActive.TagId)
+            .Set(TestIsEnemy.TagId);
         var matchedEntities = new List<Entity>();
-        foreach (var entity in query)
+        foreach (var entityId in query)
         {
-            matchedEntities.Add(entity);
+            var entity = _world.World.GetEntity(entityId);
+            if (_world.GetTags(entity).ContainsAll(requiredTags))
+            {
+                matchedEntities.Add(entity);
+            }
         }
 
         await Assert.That(matchedEntities).DoesNotContain(e1); // Only has TestIsActive
@@ -688,7 +699,7 @@ public sealed class TaggedWorldTests : IDisposable
     }
 
     [Test]
-    public async Task TaggedQueryBuilder_WithComponentConstraint_FiltersCorrectly()
+    public async Task ManualTagFilter_WithComponentConstraint_FiltersCorrectly()
     {
         var e1 = _world.Spawn();
         var e2 = _world.Spawn();
@@ -705,13 +716,17 @@ public sealed class TaggedWorldTests : IDisposable
         // Query for entities with TestIsActive tag AND Position component
         var query = QueryBuilder<SmallBitSet<uint>>.Create()
             .With<TestPosition>()
-            .WithTag<SmallBitSet<uint>, TestIsActive, TagMask>()
-            .Build(_world);
+            .Build(_world.World.ArchetypeRegistry);
 
+        var requiredTags = TagMask.Empty.Set(TestIsActive.TagId);
         var matchedEntities = new List<Entity>();
-        foreach (var entity in query)
+        foreach (var entityId in query)
         {
-            matchedEntities.Add(entity);
+            var entity = _world.World.GetEntity(entityId);
+            if (_world.GetTags(entity).ContainsAll(requiredTags))
+            {
+                matchedEntities.Add(entity);
+            }
         }
 
         await Assert.That(matchedEntities).Contains(e1);
@@ -721,7 +736,7 @@ public sealed class TaggedWorldTests : IDisposable
     }
 
     [Test]
-    public async Task TaggedWorldQueryBuilder_CleanApi_FiltersCorrectly()
+    public async Task ManualTagFilter_WithPosition_FiltersCorrectly()
     {
         var e1 = _world.Spawn();
         var e2 = _world.Spawn();
@@ -735,16 +750,20 @@ public sealed class TaggedWorldTests : IDisposable
         _world.AddTag<TestIsEnemy>(e2);
         _world.AddTag<TestIsEnemy>(e3);
 
-        // Clean API: world.Query().WithTag<T>().With<C>().Build()
-        var query = _world.Query()
-            .WithTag<TestIsActive>()
+        // Query entities with Position component and filter by tag
+        var query = QueryBuilder<SmallBitSet<uint>>.Create()
             .With<TestPosition>()
-            .Build();
+            .Build(_world.World.ArchetypeRegistry);
 
+        var requiredTags = TagMask.Empty.Set(TestIsActive.TagId);
         var matchedEntities = new List<Entity>();
-        foreach (var entity in query)
+        foreach (var entityId in query)
         {
-            matchedEntities.Add(entity);
+            var entity = _world.World.GetEntity(entityId);
+            if (_world.GetTags(entity).ContainsAll(requiredTags))
+            {
+                matchedEntities.Add(entity);
+            }
         }
 
         await Assert.That(matchedEntities).Contains(e1);
@@ -754,7 +773,7 @@ public sealed class TaggedWorldTests : IDisposable
     }
 
     [Test]
-    public async Task TaggedWorldQueryBuilder_MultipleTagsCleanApi_FiltersCorrectly()
+    public async Task ManualTagFilter_MultipleTags_WithQuery_FiltersCorrectly()
     {
         var e1 = _world.Spawn();
         var e2 = _world.Spawn();
@@ -765,16 +784,22 @@ public sealed class TaggedWorldTests : IDisposable
         _world.AddTag<TestIsEnemy>(e2);
         _world.AddTag<TestIsEnemy>(e3);
 
-        // Clean API with multiple tags
-        var query = _world.Query()
-            .WithTag<TestIsActive>()
-            .WithTag<TestIsEnemy>()
-            .Build();
+        // Query with manual multiple tag filtering
+        var query = QueryBuilder<SmallBitSet<uint>>.Create()
+            .With<EntityTags>()
+            .Build(_world.World.ArchetypeRegistry);
 
+        var requiredTags = TagMask.Empty
+            .Set(TestIsActive.TagId)
+            .Set(TestIsEnemy.TagId);
         var matchedEntities = new List<Entity>();
-        foreach (var entity in query)
+        foreach (var entityId in query)
         {
-            matchedEntities.Add(entity);
+            var entity = _world.World.GetEntity(entityId);
+            if (_world.GetTags(entity).ContainsAll(requiredTags))
+            {
+                matchedEntities.Add(entity);
+            }
         }
 
         await Assert.That(matchedEntities).DoesNotContain(e1); // Only TestIsActive

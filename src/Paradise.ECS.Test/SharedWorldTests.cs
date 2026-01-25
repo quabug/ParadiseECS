@@ -198,13 +198,13 @@ public sealed class SharedWorldTests : IDisposable
         }
 
         // Query world1
-        var query1 = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestPosition>().Build(world1);
+        var query1 = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestPosition>().Build(world1.ArchetypeRegistry);
         int count1 = 0;
         foreach (var _ in query1)
             count1++;
 
         // Query world2
-        var query2 = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestPosition>().Build(world2);
+        var query2 = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestPosition>().Build(world2.ArchetypeRegistry);
         int count2 = 0;
         foreach (var _ in query2)
             count2++;

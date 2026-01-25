@@ -1,18 +1,17 @@
 namespace Paradise.ECS.Generators.Test;
 
 /// <summary>
-/// Tests for nested queryable name collision fix.
-/// Verifies that nested queryables with the same simple name in different containing types
-/// generate unique builder/query struct names to avoid compile-time collisions.
+/// Tests for queryable generator structure.
+/// Verifies that Data and ChunkData structs implement IQueryData/IQueryChunkData interfaces,
+/// and that static Query/ChunkQuery methods are generated.
 /// </summary>
-public class QueryableGeneratorNestedNameCollisionTests
+public class QueryableGeneratorStructureTests
 {
     /// <summary>
-    /// Verifies that nested queryables with same simple name get unique builder names
-    /// by incorporating containing type names into the generated struct names.
+    /// Verifies that nested queryables generate proper Data and ChunkData types.
     /// </summary>
     [Test]
-    public async Task NestedQueryables_WithSameName_GenerateUniqueBuilderNames()
+    public async Task NestedQueryables_GenerateDataAndChunkDataTypes()
     {
         const string source = """
             using Paradise.ECS;
@@ -50,30 +49,27 @@ public class QueryableGeneratorNestedNameCollisionTests
         await Assert.That(containerAGenerated).IsNotNull();
         await Assert.That(containerBGenerated).IsNotNull();
 
-        // Verify that generated builder names include the containing type name
-        // ContainerA.Player should generate ContainerAPlayerQueryBuilder
-        await Assert.That(containerAGenerated!).Contains("ContainerAPlayerQueryBuilder");
-        await Assert.That(containerAGenerated).Contains("ContainerAPlayerQuery<");
-        await Assert.That(containerAGenerated).Contains("ContainerAPlayerChunkQueryBuilder");
-        await Assert.That(containerAGenerated).Contains("ContainerAPlayerChunkQuery<");
+        // Both should have nested Data and ChunkData types implementing interfaces
+        await Assert.That(containerAGenerated!).Contains("public readonly ref struct Data<TMask, TConfig>");
+        await Assert.That(containerAGenerated).Contains(": global::Paradise.ECS.IQueryData<Data<TMask, TConfig>, TMask, TConfig>");
+        await Assert.That(containerAGenerated).Contains("public readonly ref struct ChunkData<TMask, TConfig>");
+        await Assert.That(containerAGenerated).Contains(": global::Paradise.ECS.IQueryChunkData<ChunkData<TMask, TConfig>, TMask, TConfig>");
 
-        // ContainerB.Player should generate ContainerBPlayerQueryBuilder
-        await Assert.That(containerBGenerated!).Contains("ContainerBPlayerQueryBuilder");
-        await Assert.That(containerBGenerated).Contains("ContainerBPlayerQuery<");
-        await Assert.That(containerBGenerated).Contains("ContainerBPlayerChunkQueryBuilder");
-        await Assert.That(containerBGenerated).Contains("ContainerBPlayerChunkQuery<");
+        await Assert.That(containerBGenerated!).Contains("public readonly ref struct Data<TMask, TConfig>");
+        await Assert.That(containerBGenerated).Contains(": global::Paradise.ECS.IQueryData<Data<TMask, TConfig>, TMask, TConfig>");
+        await Assert.That(containerBGenerated).Contains("public readonly ref struct ChunkData<TMask, TConfig>");
+        await Assert.That(containerBGenerated).Contains(": global::Paradise.ECS.IQueryChunkData<ChunkData<TMask, TConfig>, TMask, TConfig>");
 
-        // Ensure they don't just use "PlayerQueryBuilder" without prefix
-        // Check that the names are actually unique between the two files
-        await Assert.That(containerAGenerated).DoesNotContain("struct PlayerQueryBuilder");
-        await Assert.That(containerBGenerated).DoesNotContain("struct PlayerQueryBuilder");
+        // Verify static Query and ChunkQuery methods
+        await Assert.That(containerAGenerated).Contains("public static global::Paradise.ECS.QueryResult<Data<TMask, TConfig>, TMask, TConfig> Query<TMask, TConfig>");
+        await Assert.That(containerAGenerated).Contains("public static global::Paradise.ECS.ChunkQueryResult<ChunkData<TMask, TConfig>, TMask, TConfig> ChunkQuery<TMask, TConfig>");
     }
 
     /// <summary>
-    /// Verifies that non-nested queryables still use simple names (no prefix needed).
+    /// Verifies that non-nested queryables generate proper Data and ChunkData types.
     /// </summary>
     [Test]
-    public async Task NonNestedQueryable_UsesSimpleName()
+    public async Task NonNestedQueryable_GeneratesDataAndChunkDataTypes()
     {
         const string source = """
             using Paradise.ECS;
@@ -94,16 +90,19 @@ public class QueryableGeneratorNestedNameCollisionTests
 
         await Assert.That(generated).IsNotNull();
 
-        // Non-nested queryable should use simple name
-        await Assert.That(generated!).Contains("struct SimpleQueryQueryBuilder");
-        await Assert.That(generated).Contains("struct SimpleQueryQuery<");
+        // Should have nested Data type implementing IQueryData
+        await Assert.That(generated!).Contains("public readonly ref struct Data<TMask, TConfig>");
+        await Assert.That(generated).Contains(": global::Paradise.ECS.IQueryData<Data<TMask, TConfig>, TMask, TConfig>");
+        // Should not have prefixed type names
+        await Assert.That(generated).DoesNotContain("SimpleQueryData");
+        await Assert.That(generated).DoesNotContain("SimpleQueryChunkData");
     }
 
     /// <summary>
-    /// Verifies deeply nested queryables include all containing type names.
+    /// Verifies deeply nested queryables generate proper types.
     /// </summary>
     [Test]
-    public async Task DeeplyNestedQueryable_IncludesAllContainingTypeNames()
+    public async Task DeeplyNestedQueryable_GeneratesDataAndChunkDataTypes()
     {
         const string source = """
             using Paradise.ECS;
@@ -130,9 +129,10 @@ public class QueryableGeneratorNestedNameCollisionTests
 
         await Assert.That(generated).IsNotNull();
 
-        // Should include both Level1 and Level2 in the name
-        await Assert.That(generated!).Contains("Level1Level2DeepQueryQueryBuilder");
-        await Assert.That(generated).Contains("Level1Level2DeepQueryQuery<");
+        // Should have nested types inside DeepQuery
+        await Assert.That(generated!).Contains("public readonly ref struct Data<TMask, TConfig>");
+        await Assert.That(generated).Contains(": global::Paradise.ECS.IQueryData<Data<TMask, TConfig>, TMask, TConfig>");
+        await Assert.That(generated).DoesNotContain("Level1Level2DeepQueryData");
     }
 }
 
