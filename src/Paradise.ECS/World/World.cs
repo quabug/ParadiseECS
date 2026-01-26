@@ -375,6 +375,15 @@ public sealed class World<TMask, TConfig> : IWorld<TMask, TConfig>
     }
 
     /// <summary>
+    /// Gets the entity manager for entity lifecycle and location tracking.
+    /// </summary>
+    public IEntityManager EntityManager
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _entityManager;
+    }
+
+    /// <summary>
     /// Gets the Entity handle for a given entity ID.
     /// </summary>
     /// <param name="entityId">The entity ID.</param>

@@ -201,6 +201,20 @@ public sealed class EntityManager : IEntityManager, IDisposable
     }
 
     /// <summary>
+    /// Gets the location for the specified entity ID.
+    /// </summary>
+    /// <param name="entityId">The entity ID.</param>
+    /// <returns>The entity location containing version and archetype info.</returns>
+    /// <exception cref="ObjectDisposedException">Thrown if the manager is disposed.</exception>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public EntityLocation GetLocation(int entityId)
+    {
+        ThrowHelper.ThrowIfDisposed(_disposed != 0, this);
+        var locations = Volatile.Read(ref _packedLocations);
+        return EntityLocation.FromPacked(Volatile.Read(ref locations[entityId]));
+    }
+
+    /// <summary>
     /// Sets the location data for the specified entity.
     /// The caller must validate the entity is alive before calling this method.
     /// </summary>

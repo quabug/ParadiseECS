@@ -28,7 +28,7 @@ public static class QueryHelpers
     {
         var query = world.ArchetypeRegistry.GetOrCreateQuery(description);
         return new QueryResult<TData, Archetype<TMask, TConfig>, TMask, TConfig>(
-            world.ChunkManager, query);
+            world.ChunkManager, world.EntityManager, query);
     }
 
     /// <summary>
@@ -51,6 +51,6 @@ public static class QueryHelpers
     {
         var query = world.ArchetypeRegistry.GetOrCreateQuery(description);
         return new ChunkQueryResult<TChunkData, Archetype<TMask, TConfig>, TMask, TConfig>(
-            world.ChunkManager, query);
+            world.ChunkManager, world.EntityManager, query);
     }
 }

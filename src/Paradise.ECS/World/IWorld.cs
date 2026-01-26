@@ -75,6 +75,11 @@ public interface IWorld<TMask, TConfig>
     ChunkManager ChunkManager { get; }
 
     /// <summary>
+    /// Gets the entity manager for entity lifecycle and location tracking.
+    /// </summary>
+    IEntityManager EntityManager { get; }
+
+    /// <summary>
     /// Gets the archetype registry for queries and archetype management.
     /// </summary>
     ArchetypeRegistry<TMask, TConfig> ArchetypeRegistry { get; }

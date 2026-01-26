@@ -43,4 +43,11 @@ public interface IEntityManager
     /// <param name="entity">The entity to check.</param>
     /// <returns>True if the entity is alive, false if destroyed or invalid.</returns>
     bool IsAlive(Entity entity);
+
+    /// <summary>
+    /// Gets the location for the specified entity ID.
+    /// </summary>
+    /// <param name="entityId">The entity ID.</param>
+    /// <returns>The entity location containing version and archetype info.</returns>
+    EntityLocation GetLocation(int entityId);
 }

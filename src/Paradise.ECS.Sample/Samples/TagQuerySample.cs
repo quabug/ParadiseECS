@@ -16,7 +16,7 @@ public static class TagQuerySample
         var allEntitiesQuery = QueryBuilder
             .Create()
             .With<EntityTags>()
-            .Build(world.ArchetypeRegistry);
+            .Build(world);
 
         // Define required tag masks
         var activeTagMask = TagMask.Empty.Set(IsActive.TagId);
@@ -25,13 +25,11 @@ public static class TagQuerySample
 
         Console.WriteLine($"  Active entities query:");
         int activeCount = 0;
-        foreach (var entityId in allEntitiesQuery)
+        foreach (var data in allEntitiesQuery)
         {
-            var entity = world.World.GetEntity(entityId);
-            var tags = world.GetTags(entity);
-            if (tags.ContainsAll(activeTagMask))
+            if (data.HasTag<IsActive>())
             {
-                Console.WriteLine($"    Entity {entity.Id} is active");
+                Console.WriteLine($"    Entity {data.Entity.Id} is active");
                 activeCount++;
             }
         }
@@ -43,13 +41,12 @@ public static class TagQuerySample
 
         Console.WriteLine($"  Active AND visible entities:");
         int activeVisibleCount = 0;
-        foreach (var entityId in allEntitiesQuery)
+        foreach (var data in allEntitiesQuery)
         {
-            var entity = world.World.GetEntity(entityId);
-            var tags = world.GetTags(entity);
+            var tags = world.GetTags(data.Entity);
             if (tags.ContainsAll(activeAndVisibleMask))
             {
-                Console.WriteLine($"    Entity {entity.Id} is active and visible");
+                Console.WriteLine($"    Entity {data.Entity.Id} is active and visible");
                 activeVisibleCount++;
             }
         }
@@ -61,19 +58,18 @@ public static class TagQuerySample
             .Create()
             .With<Position>()
             .With<Velocity>()
-            .Build(world.ArchetypeRegistry);
+            .Build(world);
 
         Console.WriteLine($"  Active entities with Position and Velocity:");
         int activeMovableCount = 0;
-        foreach (var entityId in movableQuery)
+        foreach (var data in movableQuery)
         {
-            var entity = world.World.GetEntity(entityId);
-            var tags = world.GetTags(entity);
+            var tags = world.GetTags(data.Entity);
             if (tags.ContainsAll(activeTagMask))
             {
-                var pos = world.GetComponent<Position>(entity);
-                var vel = world.GetComponent<Velocity>(entity);
-                Console.WriteLine($"    Entity {entity.Id}: pos={pos}, vel={vel}");
+                var pos = world.GetComponent<Position>(data.Entity);
+                var vel = world.GetComponent<Velocity>(data.Entity);
+                Console.WriteLine($"    Entity {data.Entity.Id}: pos={pos}, vel={vel}");
                 activeMovableCount++;
             }
         }

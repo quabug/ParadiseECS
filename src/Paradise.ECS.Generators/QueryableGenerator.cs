@@ -477,6 +477,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> _layout;");
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkHandle _chunk;");
         sb.AppendLine($"{indent}    private readonly int _indexInChunk;");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.Entity _entity;");
         sb.AppendLine();
 
         // Generate static Create method (required by IQueryData)
@@ -486,8 +487,9 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkManager chunkManager,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> layout,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkHandle chunk,");
-        sb.AppendLine($"{indent}        int indexInChunk)");
-        sb.AppendLine($"{indent}        => new(chunkManager, layout, chunk, indexInChunk);");
+        sb.AppendLine($"{indent}        int indexInChunk,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.Entity entity)");
+        sb.AppendLine($"{indent}        => new(chunkManager, layout, chunk, indexInChunk, entity);");
         sb.AppendLine();
 
         // Generate internal constructor
@@ -496,12 +498,14 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkManager chunkManager,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> layout,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkHandle chunk,");
-        sb.AppendLine($"{indent}        int indexInChunk)");
+        sb.AppendLine($"{indent}        int indexInChunk,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.Entity entity)");
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        _chunkManager = chunkManager;");
         sb.AppendLine($"{indent}        _layout = layout;");
         sb.AppendLine($"{indent}        _chunk = chunk;");
         sb.AppendLine($"{indent}        _indexInChunk = indexInChunk;");
+        sb.AppendLine($"{indent}        _entity = entity;");
         sb.AppendLine($"{indent}    }}");
 
         // Generate component properties for With<T> components (unless QueryOnly)
@@ -571,6 +575,7 @@ public class QueryableGenerator : IIncrementalGenerator
 
         // Generate private fields
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkManager _chunkManager;");
+        sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.IEntityManager _entityManager;");
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> _layout;");
         sb.AppendLine($"{indent}    private readonly global::Paradise.ECS.ChunkHandle _chunk;");
         sb.AppendLine($"{indent}    private readonly int _entityCount;");
@@ -581,21 +586,24 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"{indent}    public static ChunkData<TMask, TConfig> Create(");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkManager chunkManager,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.IEntityManager entityManager,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> layout,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkHandle chunk,");
         sb.AppendLine($"{indent}        int entityCount)");
-        sb.AppendLine($"{indent}        => new(chunkManager, layout, chunk, entityCount);");
+        sb.AppendLine($"{indent}        => new(chunkManager, entityManager, layout, chunk, entityCount);");
         sb.AppendLine();
 
         // Generate internal constructor
         sb.AppendLine($"{indent}    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
         sb.AppendLine($"{indent}    internal ChunkData(");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkManager chunkManager,");
+        sb.AppendLine($"{indent}        global::Paradise.ECS.IEntityManager entityManager,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ImmutableArchetypeLayout<TMask, TConfig> layout,");
         sb.AppendLine($"{indent}        global::Paradise.ECS.ChunkHandle chunk,");
         sb.AppendLine($"{indent}        int entityCount)");
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        _chunkManager = chunkManager;");
+        sb.AppendLine($"{indent}        _entityManager = entityManager;");
         sb.AppendLine($"{indent}        _layout = layout;");
         sb.AppendLine($"{indent}        _chunk = chunk;");
         sb.AppendLine($"{indent}        _entityCount = entityCount;");

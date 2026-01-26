@@ -17,17 +17,20 @@ public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
     where TConfig : IConfig, new()
 {
     private readonly ChunkManager _chunkManager;
+    private readonly IEntityManager _entityManager;
     private readonly Query<TMask, TConfig, TArchetype> _query;
 
     /// <summary>
     /// Creates a new query result.
     /// </summary>
     /// <param name="chunkManager">The chunk manager for memory access.</param>
+    /// <param name="entityManager">The entity manager for looking up entity versions.</param>
     /// <param name="query">The underlying query.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public QueryResult(ChunkManager chunkManager, Query<TMask, TConfig, TArchetype> query)
+    public QueryResult(ChunkManager chunkManager, IEntityManager entityManager, Query<TMask, TConfig, TArchetype> query)
     {
         _chunkManager = chunkManager;
+        _entityManager = entityManager;
         _query = query;
     }
 
@@ -53,7 +56,7 @@ public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
     /// Returns an enumerator that iterates through all entities in the matching archetypes.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Enumerator GetEnumerator() => new(_chunkManager, _query);
+    public Enumerator GetEnumerator() => new(_chunkManager, _entityManager, _query);
 
     /// <summary>
     /// Enumerator for iterating over TData instances.
@@ -61,17 +64,21 @@ public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
     public ref struct Enumerator
     {
         private readonly ChunkManager _chunkManager;
+        private readonly IEntityManager _entityManager;
         private Query<TMask, TConfig, TArchetype>.ChunkEnumerator _chunkEnumerator;
+        private TArchetype? _currentArchetype;
         private ImmutableArchetypeLayout<TMask, TConfig> _currentLayout;
         private ChunkHandle _currentChunk;
         private int _indexInChunk;
         private int _entitiesInChunk;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Enumerator(ChunkManager chunkManager, Query<TMask, TConfig, TArchetype> query)
+        internal Enumerator(ChunkManager chunkManager, IEntityManager entityManager, Query<TMask, TConfig, TArchetype> query)
         {
             _chunkManager = chunkManager;
+            _entityManager = entityManager;
             _chunkEnumerator = query.Chunks.GetEnumerator();
+            _currentArchetype = default;
             _currentLayout = default;
             _currentChunk = default;
             _indexInChunk = -1;
@@ -84,7 +91,13 @@ public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
         public TData Current
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => TData.Create(_chunkManager, _currentLayout, _currentChunk, _indexInChunk);
+            get
+            {
+                int entityId = _currentArchetype!.GetEntityId(_currentChunk, _indexInChunk);
+                var location = _entityManager.GetLocation(entityId);
+                var entity = new Entity(entityId, location.Version);
+                return TData.Create(_chunkManager, _currentLayout, _currentChunk, _indexInChunk, entity);
+            }
         }
 
         /// <summary>
@@ -98,6 +111,7 @@ public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
             {
                 if (!_chunkEnumerator.MoveNext()) return false;
                 var info = _chunkEnumerator.Current;
+                _currentArchetype = info.Archetype;
                 _currentLayout = info.Archetype.Layout;
                 _currentChunk = info.Handle;
                 _entitiesInChunk = info.EntityCount;
@@ -123,17 +137,20 @@ public readonly ref struct ChunkQueryResult<TChunkData, TArchetype, TMask, TConf
     where TConfig : IConfig, new()
 {
     private readonly ChunkManager _chunkManager;
+    private readonly IEntityManager _entityManager;
     private readonly Query<TMask, TConfig, TArchetype> _query;
 
     /// <summary>
     /// Creates a new chunk query result.
     /// </summary>
     /// <param name="chunkManager">The chunk manager for memory access.</param>
+    /// <param name="entityManager">The entity manager for looking up entity versions.</param>
     /// <param name="query">The underlying query.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ChunkQueryResult(ChunkManager chunkManager, Query<TMask, TConfig, TArchetype> query)
+    public ChunkQueryResult(ChunkManager chunkManager, IEntityManager entityManager, Query<TMask, TConfig, TArchetype> query)
     {
         _chunkManager = chunkManager;
+        _entityManager = entityManager;
         _query = query;
     }
 
@@ -159,7 +176,7 @@ public readonly ref struct ChunkQueryResult<TChunkData, TArchetype, TMask, TConf
     /// Returns an enumerator that iterates through all chunks in the matching archetypes.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Enumerator GetEnumerator() => new(_chunkManager, _query);
+    public Enumerator GetEnumerator() => new(_chunkManager, _entityManager, _query);
 
     /// <summary>
     /// Enumerator for iterating over TChunkData instances.
@@ -167,12 +184,14 @@ public readonly ref struct ChunkQueryResult<TChunkData, TArchetype, TMask, TConf
     public ref struct Enumerator
     {
         private readonly ChunkManager _chunkManager;
+        private readonly IEntityManager _entityManager;
         private Query<TMask, TConfig, TArchetype>.ChunkEnumerator _chunkEnumerator;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Enumerator(ChunkManager chunkManager, Query<TMask, TConfig, TArchetype> query)
+        internal Enumerator(ChunkManager chunkManager, IEntityManager entityManager, Query<TMask, TConfig, TArchetype> query)
         {
             _chunkManager = chunkManager;
+            _entityManager = entityManager;
             _chunkEnumerator = query.Chunks.GetEnumerator();
         }
 
@@ -185,7 +204,7 @@ public readonly ref struct ChunkQueryResult<TChunkData, TArchetype, TMask, TConf
             get
             {
                 var info = _chunkEnumerator.Current;
-                return TChunkData.Create(_chunkManager, info.Archetype.Layout, info.Handle, info.EntityCount);
+                return TChunkData.Create(_chunkManager, _entityManager, info.Archetype.Layout, info.Handle, info.EntityCount);
             }
         }
 

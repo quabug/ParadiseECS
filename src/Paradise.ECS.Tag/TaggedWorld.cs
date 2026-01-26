@@ -110,6 +110,8 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : IWorld<
     /// </summary>
     public World<TMask, TConfig> World => _world;
 
+    public IEntityManager EntityManager => _world.EntityManager;
+
     /// <summary>
     /// Gets the archetype registry for this world.
     /// </summary>
