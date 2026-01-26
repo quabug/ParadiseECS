@@ -66,7 +66,6 @@ public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
         private readonly ChunkManager _chunkManager;
         private readonly IEntityManager _entityManager;
         private Query<TMask, TConfig, TArchetype>.ChunkEnumerator _chunkEnumerator;
-        private TArchetype? _currentArchetype;
         private ImmutableArchetypeLayout<TMask, TConfig> _currentLayout;
         private ChunkHandle _currentChunk;
         private int _indexInChunk;
@@ -78,7 +77,6 @@ public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
             _chunkManager = chunkManager;
             _entityManager = entityManager;
             _chunkEnumerator = query.Chunks.GetEnumerator();
-            _currentArchetype = default;
             _currentLayout = default;
             _currentChunk = default;
             _indexInChunk = -1;
@@ -91,13 +89,7 @@ public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
         public TData Current
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get
-            {
-                int entityId = _currentArchetype!.GetEntityId(_currentChunk, _indexInChunk);
-                var location = _entityManager.GetLocation(entityId);
-                var entity = new Entity(entityId, location.Version);
-                return TData.Create(_chunkManager, _currentLayout, _currentChunk, _indexInChunk, entity);
-            }
+            get => TData.Create(_chunkManager, _entityManager, _currentLayout, _currentChunk, _indexInChunk);
         }
 
         /// <summary>
@@ -111,7 +103,6 @@ public readonly ref struct QueryResult<TData, TArchetype, TMask, TConfig>
             {
                 if (!_chunkEnumerator.MoveNext()) return false;
                 var info = _chunkEnumerator.Current;
-                _currentArchetype = info.Archetype;
                 _currentLayout = info.Archetype.Layout;
                 _currentChunk = info.Handle;
                 _entitiesInChunk = info.EntityCount;

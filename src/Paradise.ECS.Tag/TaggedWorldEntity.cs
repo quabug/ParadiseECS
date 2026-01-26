@@ -17,36 +17,28 @@ public readonly ref struct TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMa
     where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
     where TTagMask : unmanaged, IBitSet<TTagMask>
 {
-    private readonly ChunkManager _chunkManager;
-    private readonly ImmutableArchetypeLayout<TMask, TConfig> _layout;
-    private readonly ChunkHandle _chunk;
-    private readonly int _indexInChunk;
-    private readonly Entity _entity;
+    private readonly WorldEntity<TMask, TConfig> _entity;
 
     /// <summary>Creates a new TaggedWorldEntity instance. Required by IQueryData interface.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMask> Create(
         ChunkManager chunkManager,
+        IEntityManager entityManager,
         ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunk,
-        int indexInChunk,
-        Entity entity)
-        => new(chunkManager, layout, chunk, indexInChunk, entity);
+        int indexInChunk)
+        => new(WorldEntity<TMask, TConfig>.Create(chunkManager, entityManager, layout, chunk, indexInChunk));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private TaggedWorldEntity(
-        ChunkManager chunkManager,
-        ImmutableArchetypeLayout<TMask, TConfig> layout,
-        ChunkHandle chunk,
-        int indexInChunk,
-        Entity entity)
+    private TaggedWorldEntity(WorldEntity<TMask, TConfig> entity)
     {
-        _chunkManager = chunkManager;
-        _layout = layout;
-        _chunk = chunk;
-        _indexInChunk = indexInChunk;
         _entity = entity;
     }
+
+    /// <summary>Creates a TaggedWorldEntity from a WorldEntity.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMask> FromWorldEntity(WorldEntity<TMask, TConfig> entity)
+        => new(entity);
 
     /// <summary>
     /// Gets the entity.
@@ -54,7 +46,7 @@ public readonly ref struct TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMa
     public Entity Entity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _entity;
+        get => _entity.Entity;
     }
 
     /// <summary>
@@ -64,10 +56,7 @@ public readonly ref struct TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMa
     /// <returns>A reference to the component.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T Get<T>() where T : unmanaged, IComponent
-    {
-        int offset = _layout.GetBaseOffset(T.TypeId) + _indexInChunk * T.Size;
-        return ref _chunkManager.GetBytes(_chunk).GetRef<T>(offset);
-    }
+        => ref _entity.Get<T>();
 
     /// <summary>
     /// Checks if this entity has a specific component.
@@ -76,9 +65,7 @@ public readonly ref struct TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMa
     /// <returns>True if the entity has the component.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Has<T>() where T : unmanaged, IComponent
-    {
-        return _layout.HasComponent(T.TypeId);
-    }
+        => _entity.Has<T>();
 
     /// <summary>
     /// Checks if this entity has a specific tag.
@@ -87,10 +74,7 @@ public readonly ref struct TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMa
     /// <returns>True if the entity has the tag.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasTag<TTag>() where TTag : ITag
-    {
-        ref readonly var tags = ref Get<TEntityTags>();
-        return tags.Mask.Get(TTag.TagId);
-    }
+        => Get<TEntityTags>().Mask.Get(TTag.TagId);
 
     /// <summary>
     /// Sets or clears a specific tag on this entity.
@@ -119,7 +103,7 @@ public readonly ref struct TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMa
     /// <param name="taggedWorldEntity">The TaggedWorldEntity to convert.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator Entity(TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMask> taggedWorldEntity)
-        => taggedWorldEntity._entity;
+        => taggedWorldEntity.Entity;
 }
 
 /// <summary>
@@ -137,11 +121,7 @@ public readonly ref struct TaggedWorldEntityChunk<TMask, TConfig, TEntityTags, T
     where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
     where TTagMask : unmanaged, IBitSet<TTagMask>
 {
-    private readonly ChunkManager _chunkManager;
-    private readonly IEntityManager _entityManager;
-    private readonly ImmutableArchetypeLayout<TMask, TConfig> _layout;
-    private readonly ChunkHandle _chunk;
-    private readonly int _entityCount;
+    private readonly WorldEntityChunk<TMask, TConfig> _chunk;
 
     /// <summary>Creates a new TaggedWorldEntityChunk instance. Required by IQueryChunkData interface.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -151,48 +131,29 @@ public readonly ref struct TaggedWorldEntityChunk<TMask, TConfig, TEntityTags, T
         ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunk,
         int entityCount)
-        => new(chunkManager, entityManager, layout, chunk, entityCount);
+        => new(WorldEntityChunk<TMask, TConfig>.Create(chunkManager, entityManager, layout, chunk, entityCount));
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private TaggedWorldEntityChunk(
-        ChunkManager chunkManager,
-        IEntityManager entityManager,
-        ImmutableArchetypeLayout<TMask, TConfig> layout,
-        ChunkHandle chunk,
-        int entityCount)
+    private TaggedWorldEntityChunk(WorldEntityChunk<TMask, TConfig> chunk)
     {
-        _chunkManager = chunkManager;
-        _entityManager = entityManager;
-        _layout = layout;
         _chunk = chunk;
-        _entityCount = entityCount;
     }
 
     /// <summary>Gets the number of entities in this chunk.</summary>
     public int EntityCount
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _entityCount;
+        get => _chunk.EntityCount;
     }
 
     /// <summary>
-    /// Gets the entity ID at a specific index within this chunk.
+    /// Gets a TaggedWorldEntity at the specified index within this chunk.
     /// </summary>
     /// <param name="index">The index within this chunk.</param>
-    /// <returns>The entity ID at the specified index.</returns>
+    /// <returns>A TaggedWorldEntity providing access to the entity at the specified index.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public int GetEntityIdAt(int index)
-    {
-        var bytes = _chunkManager.GetBytes(_chunk);
-        int offset = ImmutableArchetypeLayout<TMask, TConfig>.GetEntityIdOffset(index);
-        return TConfig.EntityIdByteSize switch
-        {
-            1 => bytes.GetRef<byte>(offset),
-            2 => bytes.GetRef<ushort>(offset),
-            4 => bytes.GetRef<int>(offset),
-            _ => ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize)
-        };
-    }
+    public TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMask> GetEntityAt(int index)
+        => TaggedWorldEntity<TMask, TConfig, TEntityTags, TTagMask>.FromWorldEntity(_chunk.GetEntityAt(index));
 
     /// <summary>
     /// Gets a span over all components of type T in this chunk.
@@ -201,10 +162,7 @@ public readonly ref struct TaggedWorldEntityChunk<TMask, TConfig, TEntityTags, T
     /// <returns>A span over the components.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Span<T> Get<T>() where T : unmanaged, IComponent
-    {
-        int baseOffset = _layout.GetBaseOffset(T.TypeId);
-        return _chunkManager.GetBytes(_chunk).GetSpan<T>(baseOffset, _entityCount);
-    }
+        => _chunk.Get<T>();
 
     /// <summary>
     /// Checks if this chunk's archetype has a specific component.
@@ -213,9 +171,7 @@ public readonly ref struct TaggedWorldEntityChunk<TMask, TConfig, TEntityTags, T
     /// <returns>True if the archetype has the component.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Has<T>() where T : unmanaged, IComponent
-    {
-        return _layout.HasComponent(T.TypeId);
-    }
+        => _chunk.Has<T>();
 
     /// <summary>
     /// Gets a span over all entity tag masks in this chunk.

@@ -16,17 +16,17 @@ public interface IQueryData<TSelf, TMask, TConfig>
     /// Creates a new instance of the data type for the specified entity location.
     /// </summary>
     /// <param name="chunkManager">The chunk manager for memory access.</param>
+    /// <param name="entityManager">The entity manager for looking up entity versions.</param>
     /// <param name="layout">The archetype layout describing component offsets.</param>
     /// <param name="chunk">The chunk handle containing the entity.</param>
     /// <param name="indexInChunk">The entity's index within the chunk.</param>
-    /// <param name="entity">The entity being iterated.</param>
     /// <returns>A new data instance providing component access.</returns>
     static abstract TSelf Create(
         ChunkManager chunkManager,
+        IEntityManager entityManager,
         ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunk,
-        int indexInChunk,
-        Entity entity);
+        int indexInChunk);
 }
 
 /// <summary>

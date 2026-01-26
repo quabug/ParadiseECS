@@ -61,8 +61,8 @@ public class QueryableGeneratorStructureTests
         await Assert.That(containerBGenerated).Contains(": global::Paradise.ECS.IQueryChunkData<ChunkData<TMask, TConfig>, TMask, TConfig>");
 
         // Verify static Query and ChunkQuery methods
-        await Assert.That(containerAGenerated).Contains("public static global::Paradise.ECS.QueryResult<Data<TMask, TConfig>, TMask, TConfig> Query<TMask, TConfig>");
-        await Assert.That(containerAGenerated).Contains("public static global::Paradise.ECS.ChunkQueryResult<ChunkData<TMask, TConfig>, TMask, TConfig> ChunkQuery<TMask, TConfig>");
+        await Assert.That(containerAGenerated).Contains("public static global::Paradise.ECS.QueryResult<Data<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig> Query<TWorld, TMask, TConfig>");
+        await Assert.That(containerAGenerated).Contains("public static global::Paradise.ECS.ChunkQueryResult<ChunkData<TMask, TConfig>, global::Paradise.ECS.Archetype<TMask, TConfig>, TMask, TConfig> ChunkQuery<TWorld, TMask, TConfig>");
     }
 
     /// <summary>

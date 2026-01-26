@@ -14,34 +14,34 @@ public readonly ref struct WorldEntity<TMask, TConfig>
     where TConfig : IConfig, new()
 {
     private readonly ChunkManager _chunkManager;
+    private readonly IEntityManager _entityManager;
     private readonly ImmutableArchetypeLayout<TMask, TConfig> _layout;
     private readonly ChunkHandle _chunk;
     private readonly int _indexInChunk;
-    private readonly Entity _entity;
 
     /// <summary>Creates a new WorldEntity instance. Required by IQueryData interface.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static WorldEntity<TMask, TConfig> Create(
         ChunkManager chunkManager,
+        IEntityManager entityManager,
         ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunk,
-        int indexInChunk,
-        Entity entity)
-        => new(chunkManager, layout, chunk, indexInChunk, entity);
+        int indexInChunk)
+        => new(chunkManager, entityManager, layout, chunk, indexInChunk);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private WorldEntity(
         ChunkManager chunkManager,
+        IEntityManager entityManager,
         ImmutableArchetypeLayout<TMask, TConfig> layout,
         ChunkHandle chunk,
-        int indexInChunk,
-        Entity entity)
+        int indexInChunk)
     {
         _chunkManager = chunkManager;
+        _entityManager = entityManager;
         _layout = layout;
         _chunk = chunk;
         _indexInChunk = indexInChunk;
-        _entity = entity;
     }
 
     /// <summary>
@@ -50,7 +50,20 @@ public readonly ref struct WorldEntity<TMask, TConfig>
     public Entity Entity
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        get => _entity;
+        get
+        {
+            var bytes = _chunkManager.GetBytes(_chunk);
+            int offset = ImmutableArchetypeLayout<TMask, TConfig>.GetEntityIdOffset(_indexInChunk);
+            int entityId = TConfig.EntityIdByteSize switch
+            {
+                1 => bytes.GetRef<byte>(offset),
+                2 => bytes.GetRef<ushort>(offset),
+                4 => bytes.GetRef<int>(offset),
+                _ => ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize)
+            };
+            var location = _entityManager.GetLocation(entityId);
+            return new Entity(entityId, location.Version);
+        }
     }
 
     /// <summary>
@@ -79,7 +92,7 @@ public readonly ref struct WorldEntity<TMask, TConfig>
     /// </summary>
     /// <param name="worldEntity">The WorldEntity to convert.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static implicit operator Entity(WorldEntity<TMask, TConfig> worldEntity) => worldEntity._entity;
+    public static implicit operator Entity(WorldEntity<TMask, TConfig> worldEntity) => worldEntity.Entity;
 }
 
 /// <summary>
@@ -132,25 +145,13 @@ public readonly ref struct WorldEntityChunk<TMask, TConfig>
     }
 
     /// <summary>
-    /// Gets the entity at the specified index within this chunk.
+    /// Gets a WorldEntity at the specified index within this chunk.
     /// </summary>
     /// <param name="index">The index within this chunk.</param>
-    /// <returns>The entity at the specified index.</returns>
+    /// <returns>A WorldEntity providing access to the entity at the specified index.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Entity GetEntityAt(int index)
-    {
-        var bytes = _chunkManager.GetBytes(_chunk);
-        int offset = ImmutableArchetypeLayout<TMask, TConfig>.GetEntityIdOffset(index);
-        int entityId = TConfig.EntityIdByteSize switch
-        {
-            1 => bytes.GetRef<byte>(offset),
-            2 => bytes.GetRef<ushort>(offset),
-            4 => bytes.GetRef<int>(offset),
-            _ => ThrowHelper.ThrowInvalidEntityIdByteSize<int>(TConfig.EntityIdByteSize)
-        };
-        var location = _entityManager.GetLocation(entityId);
-        return new Entity(entityId, location.Version);
-    }
+    public WorldEntity<TMask, TConfig> GetEntityAt(int index)
+        => WorldEntity<TMask, TConfig>.Create(_chunkManager, _entityManager, _layout, _chunk, index);
 
     /// <summary>
     /// Gets a span over all components of type T in this chunk.
