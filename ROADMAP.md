@@ -123,13 +123,13 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
 
 ### In Progress
 
-### Planned
+- [~] **System Scheduling** (feature/system)
+  - System base class/interface
+  - Query iteration patterns
+  - System execution ordering
+  - Dependency management between systems
 
-- [ ] **System Scheduling**
-    - System base class/interface
-    - Query iteration patterns
-    - System execution ordering
-    - Dependency management between systems
+### Planned
 
 - [ ] **Parallel Job System**
     - Job scheduling infrastructure

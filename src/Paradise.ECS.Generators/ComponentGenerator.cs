@@ -367,8 +367,8 @@ public class ComponentGenerator : IIncrementalGenerator
                 sb.AppendLine($"global using SharedWorld = global::Paradise.ECS.SharedTaggedWorld<{maskTypeFull}, {configTypeFull}, {entityTags}, {tagMaskType}>;");
                 var worldEntityType = $"global::Paradise.ECS.TaggedWorldEntity<{maskTypeFull}, {configTypeFull}, {entityTags}, {tagMaskType}>";
                 var worldEntityChunkType = $"global::Paradise.ECS.TaggedWorldEntityChunk<{maskTypeFull}, {configTypeFull}, {entityTags}, {tagMaskType}>";
-                sb.AppendLine($"global using QueryResult = global::Paradise.ECS.QueryResult<{worldEntityType}, {archetypeType}, {maskTypeFull}, {configTypeFull}>;");
-                sb.AppendLine($"global using ChunkQueryResult = global::Paradise.ECS.ChunkQueryResult<{worldEntityChunkType}, {archetypeType}, {maskTypeFull}, {configTypeFull}>;");
+                sb.AppendLine($"global using EntityQueryResult = global::Paradise.ECS.QueryResult<{worldEntityType}, {archetypeType}, {maskTypeFull}, {configTypeFull}>;");
+                sb.AppendLine($"global using EntityChunkQueryResult = global::Paradise.ECS.ChunkQueryResult<{worldEntityChunkType}, {archetypeType}, {maskTypeFull}, {configTypeFull}>;");
             }
             else
             {
@@ -376,8 +376,8 @@ public class ComponentGenerator : IIncrementalGenerator
                 sb.AppendLine($"global using SharedWorld = global::Paradise.ECS.SharedWorld<{maskTypeFull}, {configTypeFull}>;");
                 var worldEntityType = $"global::Paradise.ECS.WorldEntity<{maskTypeFull}, {configTypeFull}>";
                 var worldEntityChunkType = $"global::Paradise.ECS.WorldEntityChunk<{maskTypeFull}, {configTypeFull}>";
-                sb.AppendLine($"global using QueryResult = global::Paradise.ECS.QueryResult<{worldEntityType}, {archetypeType}, {maskTypeFull}, {configTypeFull}>;");
-                sb.AppendLine($"global using ChunkQueryResult = global::Paradise.ECS.ChunkQueryResult<{worldEntityChunkType}, {archetypeType}, {maskTypeFull}, {configTypeFull}>;");
+                sb.AppendLine($"global using EntityQueryResult = global::Paradise.ECS.QueryResult<{worldEntityType}, {archetypeType}, {maskTypeFull}, {configTypeFull}>;");
+                sb.AppendLine($"global using EntityChunkQueryResult = global::Paradise.ECS.ChunkQueryResult<{worldEntityChunkType}, {archetypeType}, {maskTypeFull}, {configTypeFull}>;");
             }
 
             sb.AppendLine($"global using Query = global::Paradise.ECS.Query<{maskTypeFull}, {configTypeFull}, {archetypeType}>;");
