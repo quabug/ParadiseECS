@@ -1,6 +1,6 @@
 # Paradise.ECS Roadmap
 
-> Last updated: 2026-01-24
+> Last updated: 2026-01-26
 
 ## Vision
 
@@ -316,6 +316,7 @@ Minor TODOs in codebase:
 
 ### Recent Activity
 
+- **2026-01-26**: Merged [#47](https://github.com/quabug/ParadiseECS/pull/47) - Refactor queryable pattern with generic QueryResult and simplified APIs
 - **2026-01-24**: Merged [#45](https://github.com/quabug/ParadiseECS/pull/45) - Add World.CopyFrom() for cloning world state between shared worlds
 - **2026-01-24**: Merged [#42](https://github.com/quabug/ParadiseECS/pull/42) - Refactor TMask generic parameter and add SharedWorld for multi-world support
 - **2026-01-22**: Merged [#38](https://github.com/quabug/ParadiseECS/pull/38) - Add zero-allocation tag system with source generation
