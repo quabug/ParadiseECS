@@ -181,6 +181,13 @@ public readonly ref struct TaggedWorldEntityChunk<TMask, TConfig, TEntityTags, T
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get => Get<TEntityTags>();
     }
+
+    /// <summary>Gets the chunk handle.</summary>
+    public ChunkHandle Handle
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunk.Handle;
+    }
 }
 
 /// <summary>

@@ -144,6 +144,13 @@ public readonly ref struct WorldEntityChunk<TMask, TConfig>
         get => _entityCount;
     }
 
+    /// <summary>Gets the chunk handle.</summary>
+    public ChunkHandle Handle
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunk;
+    }
+
     /// <summary>
     /// Gets a WorldEntity at the specified index within this chunk.
     /// </summary>
