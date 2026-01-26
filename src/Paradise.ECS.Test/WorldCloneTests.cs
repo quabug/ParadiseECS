@@ -320,8 +320,8 @@ public sealed class WorldCloneTests : IDisposable
         _targetWorld.CopyFrom(_sourceWorld);
 
         // Assert - Query should work on cloned world
-        var posQuery = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestPosition>().Build(_targetWorld);
-        var velQuery = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestVelocity>().Build(_targetWorld);
+        var posQuery = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestPosition>().Build(_targetWorld.ArchetypeRegistry);
+        var velQuery = QueryBuilder<SmallBitSet<ulong>>.Create().With<TestVelocity>().Build(_targetWorld.ArchetypeRegistry);
 
         int posCount = 0;
         foreach (var _ in posQuery)
@@ -350,7 +350,7 @@ public sealed class WorldCloneTests : IDisposable
         _targetWorld.CopyFrom(_sourceWorld);
 
         // Modify source after clone
-        _sourceWorld.SetComponent(entity, new TestPosition { X = 100, Y = 200 });
+        _sourceWorld.GetComponent<TestPosition>(entity) = new TestPosition { X = 100, Y = 200 };
 
         // Assert - Target should have original values
         var sourcePos = _sourceWorld.GetComponent<TestPosition>(entity);
@@ -373,7 +373,7 @@ public sealed class WorldCloneTests : IDisposable
         _targetWorld.CopyFrom(_sourceWorld);
 
         // Modify target after clone
-        _targetWorld.SetComponent(entity, new TestPosition { X = 100, Y = 200 });
+        _targetWorld.GetComponent<TestPosition>(entity) = new TestPosition { X = 100, Y = 200 };
 
         // Assert - Source should have original values
         var sourcePos = _sourceWorld.GetComponent<TestPosition>(entity);
@@ -422,7 +422,7 @@ public sealed class WorldCloneTests : IDisposable
         await Assert.That(_targetWorld.EntityCount).IsEqualTo(1);
 
         // Modify source
-        _sourceWorld.SetComponent(entity, new TestPosition { X = 2, Y = 2 });
+        _sourceWorld.GetComponent<TestPosition>(entity) = new TestPosition { X = 2, Y = 2 };
         var entity2 = _sourceWorld.Spawn();
         _sourceWorld.AddComponent(entity2, new TestVelocity { X = 3, Y = 3 });
 

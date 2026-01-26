@@ -7,7 +7,7 @@ namespace Paradise.ECS.Sample.Samples;
 /// </summary>
 public static class ComponentQuerySample
 {
-    public static WorldQuery<SmallBitSet<uint>, GameConfig> Run(World world)
+    public static QueryResult Run(World world)
     {
         Console.WriteLine("6. Component-based Query");
         Console.WriteLine("----------------------------");
@@ -25,7 +25,7 @@ public static class ComponentQuerySample
         foreach (var entity in movableQuery)
         {
             var pos = entity.Get<Position>();
-            Console.WriteLine($"    Entity {entity.Entity.Id}: Position={pos}");
+            Console.WriteLine($"    Entity {entity.Entity}: Position={pos}");
         }
         Console.WriteLine();
 

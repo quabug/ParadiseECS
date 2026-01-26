@@ -78,7 +78,7 @@ public readonly record struct StaleBitStatistics(
 /// Tags are stored in a per-entity bitmask component, enabling O(1) tag operations
 /// without archetype changes.
 /// </remarks>
-public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
+public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> : IWorld<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
     where TConfig : IConfig, new()
     where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
@@ -110,10 +110,17 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     /// </summary>
     public World<TMask, TConfig> World => _world;
 
+    public IEntityManager EntityManager => _world.EntityManager;
+
     /// <summary>
     /// Gets the archetype registry for this world.
     /// </summary>
     public ArchetypeRegistry<TMask, TConfig> ArchetypeRegistry => _world.ArchetypeRegistry;
+
+    /// <summary>
+    /// Gets the chunk manager for memory allocation and chunk access.
+    /// </summary>
+    public ChunkManager ChunkManager => _world.ChunkManager;
 
     /// <summary>
     /// Gets the chunk tag registry for per-chunk tag filtering.
@@ -132,7 +139,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     public Entity Spawn()
     {
         var entity = _world.Spawn();
-        _world.AddComponent<TEntityTags>(entity, default);
+        _world.AddComponent<TEntityTags>(entity);
         return entity;
     }
 
@@ -268,7 +275,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void AddTag<TTag>(Entity entity) where TTag : ITag
     {
-        ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
+        ref var tags = ref _world.GetComponent<TEntityTags>(entity);
         // TODO: use mutable tag mask?
         tags.Mask = tags.Mask.Set(TTag.TagId);
 
@@ -292,7 +299,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RemoveTag<TTag>(Entity entity) where TTag : ITag
     {
-        ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
+        ref var tags = ref _world.GetComponent<TEntityTags>(entity);
         // TODO: use mutable tag mask?
         tags.Mask = tags.Mask.Clear(TTag.TagId);
         // Chunk mask not recomputed (sticky mask) - may have stale bits
@@ -307,7 +314,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool HasTag<TTag>(Entity entity) where TTag : ITag
     {
-        ref var tags = ref _world.GetComponentRef<TEntityTags>(entity);
+        ref var tags = ref _world.GetComponent<TEntityTags>(entity);
         return tags.Mask.Get(TTag.TagId);
     }
 
@@ -333,7 +340,7 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     /// </remarks>
     public void SetTags(Entity entity, TTagMask tags)
     {
-        ref var entityTags = ref _world.GetComponentRef<TEntityTags>(entity);
+        ref var entityTags = ref _world.GetComponent<TEntityTags>(entity);
         var oldMask = entityTags.Mask;
         entityTags.Mask = tags;
 
@@ -349,25 +356,11 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     }
 
     /// <summary>
-    /// Gets a component value from an entity.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
-        => _world.GetComponent<T>(entity);
-
-    /// <summary>
     /// Gets a reference to a component on an entity.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetComponentRef<T>(Entity entity) where T : unmanaged, IComponent
-        => ref _world.GetComponentRef<T>(entity);
-
-    /// <summary>
-    /// Sets a component value on an entity.
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
-        => _world.SetComponent(entity, value);
+    public ref T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
+        => ref _world.GetComponent<T>(entity);
 
     /// <summary>
     /// Checks if an entity has a component.
@@ -390,21 +383,26 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
     public void RemoveComponent<T>(Entity entity) where T : unmanaged, IComponent
         => _world.RemoveComponent<T>(entity);
 
-    /// <summary>
-    /// Creates a new query builder bound to this world.
-    /// Use this for building tag-filtered queries with a clean API.
-    /// </summary>
-    /// <returns>A query builder bound to this world's type parameters.</returns>
-    /// <example>
-    /// <code>
-    /// // Clean API - only specify the tag type
-    /// var query = world.Query().WithTag&lt;EnemyTag&gt;().With&lt;Position&gt;().Build();
-    /// foreach (var entity in query) { ... }
-    /// </code>
-    /// </example>
+    /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public TaggedWorldQueryBuilder<TMask, TConfig, TEntityTags, TTagMask> Query()
-        => new(this);
+    public Entity CreateEntity<TBuilder>(TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
+    {
+        var wrappedBuilder = new EnsureComponent<TEntityTags, TBuilder> { InnerBuilder = builder };
+        return _world.CreateEntity(wrappedBuilder);
+    }
+
+    /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Entity OverwriteEntity<TBuilder>(Entity entity, TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
+    {
+        var wrappedBuilder = new EnsureComponent<TEntityTags, TBuilder> { InnerBuilder = builder };
+        return _world.OverwriteEntity(entity, wrappedBuilder);
+    }
+
+    /// <inheritdoc/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Entity AddComponents<TBuilder>(Entity entity, TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
+        => _world.AddComponents(entity, builder);
 
     /// <summary>
     /// Gets the chunk handle for an entity.
@@ -474,41 +472,3 @@ public sealed class TaggedWorld<TMask, TConfig, TEntityTags, TTagMask>
         return mask;
     }
 }
-
-/// <summary>
-/// Extension methods for building queries in a TaggedWorld.
-/// </summary>
-public static class QueryBuilderTaggedWorldExtensions
-{
-    extension<TMask>(QueryBuilder<TMask> builder) where TMask : unmanaged, IBitSet<TMask>
-    {
-        /// <summary>
-        /// Builds a WorldQuery from this description for a TaggedWorld.
-        /// Delegates to the underlying World.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public WorldQuery<TMask, TConfig> Build<TConfig, TEntityTags, TTagMask>(
-            TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld)
-            where TConfig : IConfig, new()
-            where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
-            where TTagMask : unmanaged, IBitSet<TTagMask>
-        {
-            return builder.Build(taggedWorld.World);
-        }
-
-        /// <summary>
-        /// Builds a WorldChunkQuery from this description for a TaggedWorld.
-        /// Delegates to the underlying World.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public WorldChunkQuery<TMask, TConfig> BuildChunk<TConfig, TEntityTags, TTagMask>(
-            TaggedWorld<TMask, TConfig, TEntityTags, TTagMask> taggedWorld)
-            where TConfig : IConfig, new()
-            where TEntityTags : unmanaged, IComponent, IEntityTags<TTagMask>
-            where TTagMask : unmanaged, IBitSet<TTagMask>
-        {
-            return builder.BuildChunk(taggedWorld.World);
-        }
-    }
-}
-

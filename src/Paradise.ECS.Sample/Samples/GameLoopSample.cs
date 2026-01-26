@@ -5,7 +5,7 @@ namespace Paradise.ECS.Sample.Samples;
 /// </summary>
 public static class GameLoopSample
 {
-    public static void Run(World world, WorldQuery<SmallBitSet<uint>, GameConfig> movableQuery)
+    public static void Run(World world, QueryResult movableQuery)
     {
         Console.WriteLine("8. Game Loop Simulation (5 frames)");
         Console.WriteLine("----------------------------");
@@ -22,7 +22,7 @@ public static class GameLoopSample
                 pos = new Position(pos.X + vel.X, pos.Y + vel.Y);
                 movedEntities++;
 
-                if (world.HasTag<PlayerTag>(entity.Entity))
+                if (world.HasTag<PlayerTag>(entity))
                 {
                     Console.WriteLine($"    Player moved to {pos}");
                 }

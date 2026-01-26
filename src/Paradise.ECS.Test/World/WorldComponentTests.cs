@@ -271,14 +271,13 @@ public sealed class WorldComponentTests : IDisposable
     }
 
     [Test]
-    public async Task GetComponent_ModifyViaSetComponent_PersistsChange()
+    public async Task GetComponent_ModifyViaRef_PersistsChange()
     {
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestPosition { X = 10 });
 
-        var pos = _world.GetComponent<TestPosition>(entity);
+        ref var pos = ref _world.GetComponent<TestPosition>(entity);
         pos.X = 999;
-        _world.SetComponent(entity, pos);
 
         var posX = _world.GetComponent<TestPosition>(entity).X;
         await Assert.That(posX).IsEqualTo(999f);
@@ -297,40 +296,20 @@ public sealed class WorldComponentTests : IDisposable
 
     #endregion
 
-    #region SetComponent Tests
+    #region GetComponent Ref Assignment Tests
 
     [Test]
-    public async Task SetComponent_ExistingComponent_UpdatesValue()
+    public async Task GetComponent_RefAssignment_UpdatesValue()
     {
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestPosition { X = 10 });
 
-        _world.SetComponent(entity, new TestPosition { X = 50, Y = 60, Z = 70 });
+        _world.GetComponent<TestPosition>(entity) = new TestPosition { X = 50, Y = 60, Z = 70 };
 
         var pos = _world.GetComponent<TestPosition>(entity);
         await Assert.That(pos.X).IsEqualTo(50f);
         await Assert.That(pos.Y).IsEqualTo(60f);
         await Assert.That(pos.Z).IsEqualTo(70f);
-    }
-
-    [Test]
-    public async Task SetComponent_NonexistentComponent_Throws()
-    {
-        var entity = _world.Spawn();
-
-        await Assert.That(() => _world.SetComponent(entity, new TestPosition { X = 10 }))
-            .ThrowsExactly<InvalidOperationException>();
-    }
-
-    [Test]
-    public async Task SetComponent_DeadEntity_Throws()
-    {
-        var entity = _world.Spawn();
-        _world.AddComponent(entity, new TestPosition { X = 10 });
-        _world.Despawn(entity);
-
-        await Assert.That(() => _world.SetComponent(entity, new TestPosition { X = 20 }))
-            .ThrowsExactly<InvalidOperationException>();
     }
 
     #endregion

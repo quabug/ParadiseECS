@@ -34,9 +34,9 @@ public sealed class EntityBuilderTests : IDisposable
     [Test]
     public async Task EntityBuilder_SingleComponent_CreatesEntity()
     {
-        var entity = EntityBuilder.Create()
-            .Add(new TestPosition { X = 10, Y = 20, Z = 30 })
-            .Build(_world);
+        var entity = _world.CreateEntity(
+            EntityBuilder.Create()
+                .Add(new TestPosition { X = 10, Y = 20, Z = 30 }));
 
         await Assert.That(entity.IsValid).IsTrue();
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsTrue();
@@ -50,11 +50,11 @@ public sealed class EntityBuilderTests : IDisposable
     [Test]
     public async Task EntityBuilder_MultipleComponents_CreatesEntity()
     {
-        var entity = EntityBuilder.Create()
-            .Add(new TestPosition { X = 10 })
-            .Add(new TestVelocity { Y = 20 })
-            .Add(new TestHealth { Current = 100, Max = 100 })
-            .Build(_world);
+        var entity = _world.CreateEntity(
+            EntityBuilder.Create()
+                .Add(new TestPosition { X = 10 })
+                .Add(new TestVelocity { Y = 20 })
+                .Add(new TestHealth { Current = 100, Max = 100 }));
 
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsTrue();
         await Assert.That(_world.HasComponent<TestVelocity>(entity)).IsTrue();
@@ -64,10 +64,10 @@ public sealed class EntityBuilderTests : IDisposable
     [Test]
     public async Task EntityBuilder_ComponentValues_ArePreserved()
     {
-        var entity = EntityBuilder.Create()
-            .Add(new TestPosition { X = 1, Y = 2, Z = 3 })
-            .Add(new TestVelocity { X = 4, Y = 5, Z = 6 })
-            .Build(_world);
+        var entity = _world.CreateEntity(
+            EntityBuilder.Create()
+                .Add(new TestPosition { X = 1, Y = 2, Z = 3 })
+                .Add(new TestVelocity { X = 4, Y = 5, Z = 6 }));
 
         var pos = _world.GetComponent<TestPosition>(entity);
         var vel = _world.GetComponent<TestVelocity>(entity);
@@ -83,9 +83,9 @@ public sealed class EntityBuilderTests : IDisposable
     [Test]
     public async Task EntityBuilder_TagComponent_Works()
     {
-        var entity = EntityBuilder.Create()
-            .Add(new TestTag())
-            .Build(_world);
+        var entity = _world.CreateEntity(
+            EntityBuilder.Create()
+                .Add(new TestTag()));
 
         await Assert.That(_world.HasComponent<TestTag>(entity)).IsTrue();
     }
@@ -93,13 +93,13 @@ public sealed class EntityBuilderTests : IDisposable
     [Test]
     public async Task EntityBuilder_MultipleEntities_Independent()
     {
-        var e1 = EntityBuilder.Create()
-            .Add(new TestPosition { X = 100 })
-            .Build(_world);
+        var e1 = _world.CreateEntity(
+            EntityBuilder.Create()
+                .Add(new TestPosition { X = 100 }));
 
-        var e2 = EntityBuilder.Create()
-            .Add(new TestPosition { X = 200 })
-            .Build(_world);
+        var e2 = _world.CreateEntity(
+            EntityBuilder.Create()
+                .Add(new TestPosition { X = 200 }));
 
         var posX1 = _world.GetComponent<TestPosition>(e1).X;
         var posX2 = _world.GetComponent<TestPosition>(e2).X;
@@ -111,7 +111,7 @@ public sealed class EntityBuilderTests : IDisposable
     [Test]
     public async Task EntityBuilder_EmptyBuilder_CreatesEmptyEntity()
     {
-        var entity = EntityBuilder.Create().Build(_world);
+        var entity = _world.CreateEntity(EntityBuilder.Create());
 
         await Assert.That(entity.IsValid).IsTrue();
         await Assert.That(_world.IsAlive(entity)).IsTrue();
@@ -123,9 +123,9 @@ public sealed class EntityBuilderTests : IDisposable
     {
         var entity = _world.Spawn();
 
-        EntityBuilder.Create()
-            .Add(new TestPosition { X = 50 })
-            .AddTo(entity, _world);
+        _world.AddComponents(entity,
+            EntityBuilder.Create()
+                .Add(new TestPosition { X = 50 }));
 
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsTrue();
         var posX = _world.GetComponent<TestPosition>(entity).X;
@@ -137,10 +137,10 @@ public sealed class EntityBuilderTests : IDisposable
     {
         var entity = _world.Spawn();
 
-        EntityBuilder.Create()
-            .Add(new TestPosition { X = 10 })
-            .Add(new TestVelocity { Y = 20 })
-            .AddTo(entity, _world);
+        _world.AddComponents(entity,
+            EntityBuilder.Create()
+                .Add(new TestPosition { X = 10 })
+                .Add(new TestVelocity { Y = 20 }));
 
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsTrue();
         await Assert.That(_world.HasComponent<TestVelocity>(entity)).IsTrue();
@@ -152,9 +152,9 @@ public sealed class EntityBuilderTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestPosition { X = 10 });
 
-        EntityBuilder.Create()
-            .Add(new TestVelocity { Y = 20 })
-            .AddTo(entity, _world);
+        _world.AddComponents(entity,
+            EntityBuilder.Create()
+                .Add(new TestVelocity { Y = 20 }));
 
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsTrue();
         await Assert.That(_world.HasComponent<TestVelocity>(entity)).IsTrue();
@@ -170,9 +170,9 @@ public sealed class EntityBuilderTests : IDisposable
         _world.AddComponent(entity, new TestPosition { X = 10 });
         _world.AddComponent(entity, new TestVelocity { Y = 20 });
 
-        EntityBuilder.Create()
-            .Add(new TestHealth { Current = 100, Max = 100 })
-            .Overwrite(entity, _world);
+        _world.OverwriteEntity(entity,
+            EntityBuilder.Create()
+                .Add(new TestHealth { Current = 100, Max = 100 }));
 
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsFalse();
         await Assert.That(_world.HasComponent<TestVelocity>(entity)).IsFalse();
@@ -185,7 +185,7 @@ public sealed class EntityBuilderTests : IDisposable
         var entity = _world.Spawn();
         _world.AddComponent(entity, new TestPosition { X = 10 });
 
-        EntityBuilder.Create().Overwrite(entity, _world);
+        _world.OverwriteEntity(entity, EntityBuilder.Create());
 
         await Assert.That(_world.IsAlive(entity)).IsTrue();
         await Assert.That(_world.HasComponent<TestPosition>(entity)).IsFalse();

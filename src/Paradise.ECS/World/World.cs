@@ -10,7 +10,7 @@ namespace Paradise.ECS;
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
-public sealed class World<TMask, TConfig>
+public sealed class World<TMask, TConfig> : IWorld<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
     where TConfig : IConfig, new()
 {
@@ -74,14 +74,9 @@ public sealed class World<TMask, TConfig>
         return entity;
     }
 
-    /// <summary>
-    /// Creates a new entity using the provided builder.
-    /// </summary>
-    /// <typeparam name="TBuilder">The builder type.</typeparam>
-    /// <param name="builder">The component builder with initial components.</param>
-    /// <returns>The created entity handle.</returns>
-    internal Entity CreateEntity<TBuilder>(TBuilder builder)
-        where TBuilder : IComponentsBuilder
+    /// <inheritdoc/>
+    public Entity CreateEntity<TBuilder>(TBuilder builder)
+        where TBuilder : unmanaged, IComponentsBuilder
     {
         // Collect component mask
         var mask = TMask.Empty;
@@ -98,16 +93,9 @@ public sealed class World<TMask, TConfig>
         return entity;
     }
 
-    /// <summary>
-    /// Overwrites all components on an existing entity with the builder's components.
-    /// Any existing components are discarded. The entity must already exist in this world.
-    /// </summary>
-    /// <typeparam name="TBuilder">The builder type.</typeparam>
-    /// <param name="entity">The existing entity handle.</param>
-    /// <param name="builder">The component builder with components to set.</param>
-    /// <returns>The entity handle.</returns>
-    internal Entity OverwriteEntity<TBuilder>(Entity entity, TBuilder builder)
-        where TBuilder : IComponentsBuilder
+    /// <inheritdoc/>
+    public Entity OverwriteEntity<TBuilder>(Entity entity, TBuilder builder)
+        where TBuilder : unmanaged, IComponentsBuilder
     {
         var location = GetValidatedLocation(entity);
 
@@ -127,16 +115,9 @@ public sealed class World<TMask, TConfig>
         return entity;
     }
 
-    /// <summary>
-    /// Adds multiple components to an existing entity using the provided builder.
-    /// Existing components are preserved. This is a structural change that moves the entity.
-    /// </summary>
-    /// <typeparam name="TBuilder">The builder type.</typeparam>
-    /// <param name="entity">The existing entity handle.</param>
-    /// <param name="builder">The component builder with components to add or update.</param>
-    /// <returns>The entity handle.</returns>
-    internal Entity AddComponents<TBuilder>(Entity entity, TBuilder builder)
-        where TBuilder : IComponentsBuilder
+    /// <inheritdoc/>
+    public Entity AddComponents<TBuilder>(Entity entity, TBuilder builder)
+        where TBuilder : unmanaged, IComponentsBuilder
     {
         var location = GetValidatedLocation(entity);
 
@@ -258,20 +239,6 @@ public sealed class World<TMask, TConfig>
     }
 
     /// <summary>
-    /// Gets a component value from an entity.
-    /// </summary>
-    /// <typeparam name="T">The component type.</typeparam>
-    /// <param name="entity">The entity.</param>
-    /// <returns>The component value.</returns>
-    /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
-    {
-        var (handle, offset) = GetComponentLocation<T>(entity);
-        return _chunkManager.GetBytes(handle).GetRef<T>(offset);
-    }
-
-    /// <summary>
     /// Gets a reference to a component on an entity.
     /// </summary>
     /// <typeparam name="T">The component type.</typeparam>
@@ -279,24 +246,10 @@ public sealed class World<TMask, TConfig>
     /// <returns>A reference to the component.</returns>
     /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ref T GetComponentRef<T>(Entity entity) where T : unmanaged, IComponent
+    public ref T GetComponent<T>(Entity entity) where T : unmanaged, IComponent
     {
         var (handle, offset) = GetComponentLocation<T>(entity);
         return ref _chunkManager.GetBytes(handle).GetRef<T>(offset);
-    }
-
-    /// <summary>
-    /// Sets a component value on an entity.
-    /// </summary>
-    /// <typeparam name="T">The component type.</typeparam>
-    /// <param name="entity">The entity.</param>
-    /// <param name="value">The component value.</param>
-    /// <exception cref="InvalidOperationException">Entity doesn't have the component.</exception>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void SetComponent<T>(Entity entity, T value) where T : unmanaged, IComponent
-    {
-        var (handle, offset) = GetComponentLocation<T>(entity);
-        _chunkManager.GetBytes(handle).GetRef<T>(offset) = value;
     }
 
     /// <summary>
@@ -422,12 +375,21 @@ public sealed class World<TMask, TConfig>
     }
 
     /// <summary>
+    /// Gets the entity manager for entity lifecycle and location tracking.
+    /// </summary>
+    public IEntityManager EntityManager
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _entityManager;
+    }
+
+    /// <summary>
     /// Gets the Entity handle for a given entity ID.
     /// </summary>
     /// <param name="entityId">The entity ID.</param>
     /// <returns>The Entity handle with current version.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal Entity GetEntity(int entityId)
+    public Entity GetEntity(int entityId)
     {
         var location = _entityManager.GetLocation(entityId);
         return new Entity(entityId, location.Version);
@@ -596,100 +558,5 @@ public sealed class World<TMask, TConfig>
 
         // Restore empty archetype reference (GetOrCreate returns existing if already created)
         _emptyArchetype = _archetypeRegistry.GetOrCreate((HashedKey<TMask>)TMask.Empty);
-    }
-}
-
-public static class ComponentsBuilderWorldExtensions
-{
-    extension<TBuilder>(TBuilder builder) where TBuilder : unmanaged, IComponentsBuilder
-    {
-        /// <summary>
-        /// Builds the entity in the specified world.
-        /// </summary>
-        /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="world">The world to create the entity in.</param>
-        /// <returns>The created entity.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity Build<TMask, TConfig>(World<TMask, TConfig> world)
-            where TMask : unmanaged, IBitSet<TMask>
-            where TConfig : IConfig, new()
-        {
-            return world.CreateEntity(builder);
-        }
-
-        /// <summary>
-        /// Overwrites all components on an existing entity with the builder's components.
-        /// Any existing components are discarded. The entity must already exist and be alive.
-        /// Used for deserialization or network synchronization.
-        /// </summary>
-        /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="entity">The existing entity handle.</param>
-        /// <param name="world">The world containing the entity.</param>
-        /// <returns>The entity.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity Overwrite<TMask, TConfig>(Entity entity, World<TMask, TConfig> world)
-            where TMask : unmanaged, IBitSet<TMask>
-            where TConfig : IConfig, new()
-        {
-            return world.OverwriteEntity(entity, builder);
-        }
-
-        /// <summary>
-        /// Adds the builder's components to an existing entity, preserving its current components.
-        /// This is a structural change that moves the entity to a new archetype.
-        /// </summary>
-        /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="entity">The existing entity handle.</param>
-        /// <param name="world">The world containing the entity.</param>
-        /// <returns>The entity.</returns>
-        /// <exception cref="InvalidOperationException">Entity already has one of the components being added.</exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Entity AddTo<TMask, TConfig>(Entity entity, World<TMask, TConfig> world)
-            where TMask : unmanaged, IBitSet<TMask>
-            where TConfig : IConfig, new()
-        {
-            return world.AddComponents(entity, builder);
-        }
-    }
-}
-
-public static class QueryBuilderWorldExtensions
-{
-    extension<TMask>(QueryBuilder<TMask> builder) where TMask : unmanaged, IBitSet<TMask>
-    {
-        /// <summary>
-        /// Builds a WorldQuery from this description, enabling WorldEntity enumeration.
-        /// </summary>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="world">The world to query.</param>
-        /// <returns>A WorldQuery that iterates over WorldEntity handles.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public WorldQuery<TMask, TConfig> Build<TConfig>(
-            World<TMask, TConfig> world)
-            where TConfig : IConfig, new()
-        {
-            var query = world.ArchetypeRegistry.GetOrCreateQuery(
-                (HashedKey<ImmutableQueryDescription<TMask>>)builder.Description);
-            return new WorldQuery<TMask, TConfig>(world, query);
-        }
-
-        /// <summary>
-        /// Builds a WorldChunkQuery from this description, enabling chunk-level iteration with batch component access.
-        /// </summary>
-        /// <typeparam name="TConfig">The world configuration type.</typeparam>
-        /// <param name="world">The world to query.</param>
-        /// <returns>A WorldChunkQuery that iterates over WorldChunk instances.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public WorldChunkQuery<TMask, TConfig> BuildChunk<TConfig>(
-            World<TMask, TConfig> world)
-            where TConfig : IConfig, new()
-        {
-            var query = world.ArchetypeRegistry.GetOrCreateQuery(
-                (HashedKey<ImmutableQueryDescription<TMask>>)builder.Description);
-            return new WorldChunkQuery<TMask, TConfig>(world, query);
-        }
     }
 }

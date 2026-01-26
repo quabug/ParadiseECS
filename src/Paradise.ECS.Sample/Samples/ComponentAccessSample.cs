@@ -24,7 +24,7 @@ public static class ComponentAccessSample
         Debug.Assert(playerName.ToString() == "Hero");
 
         // Modify component
-        world.SetComponent(playerEntity, new Position(150, 250));
+        world.GetComponent<Position>(playerEntity) = new Position(150, 250);
         playerPos = world.GetComponent<Position>(playerEntity);
         Console.WriteLine($"  Updated player position: {playerPos}");
         Debug.Assert(playerPos.X == 150 && playerPos.Y == 250);
