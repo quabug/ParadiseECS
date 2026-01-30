@@ -8,17 +8,34 @@
 
 ---
 
-## Design Overview
+## Integration with Queryable
 
-### Core Concepts
+**Key Insight**: A System is a Queryable with an Execute method. We reuse the existing `[With<T>]` attributes:
+
+| Existing Attribute | System Interpretation |
+|-------------------|----------------------|
+| `[With<T>]` | **Writes** component T (read-write access) |
+| `[With<T>(IsReadOnly = true)]` | **Reads** component T (read-only access) |
+| `[Without<T>]` | Exclude entities with component T |
+| `[WithAny<T>]` | Include if has at least one |
+| `[Optional<T>]` | Optional component access |
+
+This design:
+- **Reuses existing infrastructure** - No new component access attributes
+- **Consistent mental model** - Same attributes work for queries and systems
+- **Leverages existing generator** - Extend `QueryableGenerator` for systems
+
+---
+
+## Design Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              Compile Time                                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  [System] attribute → SystemGenerator → SystemGraph (DAG metadata)         │
-│  [Reads<T>] / [Writes<T>] attributes → Component access analysis           │
-│  Topological sort → Execution order with parallel groups                   │
+│  [System] + [With<T>] attributes → SystemGenerator                         │
+│  IsReadOnly = true → Read mask | IsReadOnly = false → Write mask           │
+│  Topological sort → Execution waves (parallel groups)                      │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -35,25 +52,18 @@
 
 ## API Design
 
-### 1. System Declaration (User Code)
+### 1. Basic System (Per-Entity Execution)
 
 ```csharp
-// Simple system - just declare what you read and write
+// MovementSystem: reads Velocity, writes Position
 [System]
-[Reads<Position>]
-[Reads<Velocity>]
-[Writes<Position>]
+[With<Position>]                      // Write access (default)
+[With<Velocity>(IsReadOnly = true)]   // Read-only access
 public partial struct MovementSystem;
 
-// The generator creates:
-// - Execute method signature
-// - Chunk iteration infrastructure
-// - DAG metadata for scheduling
-
-// User implements the logic via partial method:
+// User implements the Execute method:
 public partial struct MovementSystem
 {
-    // Per-entity execution (simple, auto-batched)
     public static void Execute(ref Position position, in Velocity velocity)
     {
         position = new Position(position.X + velocity.X, position.Y + velocity.Y);
@@ -61,25 +71,52 @@ public partial struct MovementSystem
 }
 ```
 
-### 2. Chunk-Level System (Advanced)
+**Generated code** (conceptual):
+```csharp
+public partial struct MovementSystem
+{
+    public static int SystemId => 0;
+
+    // Read mask: Position, Velocity
+    // Write mask: Position
+
+    public static void Run<TWorld, TMask, TConfig>(TWorld world)
+        where TWorld : IWorld<TMask, TConfig>
+        where TMask : unmanaged, IBitSet<TMask>
+        where TConfig : IConfig, new()
+    {
+        foreach (var chunk in world.ChunkQuery(default(MovementSystem.Query)))
+        {
+            var positions = chunk.Positions;       // Span<Position>
+            var velocities = chunk.Velocitys;      // ReadOnlySpan<Velocity>
+
+            for (int i = 0; i < chunk.EntityCount; i++)
+            {
+                Execute(ref positions[i], in velocities[i]);
+            }
+        }
+    }
+}
+```
+
+### 2. Chunk-Level System (SIMD-Friendly)
 
 ```csharp
-// For SIMD/vectorized operations - work with spans directly
-[System]
-[Reads<Position>]
-[Reads<Velocity>]
-[Writes<Position>]
-[ChunkExecution]  // Opt-in to chunk-level API
+// Opt-in to chunk-level execution for vectorized operations
+[System(ChunkExecution = true)]
+[With<Position>]
+[With<Velocity>(IsReadOnly = true)]
 public partial struct MovementSystemSIMD;
 
 public partial struct MovementSystemSIMD
 {
-    // Chunk-level execution for batch processing
-    public static void ExecuteChunk(
+    // Receives spans instead of individual refs
+    public static void Execute(
         Span<Position> positions,
         ReadOnlySpan<Velocity> velocities,
         int entityCount)
     {
+        // SIMD-friendly: process all entities in chunk at once
         for (int i = 0; i < entityCount; i++)
         {
             positions[i] = new Position(
@@ -90,134 +127,219 @@ public partial struct MovementSystemSIMD
 }
 ```
 
-### 3. Query Filtering
+### 3. Query Filtering (Reusing Existing Attributes)
 
 ```csharp
-// Filter entities using existing query attributes
+// All existing query attributes work with systems
 [System]
-[Reads<Health>]
-[Reads<Position>]
-[Writes<Health>]
-[Without<Invulnerable>]  // Exclude invulnerable entities
+[With<Health>]                        // Write
+[With<Position>(IsReadOnly = true)]   // Read
+[Without<Invulnerable>]               // Exclude
 public partial struct DamageSystem;
 
 public partial struct DamageSystem
 {
     public static void Execute(ref Health health, in Position position)
     {
-        // Only runs on entities with Health and Position, but not Invulnerable
         if (IsInDamageZone(position))
         {
-            health = new Health(health.Value - 10);
+            health = new Health(health.Current - 10, health.Max);
+        }
+    }
+
+    private static bool IsInDamageZone(in Position pos) => pos.X < 0 || pos.X > 100;
+}
+```
+
+### 4. Optional Components
+
+```csharp
+// Systems can use optional components too
+[System]
+[With<Position>]
+[Optional<Velocity>(IsReadOnly = true)]
+public partial struct MaybeMovingSystem;
+
+public partial struct MaybeMovingSystem
+{
+    public static void Execute(
+        ref Position position,
+        bool hasVelocity,
+        in Velocity velocity)  // Default value if not present
+    {
+        if (hasVelocity)
+        {
+            position = new Position(position.X + velocity.X, position.Y + velocity.Y);
         }
     }
 }
 ```
 
-### 4. Explicit Dependencies (Override DAG)
+### 5. Explicit Ordering
 
 ```csharp
-// Sometimes you need explicit ordering beyond component access
+// Override automatic DAG with explicit ordering
 [System]
-[Reads<Position>]
-[After<MovementSystem>]  // Explicit: run after MovementSystem
-[Before<RenderSystem>]   // Explicit: run before RenderSystem
+[With<Position>(IsReadOnly = true)]
+[After<MovementSystem>]   // Must run after MovementSystem
+[Before<RenderSystem>]    // Must run before RenderSystem
 public partial struct CollisionSystem;
 ```
 
-### 5. System Groups (Logical Grouping)
+### 6. System Groups
 
 ```csharp
-// Group related systems
+// Logical grouping of related systems
 [SystemGroup]
 public partial struct PhysicsGroup;
 
-[System(Group = typeof(PhysicsGroup))]
-[Reads<Position>]
-[Writes<Velocity>]
-public partial struct GravitySystem;
-
-[System(Group = typeof(PhysicsGroup))]
-[Reads<Position>]
-[Reads<Velocity>]
-[Writes<Position>]
-public partial struct MovementSystem;
-
-// Groups can have explicit ordering
 [SystemGroup]
 [After<PhysicsGroup>]
 public partial struct RenderGroup;
+
+// Assign system to group
+[System(Group = typeof(PhysicsGroup))]
+[With<Position>]
+[With<Velocity>(IsReadOnly = true)]
+public partial struct MovementSystem;
+
+[System(Group = typeof(RenderGroup))]
+[With<Position>(IsReadOnly = true)]
+[With<Sprite>(IsReadOnly = true)]
+public partial struct SpriteRenderSystem;
 ```
 
 ---
 
-## Compile-Time DAG Generation
+## Read/Write Derivation from Attributes
 
-### Source Generator Output
-
-The `SystemGenerator` produces:
+The generator analyzes `[With<T>]` attributes to determine access patterns:
 
 ```csharp
-// Generated: SystemRegistry.g.cs
-public static class SystemRegistry<TMask>
-    where TMask : unmanaged, IBitSet<TMask>
-{
-    // System metadata array indexed by SystemId
-    public static readonly ImmutableArray<SystemMetadata<TMask>> Systems;
+// Analyzing MovementSystem:
+[System]
+[With<Position>]                      // IsReadOnly = false (default) → WRITE
+[With<Velocity>(IsReadOnly = true)]   // IsReadOnly = true → READ ONLY
 
-    // Dependency graph edges
-    public static readonly ImmutableArray<SystemDependency> Dependencies;
+// Generated masks:
+// ReadMask  = { Position, Velocity }  // All accessed components
+// WriteMask = { Position }            // Only non-readonly components
+```
 
-    // Pre-computed parallel execution waves
-    public static readonly ImmutableArray<ImmutableArray<int>> ExecutionWaves;
+**Access Rules:**
 
-    static SystemRegistry()
-    {
-        // MovementSystem: SystemId = 0
-        // Reads: Position (0), Velocity (1)
-        // Writes: Position (0)
-        var system0 = new SystemMetadata<TMask>(
-            id: 0,
-            name: "MovementSystem",
-            readMask: TMask.Empty.Set(Position.TypeId).Set(Velocity.TypeId),
-            writeMask: TMask.Empty.Set(Position.TypeId),
-            queryDescription: new HashedKey<ImmutableQueryDescription<TMask>>(
-                new ImmutableQueryDescription<TMask>(
-                    all: TMask.Empty.Set(Position.TypeId).Set(Velocity.TypeId),
-                    none: TMask.Empty,
-                    any: TMask.Empty)));
+| Attribute Configuration | Read Mask | Write Mask |
+|------------------------|-----------|------------|
+| `[With<T>]` | ✓ | ✓ |
+| `[With<T>(IsReadOnly = true)]` | ✓ | ✗ |
+| `[With<T>(QueryOnly = true)]` | ✗ | ✗ |
+| `[Without<T>]` | ✗ | ✗ |
+| `[WithAny<T>]` | ✗ | ✗ |
+| `[Optional<T>]` | ✓ | ✓ |
+| `[Optional<T>(IsReadOnly = true)]` | ✓ | ✗ |
 
-        // ... more systems ...
+---
 
-        // Pre-computed waves (systems in same wave can run in parallel)
-        // Wave 0: [InputSystem]
-        // Wave 1: [MovementSystem, AISystem]  // No write conflicts
-        // Wave 2: [CollisionSystem]           // Reads Position which MovementSystem writes
-        // Wave 3: [RenderSystem]
-        ExecutionWaves = ImmutableArray.Create(
-            ImmutableArray.Create(0),           // Wave 0
-            ImmutableArray.Create(1, 2),        // Wave 1 (parallel)
-            ImmutableArray.Create(3),           // Wave 2
-            ImmutableArray.Create(4));          // Wave 3
-    }
-}
+## DAG Computation
 
-// Generated per-system: MovementSystem.g.cs
+### Conflict Matrix
+
+```
+┌────────────┬─────────────────┬─────────────────┐
+│            │ System B Reads  │ System B Writes │
+├────────────┼─────────────────┼─────────────────┤
+│ A Reads    │ ✓ Parallel OK   │ A → B edge      │
+│ A Writes   │ A → B edge      │ A → B edge (*)  │
+└────────────┴─────────────────┴─────────────────┘
+(*) Write-write: use declaration order as tiebreaker
+```
+
+### Algorithm (Compile-Time)
+
+```
+1. Collect all [System] declarations
+2. For each system:
+   a. Compute ReadMask from all [With<T>] components
+   b. Compute WriteMask from [With<T>] where IsReadOnly = false
+3. For each pair of systems (A, B):
+   a. If A.WriteMask ∩ B.ReadMask ≠ ∅ → edge A → B
+   b. If A.ReadMask ∩ B.WriteMask ≠ ∅ → edge A → B
+   c. If A.WriteMask ∩ B.WriteMask ≠ ∅ → edge A → B (by declaration order)
+4. Add explicit [After<T>] / [Before<T>] edges
+5. Topological sort (detect cycles → compile error)
+6. Partition into waves (systems with no edges between them)
+```
+
+### Example DAG
+
+```csharp
+[System]
+[With<InputState>]
+public partial struct InputSystem;  // Wave 0
+
+[System]
+[With<Velocity>]
+[With<InputState>(IsReadOnly = true)]
+public partial struct PlayerControlSystem;  // Wave 1 (reads InputState)
+
+[System]
+[With<Position>]
+[With<Velocity>(IsReadOnly = true)]
+public partial struct MovementSystem;  // Wave 2 (reads Velocity)
+
+[System]
+[With<Health>]
+[With<Position>(IsReadOnly = true)]
+[After<MovementSystem>]
+public partial struct DamageSystem;  // Wave 3 (explicit after)
+
+[System]
+[With<Position>(IsReadOnly = true)]
+[With<Sprite>(IsReadOnly = true)]
+public partial struct RenderSystem;  // Wave 3 (reads Position, no writes)
+```
+
+**Generated waves:**
+```
+Wave 0: [InputSystem]
+Wave 1: [PlayerControlSystem]
+Wave 2: [MovementSystem]
+Wave 3: [DamageSystem, RenderSystem]  // Can run in parallel!
+```
+
+---
+
+## Generated Code Structure
+
+### Per-System Generated Code
+
+```csharp
+// MovementSystem.g.cs
 public partial struct MovementSystem : ISystem<TMask, TConfig>
+    where TMask : unmanaged, IBitSet<TMask>
+    where TConfig : IConfig, new()
 {
+    /// <summary>Unique system identifier.</summary>
     public static int SystemId => 0;
 
+    /// <summary>System name for debugging.</summary>
+    public static string Name => "MovementSystem";
+
+    /// <summary>
+    /// Executes this system on all matching entities.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Run<TWorld>(TWorld world)
         where TWorld : IWorld<TMask, TConfig>
     {
-        var query = QueryHelpers.CreateChunkQueryResult<ChunkData<TMask, TConfig>, TMask, TConfig>(
+        var chunkQuery = QueryHelpers.CreateChunkQueryResult<ChunkData<TMask, TConfig>, TMask, TConfig>(
             world,
             SystemRegistry<TMask>.Systems[SystemId].QueryDescription);
 
-        foreach (var chunk in query)
+        foreach (var chunk in chunkQuery)
         {
-            var positions = chunk.GetSpan<Position>();
-            var velocities = chunk.GetReadOnlySpan<Velocity>();
+            var positions = chunk.Positions;
+            var velocities = chunk.Velocitys;
 
             for (int i = 0; i < chunk.EntityCount; i++)
             {
@@ -226,46 +348,94 @@ public partial struct MovementSystem : ISystem<TMask, TConfig>
         }
     }
 
-    // User-defined partial method
+    /// <summary>User-defined execution logic.</summary>
     public static partial void Execute(ref Position position, in Velocity velocity);
+
+    /// <summary>
+    /// Nested query type for this system, reusing Queryable infrastructure.
+    /// </summary>
+    [Queryable]
+    [With<Position>]
+    [With<Velocity>(IsReadOnly = true)]
+    public readonly ref partial struct Query;
 }
 ```
 
-### DAG Computation Rules
+### SystemRegistry
 
-```
-Read/Write Conflict Matrix:
-┌────────────┬─────────────────┬─────────────────┐
-│            │ System B Reads  │ System B Writes │
-├────────────┼─────────────────┼─────────────────┤
-│ A Reads    │ No conflict ✓   │ A before B      │
-│ A Writes   │ B before A      │ A before B (*)  │
-└────────────┴─────────────────┴─────────────────┘
-(*) Write-write conflicts use declaration order as tiebreaker
-```
+```csharp
+// SystemRegistry.g.cs
+public static class SystemRegistry<TMask>
+    where TMask : unmanaged, IBitSet<TMask>
+{
+    /// <summary>System metadata indexed by SystemId.</summary>
+    public static ImmutableArray<SystemMetadata<TMask>> Systems { get; }
 
-**Algorithm:**
-1. Collect all `[System]` declarations
-2. For each system, compute read mask and write mask from attributes
-3. Build dependency edges using conflict matrix
-4. Add explicit `[After<T>]` and `[Before<T>]` edges
-5. Topological sort to detect cycles (error at compile time)
-6. Partition into "waves" - systems in same wave have no conflicts
+    /// <summary>Dependency edges between systems.</summary>
+    public static ImmutableArray<SystemDependency> Dependencies { get; }
+
+    /// <summary>Pre-computed parallel execution waves.</summary>
+    public static ImmutableArray<ImmutableArray<int>> ExecutionWaves { get; }
+
+    /// <summary>Total number of registered systems.</summary>
+    public static int Count => 5;
+
+    static SystemRegistry()
+    {
+        // MovementSystem (id=0): reads [Position, Velocity], writes [Position]
+        var system0ReadMask = TMask.Empty
+            .Set(Position.TypeId)
+            .Set(Velocity.TypeId);
+        var system0WriteMask = TMask.Empty
+            .Set(Position.TypeId);
+        var system0Query = new ImmutableQueryDescription<TMask>(
+            all: system0ReadMask,
+            none: TMask.Empty,
+            any: TMask.Empty);
+
+        Systems = ImmutableArray.Create(
+            new SystemMetadata<TMask>(0, "MovementSystem", system0ReadMask, system0WriteMask,
+                (HashedKey<ImmutableQueryDescription<TMask>>)system0Query),
+            // ... more systems
+        );
+
+        // Pre-computed dependency edges
+        Dependencies = ImmutableArray.Create(
+            new SystemDependency(0, 2, DependencyReason.WriteReadConflict),
+            // ... more edges
+        );
+
+        // Pre-computed parallel waves
+        ExecutionWaves = ImmutableArray.Create(
+            ImmutableArray.Create(0),        // Wave 0
+            ImmutableArray.Create(1),        // Wave 1
+            ImmutableArray.Create(2),        // Wave 2
+            ImmutableArray.Create(3, 4)      // Wave 3 (parallel)
+        );
+    }
+}
+```
 
 ---
 
-## Runtime Execution
-
-### SystemScheduler
+## Runtime Scheduler
 
 ```csharp
 public sealed class SystemScheduler<TMask, TConfig>
     where TMask : unmanaged, IBitSet<TMask>
     where TConfig : IConfig, new()
 {
+    private readonly Action<object>[] _systemRunners;
+
+    public SystemScheduler()
+    {
+        // Build delegate array from generated registry
+        _systemRunners = BuildSystemRunners();
+    }
+
     /// <summary>
-    /// Executes all systems in dependency order.
-    /// Systems within the same wave run in parallel.
+    /// Execute all systems in dependency order.
+    /// Systems in the same wave run in parallel.
     /// </summary>
     public void RunAll<TWorld>(TWorld world)
         where TWorld : IWorld<TMask, TConfig>
@@ -274,20 +444,19 @@ public sealed class SystemScheduler<TMask, TConfig>
         {
             if (wave.Length == 1)
             {
-                // Single system - run directly
+                // Single system - direct call
                 RunSystem(world, wave[0]);
             }
             else
             {
-                // Multiple systems - run in parallel
-                Parallel.ForEach(wave, systemId => RunSystem(world, systemId));
+                // Multiple systems - parallel execution
+                Parallel.For(0, wave.Length, i => RunSystem(world, wave[i]));
             }
         }
     }
 
     /// <summary>
-    /// Executes systems in parallel at chunk level.
-    /// Different chunks of the same query can run on different threads.
+    /// Execute all systems with chunk-level parallelism.
     /// </summary>
     public void RunAllParallelChunks<TWorld>(TWorld world)
         where TWorld : IWorld<TMask, TConfig>
@@ -295,261 +464,211 @@ public sealed class SystemScheduler<TMask, TConfig>
         foreach (var wave in SystemRegistry<TMask>.ExecutionWaves)
         {
             // Collect all chunks from all systems in this wave
-            var workItems = CollectChunkWorkItems(world, wave);
+            var workItems = new List<(int SystemId, ChunkHandle Chunk, int EntityCount)>();
+
+            foreach (var systemId in wave)
+            {
+                var metadata = SystemRegistry<TMask>.Systems[systemId];
+                var query = world.ArchetypeRegistry.GetOrCreateQuery(metadata.QueryDescription);
+
+                foreach (var archetype in query.Archetypes)
+                {
+                    for (int i = 0; i < archetype.ChunkCount; i++)
+                    {
+                        var (chunk, entityCount) = archetype.GetChunkInfo(i);
+                        workItems.Add((systemId, chunk, entityCount));
+                    }
+                }
+            }
 
             // Process all chunks in parallel
-            Parallel.ForEach(workItems, item => item.Execute());
+            Parallel.ForEach(workItems, item =>
+            {
+                RunSystemChunk(world, item.SystemId, item.Chunk, item.EntityCount);
+            });
         }
     }
 }
 ```
 
-### Chunk-Level Parallelism
-
-```
-Wave 1: [MovementSystem, AISystem]
-                │
-                ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Chunk Work Items (all can run in parallel):                 │
-│                                                             │
-│   MovementSystem:     AISystem:                            │
-│   ├─ Chunk[0]         ├─ Chunk[0]                         │
-│   ├─ Chunk[1]         ├─ Chunk[1]                         │
-│   └─ Chunk[2]         └─ Chunk[2]                         │
-│                                                             │
-│   → All 6 items distributed across thread pool             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Safety guarantees:**
-- Systems in the same wave have non-overlapping write sets
-- Different chunks contain different entities
-- Result: Complete data parallelism at chunk granularity
-
 ---
 
-## Attributes Reference
-
-### System Declaration
-
-| Attribute | Description |
-|-----------|-------------|
-| `[System]` | Marks a struct as a system |
-| `[System(Group = typeof(T))]` | Assigns system to a group |
-| `[SystemGroup]` | Marks a struct as a system group |
-| `[ChunkExecution]` | Opt-in to chunk-level API instead of per-entity |
-
-### Component Access
-
-| Attribute | Description |
-|-----------|-------------|
-| `[Reads<T>]` | System reads component T (shared access) |
-| `[Writes<T>]` | System writes component T (exclusive access, implies read) |
-| `[Without<T>]` | Exclude entities with component T |
-| `[WithAny<T>]` | Include if has at least one of the WithAny components |
-
-### Explicit Ordering
-
-| Attribute | Description |
-|-----------|-------------|
-| `[After<T>]` | Run after system/group T |
-| `[Before<T>]` | Run before system/group T |
-| `[RunFirst]` | Run at the beginning of execution |
-| `[RunLast]` | Run at the end of execution |
-
----
-
-## Example: Complete Game Loop
+## Complete Example
 
 ```csharp
 // ============================================
-// System Declarations
+// Components (existing)
+// ============================================
+[Component]
+public partial struct Position { public float X, Y; }
+
+[Component]
+public partial struct Velocity { public float X, Y; }
+
+[Component]
+public partial struct Health { public int Current, Max; }
+
+[Component]
+public partial struct Sprite { public int TextureId; }
+
+// ============================================
+// Systems (new)
 // ============================================
 
-[SystemGroup]
-public partial struct InputGroup;
-
-[SystemGroup]
-[After<InputGroup>]
-public partial struct SimulationGroup;
-
-[SystemGroup]
-[After<SimulationGroup>]
-public partial struct RenderGroup;
-
-// --- Input Systems ---
-
-[System(Group = typeof(InputGroup))]
-[Writes<InputState>]
+// Input system: writes InputState
+[System]
+[With<InputState>]
 public partial struct InputSystem;
 
 public partial struct InputSystem
 {
     public static void Execute(ref InputState input)
     {
-        input = ReadCurrentInput();
+        // Poll input hardware
+        input = PollInput();
     }
 }
 
-// --- Simulation Systems ---
-
-[System(Group = typeof(SimulationGroup))]
-[Reads<InputState>]
-[Writes<Velocity>]
-public partial struct PlayerControlSystem;
-
-[System(Group = typeof(SimulationGroup))]
-[Reads<Position>]
-[Reads<Velocity>]
-[Writes<Position>]
+// Movement system: reads Velocity, writes Position
+[System]
+[With<Position>]
+[With<Velocity>(IsReadOnly = true)]
 public partial struct MovementSystem;
 
 public partial struct MovementSystem
 {
     public static void Execute(ref Position pos, in Velocity vel)
     {
-        pos = new Position(pos.X + vel.X, pos.Y + vel.Y);
+        pos = new Position { X = pos.X + vel.X, Y = pos.Y + vel.Y };
     }
 }
 
-[System(Group = typeof(SimulationGroup))]
-[Reads<Position>]
-[Reads<Health>]
-[Writes<Health>]
-[After<MovementSystem>]  // Need updated positions
-public partial struct CollisionDamageSystem;
+// Damage system: reads Position, writes Health
+[System]
+[With<Health>]
+[With<Position>(IsReadOnly = true)]
+[Without<Invulnerable>]
+[After<MovementSystem>]
+public partial struct DamageSystem;
 
-// --- Render Systems ---
+public partial struct DamageSystem
+{
+    public static void Execute(ref Health health, in Position pos)
+    {
+        if (IsInDamageZone(pos))
+        {
+            health = new Health { Current = health.Current - 10, Max = health.Max };
+        }
+    }
+}
 
-[System(Group = typeof(RenderGroup))]
-[Reads<Position>]
-[Reads<Sprite>]
-public partial struct SpriteRenderSystem;
+// Render system: reads Position and Sprite (read-only, can parallelize with DamageSystem)
+[System]
+[With<Position>(IsReadOnly = true)]
+[With<Sprite>(IsReadOnly = true)]
+public partial struct RenderSystem;
+
+public partial struct RenderSystem
+{
+    public static void Execute(in Position pos, in Sprite sprite)
+    {
+        DrawSprite(sprite.TextureId, pos.X, pos.Y);
+    }
+}
 
 // ============================================
-// Generated Execution Order (DAG)
+// Generated DAG
 // ============================================
-// Wave 0: InputSystem
-// Wave 1: PlayerControlSystem  (parallel - no write conflicts)
-// Wave 2: MovementSystem
-// Wave 3: CollisionDamageSystem
-// Wave 4: SpriteRenderSystem
+//
+//     InputSystem
+//          │
+//          ▼
+//     MovementSystem
+//          │
+//     ┌────┴────┐
+//     ▼         ▼
+// DamageSystem  RenderSystem  ← Can run in PARALLEL!
+//
+// Waves:
+//   Wave 0: [InputSystem]
+//   Wave 1: [MovementSystem]
+//   Wave 2: [DamageSystem, RenderSystem]
 
 // ============================================
 // Usage
 // ============================================
+var world = new World();
+var scheduler = new SystemScheduler<Mask, Config>();
 
-public static void GameLoop(World world)
+while (gameRunning)
 {
-    var scheduler = new SystemScheduler<Mask, Config>();
-
-    while (running)
-    {
-        // Execute all systems in DAG order with chunk-level parallelism
-        scheduler.RunAllParallelChunks(world);
-    }
+    // Automatic parallel execution based on DAG
+    scheduler.RunAllParallelChunks(world);
 }
 ```
 
 ---
 
-## Visualization: DAG at Compile Time
+## Attributes Summary
 
-The source generator can output a comment showing the computed DAG:
+### New Attributes
 
-```csharp
-// Generated: SystemGraph.g.cs
-//
-// System Dependency Graph:
-// ========================
-//
-//     InputSystem (id=0)
-//          │
-//          ▼
-//     PlayerControlSystem (id=1)
-//          │
-//          ▼
-//     MovementSystem (id=2)
-//          │
-//          ▼
-//     CollisionDamageSystem (id=3)
-//          │
-//          ▼
-//     SpriteRenderSystem (id=4)
-//
-// Parallel Waves:
-// ===============
-// Wave 0: [InputSystem]
-// Wave 1: [PlayerControlSystem]
-// Wave 2: [MovementSystem]
-// Wave 3: [CollisionDamageSystem]
-// Wave 4: [SpriteRenderSystem]
-//
-// Component Access Summary:
-// =========================
-// Position: Read by [MovementSystem, CollisionDamageSystem, SpriteRenderSystem], Write by [MovementSystem]
-// Velocity: Read by [MovementSystem], Write by [PlayerControlSystem]
-// Health:   Read by [CollisionDamageSystem], Write by [CollisionDamageSystem]
-// Sprite:   Read by [SpriteRenderSystem]
-```
+| Attribute | Target | Description |
+|-----------|--------|-------------|
+| `[System]` | struct | Marks as a system with auto-generated Run method |
+| `[System(ChunkExecution = true)]` | struct | System receives spans instead of individual refs |
+| `[System(Group = typeof(T))]` | struct | Assigns system to a group |
+| `[SystemGroup]` | struct | Defines a group for logical organization |
+| `[After<T>]` | struct | Explicit ordering: run after system/group T |
+| `[Before<T>]` | struct | Explicit ordering: run before system/group T |
 
----
+### Reused Queryable Attributes
 
-## Comparison with Existing ECS Frameworks
-
-| Feature | Paradise.ECS (Proposed) | Unity DOTS | Flecs | Bevy |
-|---------|-------------------------|------------|-------|------|
-| DAG Generation | Compile-time | Runtime | Runtime | Compile-time (partial) |
-| Parallelism | Chunk-level | Chunk-level | Per-system | Per-system |
-| AOT Compatible | Yes | Yes | N/A (C) | N/A (Rust) |
-| API Style | Attribute-based | Attribute + Code | Function-based | Derive macro |
+| Attribute | System Behavior |
+|-----------|-----------------|
+| `[With<T>]` | Component T is written (read-write) |
+| `[With<T>(IsReadOnly = true)]` | Component T is read-only |
+| `[With<T>(QueryOnly = true)]` | Filter only, no access generated |
+| `[Without<T>]` | Exclude entities with T |
+| `[WithAny<T>]` | Include if has any |
+| `[Optional<T>]` | Optional component access |
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Core Infrastructure
-- `[System]`, `[Reads<T>]`, `[Writes<T>]` attributes
-- `SystemGenerator` producing `ISystem<T>` implementations
-- `SystemMetadata` with read/write masks
-- Basic sequential execution
+### Phase 1: Core System Infrastructure
+- Add `[System]` attribute
+- Extend `QueryableGenerator` to detect `[System]` attribute
+- Generate `ISystem<TMask, TConfig>` implementation with `Run<TWorld>()` method
+- Generate nested `Query` type reusing existing Queryable infrastructure
+- Sequential execution (no parallelism yet)
 
 ### Phase 2: DAG Computation
-- Dependency analysis from component masks
-- `[After<T>]`, `[Before<T>]` explicit edges
-- Topological sort with cycle detection
-- Wave computation for parallelism
+- Compute read/write masks from `[With<T>]` attributes
+- Build dependency edges based on conflict matrix
+- Add `[After<T>]` and `[Before<T>]` explicit edge support
+- Topological sort with cycle detection (compile error)
+- Generate `SystemRegistry<TMask>` with metadata
 
 ### Phase 3: Parallel Execution
-- `SystemScheduler` with wave-based execution
-- Chunk-level work distribution
-- Thread pool integration
+- Generate `ExecutionWaves` in `SystemRegistry`
+- Implement `SystemScheduler.RunAll()` with wave-based parallelism
+- Implement `SystemScheduler.RunAllParallelChunks()` for chunk-level distribution
 
 ### Phase 4: Advanced Features
 - `[SystemGroup]` for logical organization
-- `[ChunkExecution]` for SIMD-friendly API
-- Conditional systems (run only when condition met)
-- System enable/disable at runtime
+- `[System(ChunkExecution = true)]` for SIMD-friendly API
+- Enable/disable systems at runtime
+- Profiling hooks
 
 ---
 
-## Open Questions
+## Benefits of This Design
 
-1. **Structural Changes**: How to handle systems that add/remove components?
-   - Option A: Deferred command buffer (like Unity DOTS)
-   - Option B: Immediate with invalidation detection
-   - Option C: Special `[StructuralChange]` attribute that forces serial execution
-
-2. **Cross-System Communication**: How do systems communicate?
-   - Option A: Shared singleton components (Resources)
-   - Option B: Event buffers
-   - Option C: Both
-
-3. **Dynamic Systems**: Should systems be addable at runtime?
-   - For hot-reload/modding scenarios
-   - Would require runtime DAG recomputation
-
-4. **Profiling/Debugging**: How to expose system timing?
-   - Generate timing hooks automatically
-   - Integrate with existing profiling tools
+1. **Familiar API** - Uses same `[With<T>]` attributes developers already know
+2. **No redundancy** - Read/write derived from `IsReadOnly`, not separate attributes
+3. **Code reuse** - Systems leverage existing Queryable infrastructure
+4. **Type safety** - Execute method signature matches component access
+5. **Zero runtime overhead** - All DAG computation at compile time
+6. **Parallel by default** - Automatic parallelization where safe
