@@ -284,4 +284,66 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Each manual Tag ID must be unique. Multiple tags with the same ID will cause incorrect behavior.");
+
+    // ===== System-related diagnostics =====
+
+    /// <summary>
+    /// PECS030: System must be partial.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SystemMustBePartial = new(
+        id: "PECS030",
+        title: "System must be partial",
+        messageFormat: "Type '{0}' marked with [System] must be partial",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "System types must be partial so the generator can implement the Run method.");
+
+    /// <summary>
+    /// PECS031: System Execute parameter is not a Queryable type.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SystemParameterNotQueryable = new(
+        id: "PECS031",
+        title: "System parameter must be Queryable",
+        messageFormat: "Parameter '{0}' of type '{1}' in system '{2}' must be a type marked with [Queryable]",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "All Execute method parameters in a system must be Queryable types (marked with [Queryable] attribute).");
+
+    /// <summary>
+    /// PECS032: Duplicate manual System ID.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateSystemId = new(
+        id: "PECS032",
+        title: "Duplicate system ID",
+        messageFormat: "System ID {0} is used by multiple types: {1}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Each manual System ID must be unique.");
+
+    /// <summary>
+    /// PECS033: System must have an Execute method.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SystemMissingExecute = new(
+        id: "PECS033",
+        title: "System missing Execute method",
+        messageFormat: "Type '{0}' marked with [System] must have a static void Execute method",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "System types must define a static void Execute method with Queryable parameters.");
+
+    /// <summary>
+    /// PECS034: Cycle detected in system dependencies.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SystemDependencyCycle = new(
+        id: "PECS034",
+        title: "Cycle in system dependencies",
+        messageFormat: "Cycle detected in system dependencies involving: {0}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "System dependencies must form a directed acyclic graph (DAG). Cycles prevent determining execution order.");
 }
