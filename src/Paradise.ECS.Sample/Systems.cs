@@ -15,7 +15,7 @@ public partial struct MovementSystem
     /// Updates position by adding velocity.
     /// </summary>
     /// <param name="movable">The movable entity data (ref = can write writable components).</param>
-    public static void Execute(ref Movable.Data<Mask, Config> movable)
+    public static void Execute(ref MovableData movable)
     {
         // Position is writable in Movable, Velocity is read-only
         ref var pos = ref movable.Position;
@@ -38,8 +38,8 @@ public partial struct DamageSystem
     /// <param name="damageable">Health access (ref = can write).</param>
     /// <param name="positioned">Position access (in = read-only).</param>
     public static void Execute(
-        ref Damageable.Data<Mask, Config> damageable,
-        in Positioned.Data<Mask, Config> positioned)
+        ref DamageableData damageable,
+        in PositionedData positioned)
     {
         // Check if in danger zone (x < 0)
         if (positioned.Position.X < 0)
@@ -60,7 +60,7 @@ public partial struct RenderSystem
     /// Renders entities at their positions.
     /// </summary>
     /// <param name="positioned">Position data (in = read-only).</param>
-    public static void Execute(in Positioned.Data<Mask, Config> positioned)
+    public static void Execute(in PositionedData positioned)
     {
         var pos = positioned.Position;
         // In a real game, this would draw a sprite at the position

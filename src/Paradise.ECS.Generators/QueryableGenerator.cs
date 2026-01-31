@@ -731,11 +731,15 @@ public class QueryableGenerator : IIncrementalGenerator
         context.AddSource("QueryableRegistry.g.cs", sb.ToString());
 
         // Generate type alias and module initializer in separate files
-        GenerateQueryableAliases(context, componentCount, suppressGlobalUsings);
+        GenerateQueryableAliases(context, queryables, componentCount, suppressGlobalUsings);
         GenerateModuleInitializer(context, queryables);
     }
 
-    private static void GenerateQueryableAliases(SourceProductionContext context, int componentCount, bool suppressGlobalUsings)
+    private static void GenerateQueryableAliases(
+        SourceProductionContext context,
+        List<(QueryableInfo Info, int TypeId)> queryables,
+        int componentCount,
+        bool suppressGlobalUsings)
     {
         var maskTypeFullyQualified = GeneratorUtilities.GetOptimalMaskType(componentCount);
 
@@ -747,11 +751,24 @@ public class QueryableGenerator : IIncrementalGenerator
         {
             sb.AppendLine("// All global usings suppressed by [assembly: SuppressGlobalUsings]");
             sb.AppendLine($"// To use QueryableRegistry, reference: global::Paradise.ECS.QueryableRegistry<{maskTypeFullyQualified}>");
+            sb.AppendLine("// Per-queryable Data/ChunkData aliases are also suppressed");
         }
         else
         {
             sb.AppendLine("// Type alias for QueryableRegistry using the same mask type as components");
             sb.AppendLine($"global using QueryableRegistry = global::Paradise.ECS.QueryableRegistry<{maskTypeFullyQualified}>;");
+            sb.AppendLine();
+
+            // Generate per-queryable Data and ChunkData aliases
+            sb.AppendLine("// Per-queryable Data and ChunkData type aliases for simplified System Execute signatures");
+            foreach (var (info, _) in queryables)
+            {
+                var fullyQualifiedName = "global::" + info.FullyQualifiedName.Replace("+", ".");
+                var aliasPrefix = info.HelperStructPrefix;
+
+                sb.AppendLine($"global using {aliasPrefix}Data = {fullyQualifiedName}.Data<Mask, Config>;");
+                sb.AppendLine($"global using {aliasPrefix}ChunkData = {fullyQualifiedName}.ChunkData<Mask, Config>;");
+            }
         }
 
         context.AddSource("QueryableAliases.g.cs", sb.ToString());
