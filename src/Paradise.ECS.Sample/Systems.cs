@@ -58,7 +58,7 @@ public ref partial struct BoundsSystem : IEntitySystem
 /// </summary>
 public ref partial struct QueryableMovementSystem : IEntitySystem
 {
-    public ref MovableEntity Movable;
+    public MovableEntity Movable;
 
     public void Execute()
     {
@@ -92,7 +92,7 @@ public ref partial struct GravityBatchSystem : IChunkSystem
 /// </summary>
 public ref partial struct QueryableGravityBatchSystem : IChunkSystem
 {
-    public ref readonly MovableChunk Movable;
+    public MovableChunk Movable;
 
     public void ExecuteChunk()
     {

@@ -23,7 +23,7 @@ public interface ISystem
 /// <list type="bullet">
 ///   <item><c>ref T</c> where T is a [Component] — writable per-entity access</item>
 ///   <item><c>ref readonly T</c> where T is a [Component] — read-only per-entity access</item>
-///   <item><c>ref {Prefix}Entity</c> where {Prefix} is a [Queryable] — composition access via generated Data type</item>
+///   <item><c>{Prefix}Entity</c> where {Prefix} is a [Queryable] — composition access via generated Data type</item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -40,7 +40,7 @@ public interface ISystem
 ///
 /// public ref partial struct MovementSystem : IEntitySystem
 /// {
-///     public ref MovableEntity Movable;
+///     public MovableEntity Movable;
 ///     public void Execute()
 ///     {
 ///         Movable.Position = new(Movable.Position.X + Movable.Velocity.X,
@@ -69,7 +69,7 @@ public interface IEntitySystem : ISystem
 /// <list type="bullet">
 ///   <item><c>Span&lt;T&gt;</c> where T is a [Component] — writable batch access</item>
 ///   <item><c>ReadOnlySpan&lt;T&gt;</c> where T is a [Component] — read-only batch access</item>
-///   <item><c>ref readonly {Prefix}Chunk</c> where {Prefix} is a [Queryable] — composition access via generated ChunkData type</item>
+///   <item><c>{Prefix}Chunk</c> where {Prefix} is a [Queryable] — composition access via generated ChunkData type</item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -87,7 +87,7 @@ public interface IEntitySystem : ISystem
 ///
 /// public ref partial struct BatchMovementSystem : IChunkSystem
 /// {
-///     public ref readonly MovableChunk Movable;
+///     public MovableChunk Movable;
 ///     public void ExecuteChunk()
 ///     {
 ///         var positions = Movable.PositionSpan;

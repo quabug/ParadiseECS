@@ -244,7 +244,7 @@ public class SystemGenerator : IIncrementalGenerator
 
         foreach (var field in sys.Fields)
         {
-            if (field.Kind != FieldKind.Invalid || field.ErrorTypeName == null || !field.IsRefField)
+            if (field.Kind != FieldKind.Invalid || field.ErrorTypeName == null)
             {
                 resolvedFields.Add(field);
                 continue;
@@ -738,10 +738,10 @@ public class SystemGenerator : IIncrementalGenerator
                     sb.Append($"{field.TypeFQN} {ToCamelCase(field.FieldName)}");
                     break;
                 case FieldKind.CompositionData:
-                    sb.Append($"{(field.IsReadOnly ? "ref readonly" : "ref")} global::{field.ComponentFQN!.Replace("+", ".")}.Data<{maskType}, {configType}> {ToCamelCase(field.FieldName)}");
+                    sb.Append($"global::{field.ComponentFQN!.Replace("+", ".")}.Data<{maskType}, {configType}> {ToCamelCase(field.FieldName)}");
                     break;
                 case FieldKind.CompositionChunkData:
-                    sb.Append($"{(field.IsReadOnly ? "ref readonly" : "ref")} global::{field.ComponentFQN!.Replace("+", ".")}.ChunkData<{maskType}, {configType}> {ToCamelCase(field.FieldName)}");
+                    sb.Append($"global::{field.ComponentFQN!.Replace("+", ".")}.ChunkData<{maskType}, {configType}> {ToCamelCase(field.FieldName)}");
                     break;
             }
         }
@@ -753,7 +753,7 @@ public class SystemGenerator : IIncrementalGenerator
         {
             if (field.Kind == FieldKind.Invalid) continue;
             var paramName = ToCamelCase(field.FieldName);
-            if (field.Kind is FieldKind.InlineComponent or FieldKind.CompositionData or FieldKind.CompositionChunkData)
+            if (field.Kind is FieldKind.InlineComponent)
                 sb.AppendLine($"{indent}    {field.FieldName} = ref {paramName};");
             else
                 sb.AppendLine($"{indent}    {field.FieldName} = {paramName};");
@@ -818,7 +818,7 @@ public class SystemGenerator : IIncrementalGenerator
             if (field.Kind == FieldKind.InlineComponent)
                 sb.Append($"ref {ToCamelCase(field.FieldName)}Span[__i]");
             else if (field.Kind == FieldKind.CompositionData)
-                sb.Append($"ref {ToCamelCase(field.FieldName)}Data");
+                sb.Append($"{ToCamelCase(field.FieldName)}Data");
         }
         sb.AppendLine(");");
         sb.AppendLine($"{indent}    __system.Execute();");
@@ -867,7 +867,7 @@ public class SystemGenerator : IIncrementalGenerator
             }
             else if (field.Kind == FieldKind.CompositionChunkData)
             {
-                sb.Append($"ref {ToCamelCase(field.FieldName)}ChunkData");
+                sb.Append($"{ToCamelCase(field.FieldName)}ChunkData");
             }
         }
         sb.AppendLine(");");

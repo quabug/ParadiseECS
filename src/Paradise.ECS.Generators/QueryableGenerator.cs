@@ -506,7 +506,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}/// </summary>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly struct Data<TMask, TConfig>");
+        sb.AppendLine($"{indent}public readonly ref struct Data<TMask, TConfig>");
         sb.AppendLine($"{indent}    : global::Paradise.ECS.IQueryData<Data<TMask, TConfig>, TMask, TConfig>");
         sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
@@ -604,7 +604,7 @@ public class QueryableGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}/// </summary>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine($"{indent}/// <typeparam name=\"TConfig\">The world configuration type.</typeparam>");
-        sb.AppendLine($"{indent}public readonly struct ChunkData<TMask, TConfig>");
+        sb.AppendLine($"{indent}public readonly ref struct ChunkData<TMask, TConfig>");
         sb.AppendLine($"{indent}    : global::Paradise.ECS.IQueryChunkData<ChunkData<TMask, TConfig>, TMask, TConfig>");
         sb.AppendLine($"{indent}    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine($"{indent}    where TConfig : global::Paradise.ECS.IConfig, new()");
