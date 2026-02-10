@@ -90,8 +90,8 @@ public interface IEntitySystem : ISystem
 ///     public ref readonly MovableChunk Movable;
 ///     public void ExecuteChunk()
 ///     {
-///         var positions = Movable.Positions;
-///         var velocities = Movable.Velocitys;
+///         var positions = Movable.PositionSpan;
+///         var velocities = Movable.VelocitySpan;
 ///         for (int i = 0; i &lt; Movable.EntityCount; i++)
 ///             positions[i] = new(positions[i].X + velocities[i].X,
 ///                                positions[i].Y + velocities[i].Y);

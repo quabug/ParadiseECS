@@ -660,7 +660,7 @@ public class QueryableGenerator : IIncrementalGenerator
 
             sb.AppendLine();
             // Pluralize property name for span (simple pluralization)
-            var spanPropertyName = comp.PropertyName + "s";
+            var spanPropertyName = comp.PropertyName + "Span";
             var spanType = comp.IsReadOnly ? "ReadOnlySpan" : "Span";
             sb.AppendLine($"{indent}    /// <summary>Gets a {(comp.IsReadOnly ? "read-only " : "")}span over all {comp.ComponentTypeName} components in this chunk.</summary>");
             sb.AppendLine($"{indent}    public global::System.{spanType}<global::{comp.ComponentFullName}> {spanPropertyName}");
@@ -688,7 +688,7 @@ public class QueryableGenerator : IIncrementalGenerator
 
             sb.AppendLine();
             // GetXxxSpan() method - pluralize name
-            var spanMethodName = "Get" + opt.PropertyName + "s";
+            var spanMethodName = "Get" + opt.PropertyName + "Span";
             var optSpanType = opt.IsReadOnly ? "ReadOnlySpan" : "Span";
             sb.AppendLine($"{indent}    /// <summary>Gets a {(opt.IsReadOnly ? "read-only " : "")}span over all {opt.ComponentTypeName} components in this chunk.</summary>");
             sb.AppendLine($"{indent}    /// <exception cref=\"global::System.InvalidOperationException\">Thrown when the component is not present. Check Has{opt.PropertyName} first.</exception>");

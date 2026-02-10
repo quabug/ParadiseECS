@@ -75,8 +75,8 @@ public static class QueryableSample
             Console.WriteLine($"    Chunk {chunkIndex}: {chunk.EntityCount} entities");
 
             // Access component spans for vectorizable operations
-            var positions = chunk.Positions;
-            var velocities = chunk.Velocitys;  // Note: auto-pluralized property name
+            var positions = chunk.PositionSpan;
+            var velocities = chunk.VelocitySpan;
 
             // Example: batch update positions using velocity
             for (int i = 0; i < chunk.EntityCount; i++)

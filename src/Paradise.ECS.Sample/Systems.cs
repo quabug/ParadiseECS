@@ -96,7 +96,7 @@ public ref partial struct QueryableGravityBatchSystem : IChunkSystem
 
     public void ExecuteChunk()
     {
-        var velocities = Movable.Velocitys;
+        var velocities = Movable.VelocitySpan;
         for (int i = 0; i < Movable.EntityCount; i++)
             velocities[i] = new(velocities[i].X, velocities[i].Y - 9.8f);
     }
