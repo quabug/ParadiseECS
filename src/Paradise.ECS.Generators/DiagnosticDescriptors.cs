@@ -284,4 +284,90 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Each manual Tag ID must be unique. Multiple tags with the same ID will cause incorrect behavior.");
+
+    // ===== System-related diagnostics =====
+
+    /// <summary>
+    /// PECS3001: System must be partial.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SystemMustBePartial = new(
+        id: "PECS3001",
+        title: "System must be partial",
+        messageFormat: "Type '{0}' implements IEntitySystem/IChunkSystem but is not partial",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "System types must be partial so the generator can implement RunChunk and constructor.");
+
+    /// <summary>
+    /// PECS3002: System must be ref struct.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SystemMustBeRefStruct = new(
+        id: "PECS3002",
+        title: "System must be ref struct",
+        messageFormat: "Type '{0}' implements IEntitySystem/IChunkSystem but is not a ref struct",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "System types must be ref structs for safe component access via ref fields.");
+
+    /// <summary>
+    /// PECS3003: Cyclic dependency detected in system DAG.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SystemCyclicDependency = new(
+        id: "PECS3003",
+        title: "Cyclic system dependency",
+        messageFormat: "Cyclic dependency detected in system execution order involving: {0}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "System execution order contains a cycle from [After]/[Before] attributes. Remove the cycle to enable scheduling.");
+
+    /// <summary>
+    /// PECS3004: Invalid field type in system.
+    /// </summary>
+    public static readonly DiagnosticDescriptor SystemInvalidFieldType = new(
+        id: "PECS3004",
+        title: "Invalid system field type",
+        messageFormat: "Field '{0}' in system '{1}' has unsupported type '{2}'. Expected a [Component] struct, Span<T>, ReadOnlySpan<T>, or Queryable Data/ChunkData.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "System fields must be component types, spans of components, or queryable data types.");
+
+    /// <summary>
+    /// PECS3005: Duplicate system ID.
+    /// </summary>
+    public static readonly DiagnosticDescriptor DuplicateSystemId = new(
+        id: "PECS3005",
+        title: "Duplicate system ID",
+        messageFormat: "System ID {0} is used by multiple types: {1}",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Each system must have a unique ID. Duplicate IDs prevent correct scheduling.");
+
+    /// <summary>
+    /// PECS3006: IChunkSystem has entity-mode fields.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ChunkSystemHasEntityFields = new(
+        id: "PECS3006",
+        title: "IChunkSystem has entity-mode fields",
+        messageFormat: "Field '{0}' in IChunkSystem '{1}' uses ref component type. Use Span<T>/ReadOnlySpan<T> or ChunkData instead.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "IChunkSystem fields must use Span<T>/ReadOnlySpan<T> for inline mode or ChunkData for composition mode.");
+
+    /// <summary>
+    /// PECS3007: IEntitySystem has chunk-mode fields.
+    /// </summary>
+    public static readonly DiagnosticDescriptor EntitySystemHasChunkFields = new(
+        id: "PECS3007",
+        title: "IEntitySystem has chunk-mode fields",
+        messageFormat: "Field '{0}' in IEntitySystem '{1}' uses Span<T>/ReadOnlySpan<T>. Use ref T/ref readonly T or Data instead.",
+        category: "Paradise.ECS",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "IEntitySystem fields must use ref T/ref readonly T for inline mode or Data for composition mode.");
 }

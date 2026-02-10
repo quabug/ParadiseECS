@@ -27,6 +27,7 @@ GameLoopSample.Run(world, movableQuery);
 EntityOverwriteSample.Run(world, playerEntity);
 GeneratedTypesSample.Run();
 QueryableSample.Run(world);
+SystemSample.Run(world);
 WorldClearSample.Run(world, playerEntity);
 
 Console.WriteLine("=== Sample Application Complete ===");
