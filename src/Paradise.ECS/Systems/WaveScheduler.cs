@@ -88,7 +88,7 @@ public sealed class ParallelWaveScheduler : IWaveScheduler
                 items[0].Invoke();
                 return;
             default:
-                Parallel.ForEach(items, static item => item.Invoke());
+                Parallel.For(0, items.Count, i => items[i].Invoke());
                 return;
         }
     }

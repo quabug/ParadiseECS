@@ -185,10 +185,11 @@ public class SystemGenerator : IIncrementalGenerator
             ? typeSymbol.Name
             : string.Join("", containingTypes.Select(ct => ct.Name)) + typeSymbol.Name;
 
-        // Collect With/Without/WithAny component info
+        // Collect With/Without/WithAny/Optional component info
         var withComponents = new List<QueryableComponentAccess>();
         var withoutComponents = new List<string>();
         var withAnyComponents = new List<string>();
+        var optionalComponents = new List<QueryableComponentAccess>();
 
         foreach (var attr in typeSymbol.GetAttributes())
         {
@@ -215,6 +216,15 @@ public class SystemGenerator : IIncrementalGenerator
                 }
                 withComponents.Add(new QueryableComponentAccess(compFQN, isReadOnly, queryOnly));
             }
+            else if (origName == "OptionalAttribute")
+            {
+                bool isReadOnly = false;
+                foreach (var arg in attr.NamedArguments)
+                {
+                    if (arg.Key == "IsReadOnly" && arg.Value.Value is bool ro) isReadOnly = ro;
+                }
+                optionalComponents.Add(new QueryableComponentAccess(compFQN, isReadOnly, queryOnly: false));
+            }
             else if (origName == "WithoutAttribute")
             {
                 withoutComponents.Add(compFQN);
@@ -229,7 +239,8 @@ public class SystemGenerator : IIncrementalGenerator
             prefix, fqn,
             withComponents.ToImmutableArray(),
             withoutComponents.ToImmutableArray(),
-            withAnyComponents.ToImmutableArray());
+            withAnyComponents.ToImmutableArray(),
+            optionalComponents.ToImmutableArray());
     }
 
     /// <summary>
@@ -284,6 +295,7 @@ public class SystemGenerator : IIncrementalGenerator
                     matched.Value.WithComponents,
                     matched.Value.WithoutComponents,
                     matched.Value.WithAnyComponents,
+                    queryableOptionalComponents: matched.Value.OptionalComponents,
                     isRefField: true));
             }
             else
@@ -529,6 +541,16 @@ public class SystemGenerator : IIncrementalGenerator
                 foreach (var comp in field.QueryableWithComponents)
                 {
                     allComponents.Add(comp.ComponentFQN);
+                    // QueryOnly components are used for filtering only — no data access
+                    if (comp.QueryOnly) continue;
+                    readComponents.Add(comp.ComponentFQN);
+                    if (!field.IsReadOnly && !comp.IsReadOnly)
+                        writeComponents.Add(comp.ComponentFQN);
+                }
+                // Optional components may be conditionally read/written at runtime,
+                // so they must be included in access masks for conflict detection.
+                foreach (var comp in field.QueryableOptionalComponents)
+                {
                     readComponents.Add(comp.ComponentFQN);
                     if (!field.IsReadOnly && !comp.IsReadOnly)
                         writeComponents.Add(comp.ComponentFQN);
@@ -1035,7 +1057,8 @@ public class SystemGenerator : IIncrementalGenerator
     private static string ToCamelCase(string name)
     {
         if (string.IsNullOrEmpty(name)) return name;
-        if (name.StartsWith("_", StringComparison.Ordinal)) return name;
+        if (name.StartsWith("_", StringComparison.Ordinal) && name.Length > 1)
+            name = name.Substring(1);
         return char.ToLowerInvariant(name[0]) + name.Substring(1);
     }
 
@@ -1066,18 +1089,21 @@ public class SystemGenerator : IIncrementalGenerator
         public ImmutableArray<QueryableComponentAccess> WithComponents { get; }
         public ImmutableArray<string> WithoutComponents { get; }
         public ImmutableArray<string> WithAnyComponents { get; }
+        public ImmutableArray<QueryableComponentAccess> OptionalComponents { get; }
 
         public QueryableLookupInfo(
             string prefix, string fqn,
             ImmutableArray<QueryableComponentAccess> withComponents,
             ImmutableArray<string> withoutComponents,
-            ImmutableArray<string> withAnyComponents)
+            ImmutableArray<string> withAnyComponents,
+            ImmutableArray<QueryableComponentAccess> optionalComponents)
         {
             Prefix = prefix;
             FQN = fqn;
             WithComponents = withComponents;
             WithoutComponents = withoutComponents;
             WithAnyComponents = withAnyComponents;
+            OptionalComponents = optionalComponents;
         }
     }
 
@@ -1091,6 +1117,7 @@ public class SystemGenerator : IIncrementalGenerator
         public ImmutableArray<QueryableComponentAccess> QueryableWithComponents { get; }
         public ImmutableArray<string> QueryableWithoutComponents { get; }
         public ImmutableArray<string> QueryableWithAnyComponents { get; }
+        public ImmutableArray<QueryableComponentAccess> QueryableOptionalComponents { get; }
         public bool IsRefField { get; }
         public string? ErrorTypeName { get; }
 
@@ -1100,6 +1127,7 @@ public class SystemGenerator : IIncrementalGenerator
             ImmutableArray<QueryableComponentAccess> queryableWithComponents,
             ImmutableArray<string> queryableWithoutComponents,
             ImmutableArray<string> queryableWithAnyComponents,
+            ImmutableArray<QueryableComponentAccess> queryableOptionalComponents = default,
             bool isRefField = false,
             string? errorTypeName = null)
         {
@@ -1111,6 +1139,7 @@ public class SystemGenerator : IIncrementalGenerator
             QueryableWithComponents = queryableWithComponents;
             QueryableWithoutComponents = queryableWithoutComponents;
             QueryableWithAnyComponents = queryableWithAnyComponents;
+            QueryableOptionalComponents = queryableOptionalComponents.IsDefault ? ImmutableArray<QueryableComponentAccess>.Empty : queryableOptionalComponents;
             IsRefField = isRefField;
             ErrorTypeName = errorTypeName;
         }

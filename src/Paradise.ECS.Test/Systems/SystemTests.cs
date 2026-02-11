@@ -5,6 +5,23 @@ namespace Paradise.ECS.Test;
 // ============================================================================
 
 /// <summary>
+/// Test system: adds velocity to position per entity, using underscore-prefixed fields.
+/// Regression test for ToCamelCase stripping underscore prefix in generated constructor.
+/// </summary>
+#pragma warning disable IDE1006 // Naming rule violation — underscore prefix intentional for regression testing
+public ref partial struct TestUnderscoreFieldSystem : IEntitySystem
+{
+    public ref TestPosition _Position;
+    public ref readonly TestVelocity _Velocity;
+
+    public void Execute()
+    {
+        _Position = new TestPosition { X = _Position.X + _Velocity.X, Y = _Position.Y + _Velocity.Y, Z = _Position.Z + _Velocity.Z };
+    }
+}
+#pragma warning restore IDE1006
+
+/// <summary>
 /// Test system: adds velocity to position per entity.
 /// </summary>
 public ref partial struct TestMovementSystem : IEntitySystem
@@ -304,6 +321,26 @@ public sealed class SystemTests : IDisposable
 
         // just verifying no exception thrown
         await Assert.That(_world.EntityCount).IsGreaterThanOrEqualTo(0);
+    }
+
+    // ---- Underscore Field Regression Test ----
+
+    [Test]
+    public async Task UnderscoreFieldSystem_Execute_UpdatesComponents()
+    {
+        var e = _world.Spawn();
+        _world.AddComponent(e, new TestPosition { X = 10, Y = 20, Z = 0 });
+        _world.AddComponent(e, new TestVelocity { X = 1, Y = 2, Z = 0 });
+
+        var schedule = SystemSchedule.Create(_world)
+            .Add<TestUnderscoreFieldSystem>()
+            .Build<SequentialWaveScheduler>();
+
+        schedule.Run();
+
+        var pos = _world.GetComponent<TestPosition>(e);
+        await Assert.That(pos.X).IsEqualTo(11f);
+        await Assert.That(pos.Y).IsEqualTo(22f);
     }
 
     // ---- Subset Scheduling Tests ----

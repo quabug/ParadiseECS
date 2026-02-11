@@ -37,10 +37,15 @@ public sealed class DefaultDagScheduler : IDagScheduler
         for (int i = 0; i < n; i++)
             globalToLocal[systems[i].SystemId] = i;
 
-        // Build adjacency list from AfterSystemIds (skip deps not in the set)
-        var adj = new List<int>[n];
+        // Build forward and reverse adjacency lists from AfterSystemIds (skip deps not in the set)
+        var adj = new List<int>[n];      // adj[pred] → successors
+        var predAdj = new List<int>[n];  // predAdj[succ] → predecessors
         var inDegree = new int[n];
-        for (int i = 0; i < n; i++) adj[i] = new List<int>();
+        for (int i = 0; i < n; i++)
+        {
+            adj[i] = new List<int>();
+            predAdj[i] = new List<int>();
+        }
 
         for (int i = 0; i < n; i++)
         {
@@ -51,6 +56,7 @@ public sealed class DefaultDagScheduler : IDagScheduler
                 if (globalToLocal.TryGetValue(globalId, out var localPred))
                 {
                     adj[localPred].Add(i);
+                    predAdj[i].Add(localPred);
                     inDegree[i]++;
                 }
             }
@@ -84,7 +90,7 @@ public sealed class DefaultDagScheduler : IDagScheduler
         foreach (var node in topoOrder)
         {
             int wave = 0;
-            foreach (var pred in Enumerable.Range(0, n).Where(p => adj[p].Contains(node)))
+            foreach (var pred in predAdj[node])
             {
                 if (waveOf[pred] >= 0)
                     wave = Math.Max(wave, waveOf[pred] + 1);
