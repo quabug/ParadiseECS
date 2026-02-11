@@ -83,6 +83,38 @@ public ref partial struct GravityBatchSystem : IChunkSystem
     }
 }
 
+// ---- Health Systems (independent from Position/Velocity — enables parallel waves) ----
+
+/// <summary>
+/// Regenerates health toward max. Only touches Health, so it can run in parallel
+/// with any Position/Velocity system.
+/// </summary>
+public ref partial struct HealthRegenSystem : IEntitySystem
+{
+    public ref Health Health;
+
+    public void Execute()
+    {
+        if (Health.Current < Health.Max)
+            Health = new Health { Current = Health.Current + 1, Max = Health.Max };
+    }
+}
+
+/// <summary>
+/// Clamps health to valid range. Demonstrates [After] ordering within a parallel wave.
+/// Runs after HealthRegenSystem but can still share a wave with Velocity-only systems.
+/// </summary>
+[After<HealthRegenSystem>]
+public ref partial struct HealthClampSystem : IEntitySystem
+{
+    public ref Health Health;
+
+    public void Execute()
+    {
+        Health = new Health { Current = Math.Clamp(Health.Current, 0, Health.Max), Max = Health.Max };
+    }
+}
+
 // ---- Queryable Chunk Systems ----
 
 /// <summary>

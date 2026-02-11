@@ -87,6 +87,28 @@ public static class SystemSample
         var velAfterQ = world.GetComponent<Velocity>(e1);
         Console.WriteLine($"    Entity 1 Velocity: {velBeforeQ} → {velAfterQ}");
 
+        // ---- Health Systems (parallel waves) ----
+        // HealthRegenSystem and HealthClampSystem only touch Health,
+        // so they share waves with Velocity-only systems.
+        Console.WriteLine("  Health systems (parallel with velocity systems):");
+
+        world.AddComponent(e1, new Health(100));
+        world.AddComponent(e2, new Health { Current = 50, Max = 80 });
+
+        var healthSchedule = SystemSchedule.Create(world)
+            .Add<HealthRegenSystem>()
+            .Add<HealthClampSystem>()
+            .Add<GravitySystem>()
+            .Build();
+
+        var hBefore1 = world.GetComponent<Health>(e1);
+        var hBefore2 = world.GetComponent<Health>(e2);
+        healthSchedule.RunSequential();
+        var hAfter1 = world.GetComponent<Health>(e1);
+        var hAfter2 = world.GetComponent<Health>(e2);
+        Console.WriteLine($"    Entity 1 Health: {hBefore1} → {hAfter1}");
+        Console.WriteLine($"    Entity 2 Health: {hBefore2} → {hAfter2}");
+
         // ---- AddAll and Parallel ----
         Console.WriteLine("  Parallel execution (all systems):");
 

@@ -107,3 +107,34 @@ public interface IChunkSystem : ISystem
     /// </summary>
     void ExecuteChunk();
 }
+
+/// <summary>
+/// Typed system interface providing a static <c>RunChunk</c> dispatch method.
+/// Implemented by source-generated system partials to enable delegate-based dispatch
+/// without a generated switch statement.
+/// </summary>
+/// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
+public interface ISystem<TMask, TConfig> : ISystem
+    where TMask : unmanaged, IBitSet<TMask>
+    where TConfig : IConfig, new()
+{
+    /// <summary>
+    /// The query description for this system's component access pattern.
+    /// Used by the schedule to find matching archetypes.
+    /// </summary>
+    static abstract HashedKey<ImmutableQueryDescription<TMask>> QueryDescription { get; }
+
+    /// <summary>
+    /// Executes this system over a single chunk. Called by the scheduler.
+    /// </summary>
+    /// <param name="world">The world containing the entities.</param>
+    /// <param name="chunk">The chunk handle to process.</param>
+    /// <param name="layout">The archetype layout describing component offsets.</param>
+    /// <param name="entityCount">The number of entities in the chunk.</param>
+    static abstract void RunChunk(
+        IWorld<TMask, TConfig> world,
+        ChunkHandle chunk,
+        ImmutableArchetypeLayout<TMask, TConfig> layout,
+        int entityCount);
+}
