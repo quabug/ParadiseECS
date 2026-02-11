@@ -306,6 +306,66 @@ public sealed class SystemTests : IDisposable
         await Assert.That(_world.EntityCount).IsGreaterThanOrEqualTo(0);
     }
 
+    // ---- Subset Scheduling Tests ----
+
+    [Test]
+    public async Task Schedule_SubsetOnly_ComputesWavesForAddedSystems()
+    {
+        // Only add MovementSystem (no GravitySystem), verify it runs correctly in isolation
+        var e = _world.Spawn();
+        _world.AddComponent(e, new TestPosition { X = 10, Y = 20, Z = 0 });
+        _world.AddComponent(e, new TestVelocity { X = 1, Y = 2, Z = 0 });
+
+        var schedule = SystemSchedule.Create(_world)
+            .Add<TestMovementSystem>()
+            .Build<SequentialWaveScheduler>();
+
+        schedule.Run();
+
+        // Only movement ran, no gravity doubling
+        var vel = _world.GetComponent<TestVelocity>(e);
+        await Assert.That(vel.Y).IsEqualTo(2f);
+        var pos = _world.GetComponent<TestPosition>(e);
+        await Assert.That(pos.X).IsEqualTo(11f);
+        await Assert.That(pos.Y).IsEqualTo(22f);
+    }
+
+    [Test]
+    public async Task Schedule_SubsetWithDeps_IgnoresMissingDep()
+    {
+        // BoundsSystem has [After<MovementSystem>], but we only add BoundsSystem — dep is skipped
+        var e = _world.Spawn();
+        _world.AddComponent(e, new TestPosition { X = 200, Y = 0, Z = 0 });
+
+        var schedule = SystemSchedule.Create(_world)
+            .Add<TestBoundsSystem>()
+            .Build<SequentialWaveScheduler>();
+
+        schedule.Run();
+
+        // BoundsSystem clamps to [0,100]
+        var pos = _world.GetComponent<TestPosition>(e);
+        await Assert.That(pos.X).IsEqualTo(100f);
+    }
+
+    [Test]
+    public async Task Schedule_BuildWithCustomDagScheduler_Works()
+    {
+        var e = _world.Spawn();
+        _world.AddComponent(e, new TestPosition { X = 0, Y = 0, Z = 0 });
+        _world.AddComponent(e, new TestVelocity { X = 5, Y = 5, Z = 0 });
+
+        var schedule = SystemSchedule.Create(_world)
+            .Add<TestMovementSystem>()
+            .Build(new DefaultDagScheduler(), new SequentialWaveScheduler());
+
+        schedule.Run();
+
+        var pos = _world.GetComponent<TestPosition>(e);
+        await Assert.That(pos.X).IsEqualTo(5f);
+        await Assert.That(pos.Y).IsEqualTo(5f);
+    }
+
     // ---- SystemRegistry Tests ----
 
     [Test]
@@ -324,5 +384,29 @@ public sealed class SystemTests : IDisposable
 
         await Assert.That(names).Contains("Paradise.ECS.Test.TestMovementSystem");
         await Assert.That(names).Contains("Paradise.ECS.Test.TestGravitySystem");
+    }
+
+    [Test]
+    public async Task SystemRegistry_Metadata_HasAfterSystemIds()
+    {
+        // TestBoundsSystem has [After<TestMovementSystem>]
+        var metadata = SystemRegistry.Metadata;
+        var boundsAfterIds = System.Collections.Immutable.ImmutableArray<int>.Empty;
+        var movementId = -1;
+        var found = false;
+        for (int i = 0; i < metadata.Length; i++)
+        {
+            if (metadata[i].TypeName == "Paradise.ECS.Test.TestBoundsSystem")
+            {
+                boundsAfterIds = metadata[i].AfterSystemIds;
+                found = true;
+            }
+            if (metadata[i].TypeName == "Paradise.ECS.Test.TestMovementSystem")
+                movementId = metadata[i].SystemId;
+        }
+
+        await Assert.That(found).IsTrue();
+        await Assert.That(movementId).IsGreaterThanOrEqualTo(0);
+        await Assert.That(boundsAfterIds).Contains(movementId);
     }
 }
