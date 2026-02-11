@@ -2,9 +2,13 @@ namespace Paradise.ECS;
 
 /// <summary>
 /// Represents a unit of work within a system execution wave.
-/// Contains metadata for scheduler decision-making and an invocable action.
+/// Stores all invocation data inline to avoid closure allocations.
 /// </summary>
-public readonly struct WorkItem
+/// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
+/// <typeparam name="TConfig">The world configuration type.</typeparam>
+public readonly struct WorkItem<TMask, TConfig>
+    where TMask : unmanaged, IBitSet<TMask>
+    where TConfig : IConfig, new()
 {
     /// <summary>The system that produced this work item.</summary>
     public int SystemId { get; }
@@ -12,17 +16,30 @@ public readonly struct WorkItem
     /// <summary>The chunk this work item operates on.</summary>
     public ChunkHandle Chunk { get; }
 
-    private readonly Action _action;
+    private readonly SystemRunChunkAction<TMask, TConfig> _dispatcher;
+    private readonly IWorld<TMask, TConfig> _world;
+    private readonly nint _layoutPtr;
+    private readonly int _entityCount;
 
-    internal WorkItem(int systemId, ChunkHandle chunk, Action action)
+    internal WorkItem(
+        int systemId,
+        ChunkHandle chunk,
+        SystemRunChunkAction<TMask, TConfig> dispatcher,
+        IWorld<TMask, TConfig> world,
+        nint layoutPtr,
+        int entityCount)
     {
         SystemId = systemId;
         Chunk = chunk;
-        _action = action;
+        _dispatcher = dispatcher;
+        _world = world;
+        _layoutPtr = layoutPtr;
+        _entityCount = entityCount;
     }
 
     /// <summary>Executes this work item.</summary>
-    public void Invoke() => _action();
+    public void Invoke() =>
+        _dispatcher(_world, Chunk, new ImmutableArchetypeLayout<TMask, TConfig>(_layoutPtr), _entityCount);
 }
 
 /// <summary>
@@ -33,15 +50,21 @@ public readonly struct WorkItem
 public interface IWaveScheduler
 {
     /// <summary>Executes all work items for a single wave. Must complete before returning.</summary>
+    /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
+    /// <typeparam name="TConfig">The world configuration type.</typeparam>
     /// <param name="items">The work items to execute. The span is only valid for the duration of this call.</param>
-    void Execute(Span<WorkItem> items);
+    void Execute<TMask, TConfig>(Span<WorkItem<TMask, TConfig>> items)
+        where TMask : unmanaged, IBitSet<TMask>
+        where TConfig : IConfig, new();
 }
 
 /// <summary>Executes work items sequentially on the calling thread.</summary>
 public sealed class SequentialWaveScheduler : IWaveScheduler
 {
     /// <inheritdoc/>
-    public void Execute(Span<WorkItem> items)
+    public void Execute<TMask, TConfig>(Span<WorkItem<TMask, TConfig>> items)
+        where TMask : unmanaged, IBitSet<TMask>
+        where TConfig : IConfig, new()
     {
         foreach (ref readonly var item in items)
             item.Invoke();
@@ -52,7 +75,9 @@ public sealed class SequentialWaveScheduler : IWaveScheduler
 public sealed class ParallelWaveScheduler : IWaveScheduler
 {
     /// <inheritdoc/>
-    public void Execute(Span<WorkItem> items)
+    public void Execute<TMask, TConfig>(Span<WorkItem<TMask, TConfig>> items)
+        where TMask : unmanaged, IBitSet<TMask>
+        where TConfig : IConfig, new()
     {
         switch (items.Length)
         {
@@ -61,13 +86,7 @@ public sealed class ParallelWaveScheduler : IWaveScheduler
                 items[0].Invoke();
                 return;
             default:
-                var actions = new Action[items.Length];
-                for (var i = 0; i < items.Length; i++)
-                {
-                    var item = items[i];
-                    actions[i] = item.Invoke;
-                }
-                System.Threading.Tasks.Parallel.Invoke(actions);
+                System.Threading.Tasks.Parallel.ForEach(items.ToArray(), static item => item.Invoke());
                 return;
         }
     }

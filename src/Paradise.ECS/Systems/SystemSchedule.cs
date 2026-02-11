@@ -35,7 +35,7 @@ public sealed class SystemSchedule<TMask, TConfig>
     private readonly SystemRunChunkAction<TMask, TConfig>?[] _dispatchers;
     private readonly HashedKey<ImmutableQueryDescription<TMask>>[] _queryDescriptions;
     private readonly IWaveScheduler _scheduler;
-    private readonly List<WorkItem> _workItems = new();
+    private readonly List<WorkItem<TMask, TConfig>> _workItems = new();
 
     internal SystemSchedule(
         IWorld<TMask, TConfig> world,
@@ -75,15 +75,13 @@ public sealed class SystemSchedule<TMask, TConfig>
                 var q = _world.ArchetypeRegistry.GetOrCreateQuery(_queryDescriptions[systemId]);
                 foreach (var ci in q.Chunks)
                 {
-                    var handle = ci.Handle;
-                    var layoutPtr = ci.Archetype.Layout.DataPointer;
-                    var entityCount = ci.EntityCount;
-                    var d = dispatcher;
-                    var world = _world;
-                    _workItems.Add(new WorkItem(
+                    _workItems.Add(new WorkItem<TMask, TConfig>(
                         systemId,
-                        handle,
-                        () => d(world, handle, new ImmutableArchetypeLayout<TMask, TConfig>(layoutPtr), entityCount)));
+                        ci.Handle,
+                        dispatcher,
+                        _world,
+                        ci.Archetype.Layout.DataPointer,
+                        ci.EntityCount));
                 }
             }
             _scheduler.Execute(CollectionsMarshal.AsSpan(_workItems));
