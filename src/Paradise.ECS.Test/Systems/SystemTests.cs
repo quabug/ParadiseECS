@@ -112,9 +112,9 @@ public sealed class SystemTests : IDisposable
 
         var schedule = SystemSchedule.Create(_world)
             .Add<TestMovementSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        schedule.RunSequential();
+        schedule.Run();
 
         // TestGravitySystem not in schedule, so vel is unchanged
         // But TestMovementSystem reads Velocity and writes Position
@@ -142,9 +142,9 @@ public sealed class SystemTests : IDisposable
 
         var schedule = SystemSchedule.Create(_world)
             .Add<TestMovementSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        schedule.RunSequential();
+        schedule.Run();
 
         await Assert.That(_world.GetComponent<TestPosition>(e1).X).IsEqualTo(11f);
         await Assert.That(_world.GetComponent<TestPosition>(e2).X).IsEqualTo(22f);
@@ -160,9 +160,9 @@ public sealed class SystemTests : IDisposable
 
         var schedule = SystemSchedule.Create(_world)
             .Add<TestMovementSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        schedule.RunSequential();
+        schedule.Run();
 
         // Position should be unchanged
         var pos = _world.GetComponent<TestPosition>(e);
@@ -182,9 +182,9 @@ public sealed class SystemTests : IDisposable
 
         var schedule = SystemSchedule.Create(_world)
             .Add<TestGravityBatchSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        schedule.RunSequential();
+        schedule.Run();
 
         await Assert.That(_world.GetComponent<TestVelocity>(e1).Y).IsEqualTo(10f);
         await Assert.That(_world.GetComponent<TestVelocity>(e2).Y).IsEqualTo(20f);
@@ -203,9 +203,9 @@ public sealed class SystemTests : IDisposable
         var schedule = SystemSchedule.Create(_world)
             .Add<TestMovementSystem>()
             .Add<TestBoundsSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        schedule.RunSequential();
+        schedule.Run();
 
         // Movement: 90 + 20 = 110, then Bounds: clamp(110, 0, 100) = 100
         var pos = _world.GetComponent<TestPosition>(e);
@@ -223,9 +223,9 @@ public sealed class SystemTests : IDisposable
         var schedule = SystemSchedule.Create(_world)
             .Add<TestGravitySystem>()
             .Add<TestMovementSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        schedule.RunSequential();
+        schedule.Run();
 
         // GravitySystem doubles vel.Y: 5 → 10
         // Then MovementSystem adds vel to pos: 0 + 10 = 10
@@ -244,10 +244,10 @@ public sealed class SystemTests : IDisposable
 
         var schedule = SystemSchedule.Create(_world)
             .AddAll()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
         // Should not throw
-        schedule.RunSequential();
+        schedule.Run();
 
         // Position should have changed (at least MovementSystem ran)
         var pos = _world.GetComponent<TestPosition>(e);
@@ -265,9 +265,9 @@ public sealed class SystemTests : IDisposable
         var schedule = SystemSchedule.Create(_world)
             .Add<TestMovementSystem>()
             .Add<TestGravitySystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        schedule.RunSequential();
+        schedule.Run();
         var seqPos = _world.GetComponent<TestPosition>(e1);
         var seqVel = _world.GetComponent<TestVelocity>(e1);
 
@@ -280,9 +280,9 @@ public sealed class SystemTests : IDisposable
         var schedule2 = SystemSchedule.Create(_world)
             .Add<TestMovementSystem>()
             .Add<TestGravitySystem>()
-            .Build();
+            .Build<ParallelWaveScheduler>();
 
-        schedule2.RunParallel();
+        schedule2.Run();
         var parPos = _world.GetComponent<TestPosition>(e2);
         var parVel = _world.GetComponent<TestVelocity>(e2);
 
@@ -294,11 +294,13 @@ public sealed class SystemTests : IDisposable
     [Test]
     public async Task Schedule_EmptySchedule_DoesNotCrash()
     {
-        var schedule = SystemSchedule.Create(_world)
-            .Build();
+        var seqSchedule = SystemSchedule.Create(_world)
+            .Build<SequentialWaveScheduler>();
+        var parSchedule = SystemSchedule.Create(_world)
+            .Build<ParallelWaveScheduler>();
 
-        schedule.RunSequential();
-        schedule.RunParallel();
+        seqSchedule.Run();
+        parSchedule.Run();
 
         // just verifying no exception thrown
         await Assert.That(_world.EntityCount).IsGreaterThanOrEqualTo(0);

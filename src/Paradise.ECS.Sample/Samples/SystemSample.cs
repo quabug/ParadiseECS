@@ -27,9 +27,9 @@ public static class SystemSample
             .Add<MovementSystem>()
             .Add<GravitySystem>()
             .Add<BoundsSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        schedule.RunSequential();
+        schedule.Run();
 
         var pos1 = world.GetComponent<Position>(e1);
         var vel1 = world.GetComponent<Velocity>(e1);
@@ -49,9 +49,9 @@ public static class SystemSample
 
         var queryableSchedule = SystemSchedule.Create(world)
             .Add<QueryableMovementSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        queryableSchedule.RunSequential();
+        queryableSchedule.Run();
 
         var posAfter1 = world.GetComponent<Position>(e1);
         var posAfter2 = world.GetComponent<Position>(e2);
@@ -63,10 +63,10 @@ public static class SystemSample
 
         var batchSchedule = SystemSchedule.Create(world)
             .Add<GravityBatchSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
         var velBefore = world.GetComponent<Velocity>(e1);
-        batchSchedule.RunSequential();
+        batchSchedule.Run();
 
         var vel1After = world.GetComponent<Velocity>(e1);
         Console.WriteLine($"    Entity 1 Velocity: {velBefore} → {vel1After}");
@@ -80,9 +80,9 @@ public static class SystemSample
 
         var queryableChunkSchedule = SystemSchedule.Create(world)
             .Add<QueryableGravityBatchSystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
-        queryableChunkSchedule.RunSequential();
+        queryableChunkSchedule.Run();
 
         var velAfterQ = world.GetComponent<Velocity>(e1);
         Console.WriteLine($"    Entity 1 Velocity: {velBeforeQ} → {velAfterQ}");
@@ -99,11 +99,11 @@ public static class SystemSample
             .Add<HealthRegenSystem>()
             .Add<HealthClampSystem>()
             .Add<GravitySystem>()
-            .Build();
+            .Build<SequentialWaveScheduler>();
 
         var hBefore1 = world.GetComponent<Health>(e1);
         var hBefore2 = world.GetComponent<Health>(e2);
-        healthSchedule.RunSequential();
+        healthSchedule.Run();
         var hAfter1 = world.GetComponent<Health>(e1);
         var hAfter2 = world.GetComponent<Health>(e2);
         Console.WriteLine($"    Entity 1 Health: {hBefore1} → {hAfter1}");
@@ -114,9 +114,9 @@ public static class SystemSample
 
         var allSchedule = SystemSchedule.Create(world)
             .AddAll()
-            .Build();
+            .Build<ParallelWaveScheduler>();
 
-        allSchedule.RunParallel();
+        allSchedule.Run();
         Console.WriteLine("    All systems executed in parallel successfully");
 
         // Cleanup test entities

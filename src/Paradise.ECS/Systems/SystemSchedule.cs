@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Paradise.ECS;
 
 /// <summary>
@@ -19,7 +21,8 @@ public delegate void SystemRunChunkAction<TMask, TConfig>(
     where TConfig : IConfig, new();
 
 /// <summary>
-/// Pre-built execution schedule for systems. Supports sequential and parallel execution.
+/// Pre-built execution schedule for systems. The scheduling strategy is determined at build time
+/// via the <see cref="IWaveScheduler"/> provided to the builder.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
@@ -31,17 +34,21 @@ public sealed class SystemSchedule<TMask, TConfig>
     private readonly int[][] _waves;
     private readonly SystemRunChunkAction<TMask, TConfig>?[] _dispatchers;
     private readonly HashedKey<ImmutableQueryDescription<TMask>>[] _queryDescriptions;
+    private readonly IWaveScheduler _scheduler;
+    private readonly List<WorkItem> _workItems = new();
 
     internal SystemSchedule(
         IWorld<TMask, TConfig> world,
         int[][] waves,
         SystemRunChunkAction<TMask, TConfig>?[] dispatchers,
-        HashedKey<ImmutableQueryDescription<TMask>>[] queryDescriptions)
+        HashedKey<ImmutableQueryDescription<TMask>>[] queryDescriptions,
+        IWaveScheduler scheduler)
     {
         _world = world;
         _waves = waves;
         _dispatchers = dispatchers;
         _queryDescriptions = queryDescriptions;
+        _scheduler = scheduler;
     }
 
     /// <summary>
@@ -55,44 +62,31 @@ public sealed class SystemSchedule<TMask, TConfig>
         IWorld<TMask, TConfig> world, int systemCount, int[][] waves)
         => new(world, systemCount, waves);
 
-    /// <summary>Runs all enabled systems sequentially, wave by wave.</summary>
-    public void RunSequential()
+    /// <summary>Runs all enabled systems using the scheduler provided at build time.</summary>
+    public void Run()
     {
         foreach (var wave in _waves)
         {
+            _workItems.Clear();
             foreach (var systemId in wave)
             {
                 var dispatcher = _dispatchers[systemId];
                 if (dispatcher == null) continue;
-                var query = _world.ArchetypeRegistry.GetOrCreateQuery(_queryDescriptions[systemId]);
-                foreach (var chunkInfo in query.Chunks)
+                var q = _world.ArchetypeRegistry.GetOrCreateQuery(_queryDescriptions[systemId]);
+                foreach (var ci in q.Chunks)
                 {
-                    dispatcher(_world, chunkInfo.Handle, chunkInfo.Archetype.Layout, chunkInfo.EntityCount);
+                    var handle = ci.Handle;
+                    var layoutPtr = ci.Archetype.Layout.DataPointer;
+                    var entityCount = ci.EntityCount;
+                    var d = dispatcher;
+                    var world = _world;
+                    _workItems.Add(new WorkItem(
+                        systemId,
+                        handle,
+                        () => d(world, handle, new ImmutableArchetypeLayout<TMask, TConfig>(layoutPtr), entityCount)));
                 }
             }
-        }
-    }
-
-    /// <summary>Runs systems in parallel within each wave, sequentially between waves.</summary>
-    public void RunParallel()
-    {
-        foreach (var wave in _waves)
-        {
-            var actions = new System.Collections.Generic.List<System.Action>();
-            foreach (var systemId in wave)
-            {
-                var dispatcher = _dispatchers[systemId];
-                if (dispatcher == null) continue;
-                // Pre-cache query on main thread to avoid concurrent access to non-thread-safe ArchetypeRegistry
-                var q = _world.ArchetypeRegistry.GetOrCreateQuery(_queryDescriptions[systemId]);
-                actions.Add(() =>
-                {
-                    foreach (var ci in q.Chunks)
-                        dispatcher(_world, ci.Handle, ci.Archetype.Layout, ci.EntityCount);
-                });
-            }
-            if (actions.Count == 1) actions[0]();
-            else if (actions.Count > 1) System.Threading.Tasks.Parallel.Invoke(actions.ToArray());
+            _scheduler.Execute(CollectionsMarshal.AsSpan(_workItems));
         }
     }
 }
@@ -130,10 +124,18 @@ public readonly struct SystemScheduleBuilder<TMask, TConfig>
         return this;
     }
 
-    /// <summary>Builds the schedule with the selected systems.</summary>
-    /// <returns>A new <see cref="SystemSchedule{TMask,TConfig}"/> ready for execution.</returns>
-    public SystemSchedule<TMask, TConfig> Build()
+    /// <summary>Builds a schedule with a custom wave scheduler.</summary>
+    /// <typeparam name="TScheduler">The scheduler type implementing <see cref="IWaveScheduler"/>.</typeparam>
+    /// <returns>A new <see cref="SystemSchedule{TMask,TConfig}"/> using the provided scheduler.</returns>
+    public SystemSchedule<TMask, TConfig> Build<TScheduler>()
+        where TScheduler : IWaveScheduler, new()
+        => Build(new TScheduler());
+
+    /// <summary>Builds a schedule with a custom wave scheduler instance.</summary>
+    /// <param name="scheduler">The scheduler strategy to use for executing work items within each wave.</param>
+    /// <returns>A new <see cref="SystemSchedule{TMask,TConfig}"/> using the provided scheduler.</returns>
+    public SystemSchedule<TMask, TConfig> Build(IWaveScheduler scheduler)
     {
-        return new SystemSchedule<TMask, TConfig>(_world, _waves, _dispatchers, _queryDescriptions);
+        return new SystemSchedule<TMask, TConfig>(_world, _waves, _dispatchers, _queryDescriptions, scheduler);
     }
 }
