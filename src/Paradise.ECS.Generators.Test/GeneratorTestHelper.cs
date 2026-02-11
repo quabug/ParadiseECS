@@ -133,6 +133,27 @@ public static class GeneratorTestHelper
     }
 
     /// <summary>
+    /// Creates a compilation with the given source code and runs the SystemGenerator (plus ComponentGenerator and TagGenerator).
+    /// </summary>
+    public static GeneratorDriverRunResult RunSystemGenerator(string source, bool includeEcsReferences = true, string? rootNamespace = null, bool includeTagReference = true)
+    {
+        return RunGenerators(source, [new ComponentGenerator(), new TagGenerator(), new SystemGenerator()], includeEcsReferences, rootNamespace, includeTagReference);
+    }
+
+    /// <summary>
+    /// Runs the system generator and returns the generated source for a specific hint name.
+    /// </summary>
+    public static string? GetSystemGeneratedSource(string source, string hintName)
+    {
+        var result = RunSystemGenerator(source);
+        var sources = result.GeneratedTrees.Select(t => (
+            HintName: Path.GetFileName(t.FilePath),
+            Source: t.GetText().ToString()
+        ));
+        return sources.FirstOrDefault(s => s.HintName == hintName).Source;
+    }
+
+    /// <summary>
     /// Runs the generator and returns the generated source texts.
     /// </summary>
     public static ImmutableArray<(string HintName, string Source)> GetGeneratedSources(string source, bool includeTagReference = true)

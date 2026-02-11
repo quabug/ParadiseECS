@@ -6,6 +6,7 @@
     <IsTestProject>true</IsTestProject>
     <!-- Allow underscore naming convention in test methods -->
     <NoWarn>$(NoWarn);CA1707;CA1515</NoWarn>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,7 +14,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Paradise.ECS\Paradise.ECS.csproj" />
     <ProjectReference Include="..\Paradise.ECS.Concurrent\Paradise.ECS.Concurrent.csproj" />
+    <ProjectReference Include="..\Paradise.ECS.Generators\Paradise.ECS.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Paradise.ECS" />
   </ItemGroup>
 
   <ItemGroup>

@@ -48,6 +48,13 @@ public static class Program
             // Stress tests
             ("StressTest_ManyThreadsManyOperations", ConcurrentAppendOnlyListTests.StressTest_ManyThreadsManyOperations),
             ("StressTest_RapidGrowthAndRead", ConcurrentAppendOnlyListTests.StressTest_RapidGrowthAndRead),
+
+            // Parallel system execution
+            ("ParallelMatchesSequential_IndependentSystems", ParallelSystemTests.ParallelMatchesSequential_IndependentSystems),
+            ("ParallelMatchesSequential_MultiWave", ParallelSystemTests.ParallelMatchesSequential_MultiWave),
+            ("ParallelMultipleIterations_AccumulatesCorrectly", ParallelSystemTests.ParallelMultipleIterations_AccumulatesCorrectly),
+            ("ParallelMatchesSequential_AllSystems", ParallelSystemTests.ParallelMatchesSequential_AllSystems),
+            ("ParallelStress_ManyEntities", ParallelSystemTests.ParallelStress_ManyEntities),
         };
 
         int passed = 0;

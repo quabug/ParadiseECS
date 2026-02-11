@@ -64,6 +64,16 @@ public readonly unsafe ref struct ImmutableArchetypeLayout<TMask, TConfig>
     private readonly byte* _data;
 
     /// <summary>
+    /// Gets the raw data pointer for this layout.
+    /// Used when the layout needs to be stored in a non-ref struct (e.g., generated Queryable Data types).
+    /// </summary>
+    public nint DataPointer
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => (nint)_data;
+    }
+
+    /// <summary>
     /// Creates an archetype layout view from a data pointer.
     /// </summary>
     /// <param name="data">Pointer to the layout data allocated by <see cref="Create"/>.</param>
