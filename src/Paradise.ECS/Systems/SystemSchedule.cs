@@ -83,10 +83,10 @@ public sealed class SystemSchedule<TMask, TConfig>
             {
                 var dispatcher = _dispatchers[systemId];
                 if (dispatcher == null) continue;
-                var sid = systemId;
+                // Pre-cache query on main thread to avoid concurrent access to non-thread-safe ArchetypeRegistry
+                var q = _world.ArchetypeRegistry.GetOrCreateQuery(_queryDescriptions[systemId]);
                 actions.Add(() =>
                 {
-                    var q = _world.ArchetypeRegistry.GetOrCreateQuery(_queryDescriptions[sid]);
                     foreach (var ci in q.Chunks)
                         dispatcher(_world, ci.Handle, ci.Archetype.Layout, ci.EntityCount);
                 });
