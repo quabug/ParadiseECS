@@ -120,10 +120,9 @@ public interface ISystem<TMask, TConfig> : ISystem
     where TConfig : IConfig, new()
 {
     /// <summary>
-    /// The query description for this system's component access pattern.
-    /// Used by the schedule to find matching archetypes.
+    /// The compile-time metadata for this system, including access masks and dependency edges.
     /// </summary>
-    static abstract HashedKey<ImmutableQueryDescription<TMask>> QueryDescription { get; }
+    static abstract SystemMetadata<TMask> Metadata { get; }
 
     /// <summary>
     /// Executes this system over a single chunk. Called by the scheduler.

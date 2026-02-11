@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.InteropServices;
 
 namespace Paradise.ECS;
@@ -31,23 +32,23 @@ public sealed class SystemSchedule<TMask, TConfig>
     where TConfig : IConfig, new()
 {
     private readonly IWorld<TMask, TConfig> _world;
-    private readonly int[][] _waves;
-    private readonly SystemRunChunkAction<TMask, TConfig>?[] _dispatchers;
-    private readonly HashedKey<ImmutableQueryDescription<TMask>>[] _queryDescriptions;
+    private readonly ImmutableArray<ImmutableArray<int>> _waves;
+    private readonly ImmutableArray<SystemRunChunkAction<TMask, TConfig>> _dispatchers;
+    private readonly ImmutableArray<SystemMetadata<TMask>> _metadata;
     private readonly IWaveScheduler _scheduler;
     private readonly List<WorkItem<TMask, TConfig>> _workItems = new();
 
     internal SystemSchedule(
         IWorld<TMask, TConfig> world,
-        int[][] waves,
-        SystemRunChunkAction<TMask, TConfig>?[] dispatchers,
-        HashedKey<ImmutableQueryDescription<TMask>>[] queryDescriptions,
+        ImmutableArray<ImmutableArray<int>> waves,
+        ImmutableArray<SystemRunChunkAction<TMask, TConfig>> dispatchers,
+        ImmutableArray<SystemMetadata<TMask>> metadata,
         IWaveScheduler scheduler)
     {
         _world = world;
         _waves = waves;
         _dispatchers = dispatchers;
-        _queryDescriptions = queryDescriptions;
+        _metadata = metadata;
         _scheduler = scheduler;
     }
 
@@ -55,12 +56,9 @@ public sealed class SystemSchedule<TMask, TConfig>
     /// Creates a schedule builder for the given world.
     /// </summary>
     /// <param name="world">The world to create a schedule for.</param>
-    /// <param name="systemCount">The total number of registered systems.</param>
-    /// <param name="waves">The pre-computed execution waves from DAG analysis.</param>
     /// <returns>A new schedule builder.</returns>
-    public static SystemScheduleBuilder<TMask, TConfig> Create(
-        IWorld<TMask, TConfig> world, int systemCount, int[][] waves)
-        => new(world, systemCount, waves);
+    public static SystemScheduleBuilder<TMask, TConfig> Create(IWorld<TMask, TConfig> world)
+        => new(world);
 
     /// <summary>Runs all enabled systems using the scheduler provided at build time.</summary>
     public void Run()
@@ -71,8 +69,7 @@ public sealed class SystemSchedule<TMask, TConfig>
             foreach (var systemId in wave)
             {
                 var dispatcher = _dispatchers[systemId];
-                if (dispatcher == null) continue;
-                var q = _world.ArchetypeRegistry.GetOrCreateQuery(_queryDescriptions[systemId]);
+                var q = _world.ArchetypeRegistry.GetOrCreateQuery(_metadata[systemId].QueryDescription);
                 foreach (var ci in q.Chunks)
                 {
                     _workItems.Add(new WorkItem<TMask, TConfig>(
@@ -84,13 +81,15 @@ public sealed class SystemSchedule<TMask, TConfig>
                         ci.EntityCount));
                 }
             }
-            _scheduler.Execute(CollectionsMarshal.AsSpan(_workItems));
+            _scheduler.Execute(_workItems);
         }
     }
 }
 
 /// <summary>
 /// Builder for selecting which systems to include in a schedule.
+/// Dependency resolution happens at <see cref="Build(IDagScheduler, IWaveScheduler)"/> time,
+/// computing waves only for the systems actually added.
 /// </summary>
 /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
 /// <typeparam name="TConfig">The world configuration type.</typeparam>
@@ -99,16 +98,14 @@ public readonly struct SystemScheduleBuilder<TMask, TConfig>
     where TConfig : IConfig, new()
 {
     private readonly IWorld<TMask, TConfig> _world;
-    private readonly int[][] _waves;
-    private readonly SystemRunChunkAction<TMask, TConfig>?[] _dispatchers;
-    private readonly HashedKey<ImmutableQueryDescription<TMask>>[] _queryDescriptions;
+    private readonly List<SystemMetadata<TMask>> _metadata;
+    private readonly List<SystemRunChunkAction<TMask, TConfig>> _dispatchers;
 
-    internal SystemScheduleBuilder(IWorld<TMask, TConfig> world, int count, int[][] waves)
+    internal SystemScheduleBuilder(IWorld<TMask, TConfig> world)
     {
         _world = world;
-        _waves = waves;
-        _dispatchers = new SystemRunChunkAction<TMask, TConfig>?[count];
-        _queryDescriptions = new HashedKey<ImmutableQueryDescription<TMask>>[count];
+        _metadata = new List<SystemMetadata<TMask>>();
+        _dispatchers = new List<SystemRunChunkAction<TMask, TConfig>>();
     }
 
     /// <summary>Adds a system to the schedule.</summary>
@@ -117,23 +114,40 @@ public readonly struct SystemScheduleBuilder<TMask, TConfig>
     public SystemScheduleBuilder<TMask, TConfig> Add<T>()
         where T : ISystem<TMask, TConfig>, allows ref struct
     {
-        _dispatchers[T.SystemId] = T.RunChunk;
-        _queryDescriptions[T.SystemId] = T.QueryDescription;
+        _metadata.Add(T.Metadata);
+        _dispatchers.Add(T.RunChunk);
         return this;
     }
 
-    /// <summary>Builds a schedule with a custom wave scheduler.</summary>
-    /// <typeparam name="TScheduler">The scheduler type implementing <see cref="IWaveScheduler"/>.</typeparam>
-    /// <returns>A new <see cref="SystemSchedule{TMask,TConfig}"/> using the provided scheduler.</returns>
+    /// <summary>Builds a schedule with the default DAG scheduler and a custom wave scheduler.</summary>
+    /// <typeparam name="TScheduler">The wave scheduler type implementing <see cref="IWaveScheduler"/>.</typeparam>
+    /// <returns>A new <see cref="SystemSchedule{TMask,TConfig}"/>.</returns>
     public SystemSchedule<TMask, TConfig> Build<TScheduler>()
         where TScheduler : IWaveScheduler, new()
-        => Build(new TScheduler());
+        => Build(new DefaultDagScheduler(), new TScheduler());
 
-    /// <summary>Builds a schedule with a custom wave scheduler instance.</summary>
-    /// <param name="scheduler">The scheduler strategy to use for executing work items within each wave.</param>
-    /// <returns>A new <see cref="SystemSchedule{TMask,TConfig}"/> using the provided scheduler.</returns>
+    /// <summary>Builds a schedule with the default DAG scheduler and a custom wave scheduler instance.</summary>
+    /// <param name="scheduler">The wave scheduler strategy to use.</param>
+    /// <returns>A new <see cref="SystemSchedule{TMask,TConfig}"/>.</returns>
     public SystemSchedule<TMask, TConfig> Build(IWaveScheduler scheduler)
+        => Build(new DefaultDagScheduler(), scheduler);
+
+    /// <summary>Builds a schedule with a custom DAG scheduler and wave scheduler.</summary>
+    /// <param name="dag">The DAG scheduler for computing execution waves.</param>
+    /// <param name="scheduler">The wave scheduler strategy to use.</param>
+    /// <returns>A new <see cref="SystemSchedule{TMask,TConfig}"/>.</returns>
+    public SystemSchedule<TMask, TConfig> Build(IDagScheduler dag, IWaveScheduler scheduler)
     {
-        return new SystemSchedule<TMask, TConfig>(_world, _waves, _dispatchers, _queryDescriptions, scheduler);
+        var metadataSpan = CollectionsMarshal.AsSpan(_metadata);
+        var rawWaves = dag.ComputeWaves(metadataSpan);
+        var wavesBuilder = ImmutableArray.CreateBuilder<ImmutableArray<int>>(rawWaves.Length);
+        foreach (var wave in rawWaves)
+            wavesBuilder.Add(ImmutableArray.Create(wave));
+        return new SystemSchedule<TMask, TConfig>(
+            _world,
+            wavesBuilder.MoveToImmutable(),
+            ImmutableArray.Create(_dispatchers.ToArray()),
+            ImmutableArray.Create(_metadata.ToArray()),
+            scheduler);
     }
 }

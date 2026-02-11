@@ -476,9 +476,9 @@ public class SystemGenerator : IIncrementalGenerator
         foreach (var (info, id) in systemsWithIds)
             accessMap[info.FullyQualifiedName] = ComputeComponentAccess(info);
 
-        // Build DAG and waves
+        // Build DAG for compile-time cycle detection only
         var fqnToId = systemsWithIds.ToDictionary(s => s.Info.FullyQualifiedName, s => s.SystemId);
-        var (waves, hasCycle, cycleMembers) = BuildDagAndWaves(systemsWithIds, accessMap, fqnToId);
+        var (hasCycle, cycleMembers) = DetectCycles(systemsWithIds, fqnToId);
 
         if (hasCycle)
         {
@@ -496,7 +496,7 @@ public class SystemGenerator : IIncrementalGenerator
         }
 
         // Generate SystemRegistry
-        GenerateSystemRegistry(context, systemsWithIds, accessMap, waves);
+        GenerateSystemRegistry(context, systemsWithIds, accessMap, fqnToId);
 
         // Generate schedule setup (module initializer, AddAll extension, global using aliases)
         GenerateScheduleSetup(context, systemsWithIds, maskType, configTypeFull, suppressGlobalUsings);
@@ -546,11 +546,10 @@ public class SystemGenerator : IIncrementalGenerator
             withAnyComponents.ToImmutableArray());
     }
 
-    // ===================== DAG & Wave Computation =====================
+    // ===================== Compile-Time Cycle Detection =====================
 
-    private static (int[][] Waves, bool HasCycle, List<string> CycleMembers) BuildDagAndWaves(
+    private static (bool HasCycle, List<string> CycleMembers) DetectCycles(
         List<(SystemInfo Info, int SystemId)> systems,
-        Dictionary<string, ComponentAccess> accessMap,
         Dictionary<string, int> fqnToId)
     {
         int n = systems.Count;
@@ -579,16 +578,16 @@ public class SystemGenerator : IIncrementalGenerator
             }
         }
 
-        // Topological sort (Kahn's algorithm)
+        // Topological sort (Kahn's algorithm) — only checking for cycles
         var queue = new Queue<int>();
         for (int i = 0; i < n; i++)
             if (inDegree[i] == 0) queue.Enqueue(i);
 
-        var topoOrder = new List<int>();
+        int visited = 0;
         while (queue.Count > 0)
         {
             var node = queue.Dequeue();
-            topoOrder.Add(node);
+            visited++;
             foreach (var succ in adj[node])
             {
                 inDegree[succ]--;
@@ -596,64 +595,16 @@ public class SystemGenerator : IIncrementalGenerator
             }
         }
 
-        if (topoOrder.Count != n)
+        if (visited != n)
         {
             var cycleMembers = Enumerable.Range(0, n)
-                .Where(i => !topoOrder.Contains(i))
+                .Where(i => inDegree[i] > 0)
                 .Select(i => systems[i].Info.FullyQualifiedName)
                 .ToList();
-            return (Array.Empty<int[]>(), true, cycleMembers);
+            return (true, cycleMembers);
         }
 
-        // Greedy wave assignment
-        var waveOf = new int[n];
-        for (int i = 0; i < n; i++) waveOf[i] = -1;
-
-        var waveLists = new List<List<int>>();
-        foreach (var node in topoOrder)
-        {
-            int wave = 0;
-            for (int pred = 0; pred < n; pred++)
-            {
-                if (adj[pred].Contains(node) && waveOf[pred] >= 0)
-                    wave = Math.Max(wave, waveOf[pred] + 1);
-            }
-            var nodeAccess = accessMap[systems[node].Info.FullyQualifiedName];
-
-            while (true)
-            {
-                while (waveLists.Count <= wave) waveLists.Add(new List<int>());
-
-                bool hasConflict = false;
-                foreach (var other in waveLists[wave])
-                {
-                    if (HasConflict(nodeAccess, accessMap[systems[other].Info.FullyQualifiedName]))
-                    {
-                        hasConflict = true;
-                        break;
-                    }
-                }
-
-                if (!hasConflict) break;
-                wave++;
-            }
-
-            while (waveLists.Count <= wave) waveLists.Add(new List<int>());
-            waveLists[wave].Add(node);
-            waveOf[node] = wave;
-        }
-
-        var waves = waveLists.Select(w => w.ToArray()).ToArray();
-        return (waves, false, new List<string>());
-    }
-
-    private static bool HasConflict(ComponentAccess a, ComponentAccess b)
-    {
-        foreach (var w in a.WriteComponents)
-            if (b.ReadComponents.Contains(w)) return true;
-        foreach (var w in b.WriteComponents)
-            if (a.ReadComponents.Contains(w)) return true;
-        return false;
+        return (false, new List<string>());
     }
 
     // ===================== Per-System Partial Generation =====================
@@ -696,10 +647,10 @@ public class SystemGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    static int global::Paradise.ECS.ISystem.SystemId => {systemId};");
         sb.AppendLine();
 
-        // QueryDescription
-        sb.AppendLine($"{indent}    /// <summary>The query description for this system's component access pattern.</summary>");
-        sb.AppendLine($"{indent}    static global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<{maskType}>> global::Paradise.ECS.ISystem<{maskType}, {configType}>.QueryDescription");
-        sb.AppendLine($"{indent}        => global::Paradise.ECS.SystemRegistry<{maskType}>.Metadata[{systemId}].QueryDescription;");
+        // Metadata
+        sb.AppendLine($"{indent}    /// <summary>The compile-time metadata for this system.</summary>");
+        sb.AppendLine($"{indent}    static global::Paradise.ECS.SystemMetadata<{maskType}> global::Paradise.ECS.ISystem<{maskType}, {configType}>.Metadata");
+        sb.AppendLine($"{indent}        => global::Paradise.ECS.SystemRegistry<{maskType}>.Metadata[{systemId}];");
         sb.AppendLine();
 
         // Constructor
@@ -886,7 +837,7 @@ public class SystemGenerator : IIncrementalGenerator
         SourceProductionContext context,
         List<(SystemInfo Info, int SystemId)> systems,
         Dictionary<string, ComponentAccess> accessMap,
-        int[][] waves)
+        Dictionary<string, int> fqnToId)
     {
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
@@ -895,20 +846,16 @@ public class SystemGenerator : IIncrementalGenerator
         sb.AppendLine("namespace Paradise.ECS;");
         sb.AppendLine();
         sb.AppendLine("/// <summary>");
-        sb.AppendLine("/// Registry containing metadata and pre-computed execution waves for all system types.");
+        sb.AppendLine("/// Registry containing metadata for all system types.");
         sb.AppendLine("/// </summary>");
         sb.AppendLine("/// <typeparam name=\"TMask\">The component mask type implementing IBitSet.</typeparam>");
         sb.AppendLine("public static class SystemRegistry<TMask>");
         sb.AppendLine("    where TMask : unmanaged, global::Paradise.ECS.IBitSet<TMask>");
         sb.AppendLine("{");
         sb.AppendLine($"    private static readonly global::Paradise.ECS.SystemMetadata<TMask>[] s_metadata;");
-        sb.AppendLine($"    private static readonly int[][] s_waves;");
         sb.AppendLine();
         sb.AppendLine($"    /// <summary>Gets the metadata for all registered systems, indexed by SystemId.</summary>");
         sb.AppendLine($"    public static global::System.ReadOnlySpan<global::Paradise.ECS.SystemMetadata<TMask>> Metadata => s_metadata;");
-        sb.AppendLine();
-        sb.AppendLine($"    /// <summary>Gets the pre-computed execution waves. Systems in the same wave have no component conflicts.</summary>");
-        sb.AppendLine($"    public static int[][] Waves => s_waves;");
         sb.AppendLine();
         sb.AppendLine($"    /// <summary>Gets the total number of registered systems.</summary>");
         sb.AppendLine($"    public static int Count => {systems.Count};");
@@ -944,6 +891,9 @@ public class SystemGenerator : IIncrementalGenerator
             GenerateMask(sb, access.WithAnyComponents);
             sb.AppendLine(";");
 
+            // Compute AfterSystemIds: normalize [After<T>] + reverse [Before<T>] into this system
+            var afterIds = ComputeAfterSystemIds(info, systems, fqnToId);
+
             sb.AppendLine($"        s_metadata[{id}] = new global::Paradise.ECS.SystemMetadata<TMask>");
             sb.AppendLine($"        {{");
             sb.AppendLine($"            SystemId = {id},");
@@ -951,20 +901,50 @@ public class SystemGenerator : IIncrementalGenerator
             sb.AppendLine($"            ReadMask = readMask{id},");
             sb.AppendLine($"            WriteMask = writeMask{id},");
             sb.AppendLine($"            QueryDescription = (global::Paradise.ECS.HashedKey<global::Paradise.ECS.ImmutableQueryDescription<TMask>>)new global::Paradise.ECS.ImmutableQueryDescription<TMask>(allMask{id}, noneMask{id}, anyMask{id}),");
+            if (afterIds.Count > 0)
+                sb.AppendLine($"            AfterSystemIds = global::System.Collections.Immutable.ImmutableArray.Create({string.Join(", ", afterIds)}),");
+            else
+                sb.AppendLine($"            AfterSystemIds = global::System.Collections.Immutable.ImmutableArray<int>.Empty,");
             sb.AppendLine($"        }};");
             sb.AppendLine();
-        }
-
-        sb.AppendLine($"        s_waves = new int[{waves.Length}][];");
-        for (int w = 0; w < waves.Length; w++)
-        {
-            sb.AppendLine($"        s_waves[{w}] = new int[] {{ {string.Join(", ", waves[w])} }};");
         }
 
         sb.AppendLine("    }");
         sb.AppendLine("}");
 
         context.AddSource("SystemRegistry.g.cs", sb.ToString());
+    }
+
+    /// <summary>
+    /// Computes the AfterSystemIds for a given system by collecting:
+    /// 1. Direct [After&lt;T&gt;] attributes on this system → T's ID
+    /// 2. Reverse [Before&lt;T&gt;] attributes on other systems where T == this system → other system's ID
+    /// </summary>
+    private static List<int> ComputeAfterSystemIds(
+        SystemInfo targetInfo,
+        List<(SystemInfo Info, int SystemId)> allSystems,
+        Dictionary<string, int> fqnToId)
+    {
+        var afterIds = new HashSet<int>();
+
+        // Direct [After<T>] on this system
+        foreach (var afterFQN in targetInfo.AfterSystems)
+        {
+            if (fqnToId.TryGetValue(afterFQN, out var depId))
+                afterIds.Add(depId);
+        }
+
+        // Reverse [Before<T>] from other systems targeting this system
+        foreach (var (otherInfo, otherId) in allSystems)
+        {
+            foreach (var beforeFQN in otherInfo.BeforeSystems)
+            {
+                if (beforeFQN == targetInfo.FullyQualifiedName)
+                    afterIds.Add(otherId);
+            }
+        }
+
+        return afterIds.OrderBy(x => x).ToList();
     }
 
     private static void GenerateMask(StringBuilder sb, ImmutableArray<string> components)
@@ -996,9 +976,8 @@ public class SystemGenerator : IIncrementalGenerator
         var scheduleType = $"global::Paradise.ECS.SystemSchedule<{maskType}, {configType}>";
         var builderType = $"global::Paradise.ECS.SystemScheduleBuilder<{maskType}, {configType}>";
         var worldType = $"global::Paradise.ECS.IWorld<{maskType}, {configType}>";
-        var registryType = $"global::Paradise.ECS.SystemRegistry<{maskType}>";
 
-        // Non-generic SystemSchedule class that passes count and waves from SystemRegistry
+        // Non-generic SystemSchedule class that delegates to the generic Create
         sb.AppendLine("namespace Paradise.ECS;");
         sb.AppendLine();
         sb.AppendLine("/// <summary>");
@@ -1006,9 +985,9 @@ public class SystemGenerator : IIncrementalGenerator
         sb.AppendLine("/// </summary>");
         sb.AppendLine("public static class SystemSchedule");
         sb.AppendLine("{");
-        sb.AppendLine("    /// <summary>Creates a schedule builder for the given world using registered system metadata.</summary>");
+        sb.AppendLine("    /// <summary>Creates a schedule builder for the given world.</summary>");
         sb.AppendLine($"    public static {builderType} Create({worldType} world)");
-        sb.AppendLine($"        => {scheduleType}.Create(world, {registryType}.Count, {registryType}.Waves);");
+        sb.AppendLine($"        => {scheduleType}.Create(world);");
         sb.AppendLine("}");
         sb.AppendLine();
 

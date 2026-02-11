@@ -315,12 +315,6 @@ public sealed class SystemTests : IDisposable
     }
 
     [Test]
-    public async Task SystemRegistry_Waves_AreNotEmpty()
-    {
-        await Assert.That(SystemRegistry.Waves.Length).IsGreaterThan(0);
-    }
-
-    [Test]
     public async Task SystemRegistry_Metadata_HasCorrectSystemNames()
     {
         var metadata = SystemRegistry.Metadata;

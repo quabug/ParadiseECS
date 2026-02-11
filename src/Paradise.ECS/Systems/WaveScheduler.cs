@@ -52,8 +52,8 @@ public interface IWaveScheduler
     /// <summary>Executes all work items for a single wave. Must complete before returning.</summary>
     /// <typeparam name="TMask">The component mask type implementing IBitSet.</typeparam>
     /// <typeparam name="TConfig">The world configuration type.</typeparam>
-    /// <param name="items">The work items to execute. The span is only valid for the duration of this call.</param>
-    void Execute<TMask, TConfig>(Span<WorkItem<TMask, TConfig>> items)
+    /// <param name="items">The work items to execute.</param>
+    void Execute<TMask, TConfig>(IReadOnlyList<WorkItem<TMask, TConfig>> items)
         where TMask : unmanaged, IBitSet<TMask>
         where TConfig : IConfig, new();
 }
@@ -62,12 +62,14 @@ public interface IWaveScheduler
 public sealed class SequentialWaveScheduler : IWaveScheduler
 {
     /// <inheritdoc/>
-    public void Execute<TMask, TConfig>(Span<WorkItem<TMask, TConfig>> items)
+    public void Execute<TMask, TConfig>(IReadOnlyList<WorkItem<TMask, TConfig>> items)
         where TMask : unmanaged, IBitSet<TMask>
         where TConfig : IConfig, new()
     {
-        foreach (ref readonly var item in items)
-            item.Invoke();
+        for (int index = 0; index < items.Count; index++)
+        {
+            items[index].Invoke();
+        }
     }
 }
 
@@ -75,18 +77,18 @@ public sealed class SequentialWaveScheduler : IWaveScheduler
 public sealed class ParallelWaveScheduler : IWaveScheduler
 {
     /// <inheritdoc/>
-    public void Execute<TMask, TConfig>(Span<WorkItem<TMask, TConfig>> items)
+    public void Execute<TMask, TConfig>(IReadOnlyList<WorkItem<TMask, TConfig>> items)
         where TMask : unmanaged, IBitSet<TMask>
         where TConfig : IConfig, new()
     {
-        switch (items.Length)
+        switch (items.Count)
         {
             case 0: return;
             case 1:
                 items[0].Invoke();
                 return;
             default:
-                System.Threading.Tasks.Parallel.ForEach(items.ToArray(), static item => item.Invoke());
+                Parallel.ForEach(items, static item => item.Invoke());
                 return;
         }
     }
