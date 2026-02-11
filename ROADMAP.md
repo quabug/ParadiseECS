@@ -1,6 +1,6 @@
 # Paradise.ECS Roadmap
 
-> Last updated: 2026-01-26
+> Last updated: 2026-02-11
 
 ## Vision
 
@@ -121,13 +121,16 @@ Paradise.ECS is a high-performance Entity Component System library for .NET 10, 
   - `ArchetypeRegistry.CopyFrom()` for archetype state synchronization
   - Self-copy validation and comprehensive test coverage
 
-### In Progress
+- [x] **System Scheduling** ([#49](https://github.com/quabug/ParadiseECS/pull/49))
+  - System base class/interface (`IEntitySystem`, `IChunkSystem`)
+  - Query iteration patterns with source-generated dispatch
+  - Runtime DAG resolution with pluggable `IDagScheduler`
+  - Dependency management via `[After<T>]`/`[Before<T>]` attributes
+  - `IWaveScheduler` for sequential/parallel execution strategies
+  - Access mask generation for read/write conflict detection
+  - Optional and QueryOnly component support in access masks
 
-- [~] **System Scheduling** (feature/system)
-  - System base class/interface
-  - Query iteration patterns
-  - System execution ordering
-  - Dependency management between systems
+### In Progress
 
 ### Planned
 
@@ -316,6 +319,7 @@ Minor TODOs in codebase:
 
 ### Recent Activity
 
+- **2026-02-11**: Merged [#49](https://github.com/quabug/ParadiseECS/pull/49) - Add system scheduling with runtime DAG resolution
 - **2026-01-26**: Merged [#47](https://github.com/quabug/ParadiseECS/pull/47) - Refactor queryable pattern with generic QueryResult and simplified APIs
 - **2026-01-24**: Merged [#45](https://github.com/quabug/ParadiseECS/pull/45) - Add World.CopyFrom() for cloning world state between shared worlds
 - **2026-01-24**: Merged [#42](https://github.com/quabug/ParadiseECS/pull/42) - Refactor TMask generic parameter and add SharedWorld for multi-world support
